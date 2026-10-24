@@ -29,6 +29,7 @@ desktop.ini
 # logs
 *.log
 npm-debug.log*
+.playwright-mcp/
 
 # env
 .env
