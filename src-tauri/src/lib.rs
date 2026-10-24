@@ -1,0 +1,51 @@
+mod commands;
+mod db;
+mod models;
+mod scanner;
+
+use std::sync::Mutex;
+use tauri::Manager;
+
+pub struct AppState {
+    pub db: Mutex<rusqlite::Connection>,
+    pub app_dir: std::path::PathBuf,
+}
+
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
+pub fn run() {
+    tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_shell::init())
+        .setup(|app| {
+            let app_dir = app.path().app_data_dir()?;
+            let conn = db::init(&app_dir)?;
+            app.manage(AppState {
+                db: Mutex::new(conn),
+                app_dir,
+            });
+            Ok(())
+        })
+        .invoke_handler(tauri::generate_handler![
+            commands::bootstrap,
+            commands::get_snapshot,
+            commands::scan_library,
+            commands::add_folder,
+            commands::remove_folder,
+            commands::create_playlist,
+            commands::rename_playlist,
+            commands::delete_playlist,
+            commands::add_to_playlist,
+            commands::remove_from_playlist,
+            commands::reorder_playlist,
+            commands::toggle_favorite,
+            commands::hide_track,
+            commands::restore_track,
+            commands::set_track_cover,
+            commands::clear_track_cover,
+            commands::set_background,
+            commands::clear_background,
+        ])
+        .run(tauri::generate_context!())
+        .expect("error while running tauri application");
+}
