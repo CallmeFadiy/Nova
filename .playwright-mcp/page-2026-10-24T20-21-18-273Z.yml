@@ -1,0 +1,218 @@
+- generic [ref=f6e2]:
+  - complementary [ref=f6e3]:
+    - generic [ref=f6e4]:
+      - generic [ref=f6e8]: Cadence
+      - generic [ref=f6e9]: v0.1
+    - navigation [ref=f6e10]:
+      - generic [ref=f6e11]: Библиотека
+      - link "Обзор" [ref=f6e12] [cursor=pointer]:
+        - /url: "#"
+      - link "Все треки 4" [ref=f6e15] [cursor=pointer]:
+        - /url: "#"
+        - text: Все треки
+        - generic [ref=f6e18]: "4"
+      - link "Альбомы 4" [ref=f6e19] [cursor=pointer]:
+        - /url: "#"
+        - text: Альбомы
+        - generic [ref=f6e22]: "4"
+      - link "Папки 1" [ref=f6e23] [cursor=pointer]:
+        - /url: "#"
+        - text: Папки
+        - generic [ref=f6e26]: "1"
+      - link "Избранное 2" [ref=f6e27] [cursor=pointer]:
+        - /url: "#"
+        - text: Избранное
+        - generic [ref=f6e30]: "2"
+      - link "Плейлисты 3" [ref=f6e31] [cursor=pointer]:
+        - /url: "#"
+        - text: Плейлисты
+        - generic [ref=f6e34]: "3"
+      - generic [ref=f6e35]: Источники
+      - generic [ref=f6e36]:
+        - generic [ref=f6e37]:
+          - text: Music
+          - generic [ref=f6e40]: "4"
+        - generic [ref=f6e41]:
+          - text: Downloads
+          - generic [ref=f6e44]: "0"
+        - generic [ref=f6e45]: Добавить папку
+    - generic [ref=f6e48]:
+      - generic [ref=f6e49]:
+        - generic [ref=f6e50]: Индекс актуален
+        - generic [ref=f6e51]: Сканирование · сегодня, 21:42
+      - generic [ref=f6e54]: Настройки
+      - generic [ref=f6e57]:
+        - text: Загрузки
+        - generic [ref=f6e60]: "0"
+  - main [ref=f6e61]:
+    - generic [ref=f6e62]:
+      - generic [ref=f6e63]: Локальная библиотека · 4 трека · 38,2 МБ
+      - generic [ref=f6e65]:
+        - button "Распознать" [ref=f6e66]
+        - button "Импорт ссылки" [ref=f6e69]
+        - button "Сканировать" [ref=f6e72]
+    - generic [ref=f6e75]:
+      - generic [ref=f6e76]:
+        - heading "Библиотека" [level=1] [ref=f6e77]
+        - generic [ref=f6e78]:
+          - generic [ref=f6e79]: 4 трека
+          - generic [ref=f6e81]: 4 альбома
+          - generic [ref=f6e83]: файлы MP3
+          - generic [ref=f6e85]: обновлено 21:42
+      - generic [ref=f6e86]:
+        - generic [ref=f6e87]: Найти трек, артиста, альбом
+        - button "По исполнителю" [ref=f6e90]
+    - generic [ref=f6e95]:
+      - generic [ref=f6e96]:
+        - generic [ref=f6e97]: Сейчас играет
+        - generic [ref=f6e103]: Ван Хельсинг
+        - generic [ref=f6e104]: Norma Tale · из папки Music
+      - generic [ref=f6e106]:
+        - generic [ref=f6e107]: 1:24
+        - generic [ref=f6e108]: Ван Хельсинг · MP3 320 kbps
+        - generic [ref=f6e109]: 3:41
+    - generic [ref=f6e592]:
+      - generic [ref=f6e593]:
+        - text: Все треки
+        - generic [ref=f6e594]: "4"
+      - generic [ref=f6e595]:
+        - text: Альбомы
+        - generic [ref=f6e596]: "4"
+      - generic [ref=f6e597]:
+        - text: Папки
+        - generic [ref=f6e598]: "1"
+      - generic [ref=f6e599]:
+        - text: Плейлисты
+        - generic [ref=f6e600]: "3"
+      - generic [ref=f6e601]:
+        - text: Избранное
+        - generic [ref=f6e602]: "2"
+      - generic [ref=f6e603]: Показано 4 из 4
+    - table [ref=f6e604]:
+      - rowgroup [ref=f6e605]:
+        - row [ref=f6e606]:
+          - columnheader "Трек" [ref=f6e607]
+          - columnheader "Альбом" [ref=f6e608]
+          - columnheader "Папка" [ref=f6e609]
+          - columnheader "Время" [ref=f6e610]
+          - columnheader "Формат" [ref=f6e611]
+          - columnheader [ref=f6e612]
+      - rowgroup [ref=f6e613]:
+        - row [ref=f6e614]:
+          - cell "Ван Хельсинг Norma Tale" [ref=f6e615]:
+            - generic [ref=f6e621]:
+              - generic [ref=f6e622]: Ван Хельсинг
+              - generic [ref=f6e623]: Norma Tale
+          - cell "Ван Хельсинг" [ref=f6e624]
+          - cell "Music" [ref=f6e625]
+          - cell "3:41" [ref=f6e626]
+          - cell "MP3" [ref=f6e627]
+          - cell [ref=f6e628]
+        - row [ref=f6e634]:
+          - cell "Инкуб Sacrothorn feat. Marie Steiner" [ref=f6e635]:
+            - generic [ref=f6e642]:
+              - generic [ref=f6e643]: Инкуб
+              - generic [ref=f6e644]: Sacrothorn feat. Marie Steiner
+          - cell "Инкуб" [ref=f6e645]
+          - cell "Music" [ref=f6e646]
+          - cell "2:38" [ref=f6e647]
+          - cell "MP3" [ref=f6e648]
+          - cell [ref=f6e649]
+        - row [ref=f6e655]:
+          - cell "Bride of Despair I the first berserker khazan" [ref=f6e656]:
+            - generic [ref=f6e663]:
+              - generic [ref=f6e664]: Bride of Despair I
+              - generic [ref=f6e665]: the first berserker khazan
+          - cell "Bride of Despair" [ref=f6e666]
+          - cell "Music" [ref=f6e667]
+          - cell "4:17" [ref=f6e668]
+          - cell "MP3" [ref=f6e669]
+          - cell [ref=f6e670]
+        - row [ref=f6e676]:
+          - cell "Декарта asper x квадрат" [ref=f6e677]:
+            - generic [ref=f6e684]:
+              - generic [ref=f6e685]: Декарта
+              - generic [ref=f6e686]: asper x квадрат
+          - cell "Декарта" [ref=f6e687]
+          - cell "Music" [ref=f6e688]
+          - cell "4:11" [ref=f6e689]
+          - cell "MP3" [ref=f6e690]
+          - cell [ref=f6e691]
+    - generic [ref=f6e697]: Перетащите аудиофайлы сюда или добавьте папку — они появятся в библиотеке
+    - generic [ref=f6e701]:
+      - generic [ref=f6e716]:
+        - generic [ref=f6e717]: Ночная смена
+        - generic [ref=f6e718]: 3 трека · 11 мин · плейлист
+      - generic [ref=f6e733]:
+        - generic [ref=f6e734]: Для работы
+        - generic [ref=f6e735]: 2 трека · 7 мин · плейлист
+      - generic [ref=f6e750]:
+        - generic [ref=f6e751]: Избранное
+        - generic [ref=f6e752]: 2 трека · автоальбом
+      - generic [ref=f6e753]: Новый плейлист
+    - generic [ref=f6e756]:
+      - generic [ref=f6e757]:
+        - generic [ref=f6e758]: Источники и загрузки
+        - generic [ref=f6e759]: Автосканирование при запуске · включено
+      - generic [ref=f6e760]:
+        - generic [ref=f6e761]:
+          - generic [ref=f6e764]:
+            - generic [ref=f6e765]: Music
+            - generic [ref=f6e766]: 4 трека · 38,2 МБ · сегодня
+          - button "Сканировать" [ref=f6e767]
+        - generic [ref=f6e768]:
+          - generic [ref=f6e771]:
+            - generic [ref=f6e772]: Downloads
+            - generic [ref=f6e773]: 0 треков · пусто
+          - button "Добавить" [ref=f6e774]
+        - generic [ref=f6e775]:
+          - textbox [ref=f6e778]: "Ссылка на плейлист: Spotify, VK, Яндекс"
+          - button "Разобрать" [ref=f6e779]
+  - complementary [ref=f6e780]:
+    - heading "СЕЙЧАС ИГРАЕТ" [level=3] [ref=f6e782]
+    - img [ref=f6e785]:
+      - generic [ref=f6e790]: NORMA TALE
+      - generic [ref=f6e791]: Ван Хельсинг
+    - generic [ref=f6e792]: Ван Хельсинг
+    - generic [ref=f6e793]: Norma Tale
+    - generic [ref=f6e794]: Ван Хельсинг · 2024 · MP3 320
+    - generic [ref=f6e795]:
+      - generic [ref=f6e796]: 1:24
+      - generic [ref=f6e800]: 3:41
+    - generic [ref=f6e801]:
+      - generic [ref=f6e802]:
+        - heading "Эквалайзер" [level=4] [ref=f6e803]
+        - generic [ref=f6e804]: Тёплый ламповый
+      - generic [ref=f6e807]:
+        - generic [ref=f6e808]: "60"
+        - generic [ref=f6e812]: "230"
+        - generic [ref=f6e816]: "910"
+        - generic [ref=f6e820]: 3.6k
+        - generic [ref=f6e824]: 7k
+        - generic [ref=f6e828]: 14k
+      - generic [ref=f6e832]:
+        - generic [ref=f6e833]: +2 dB · предусиление 0
+        - button "Свои пресеты" [ref=f6e834]
+    - generic [ref=f6e835]:
+      - generic [ref=f6e836]:
+        - heading "Далее в очереди" [level=4] [ref=f6e837]
+        - generic [ref=f6e838]: перемешано
+      - generic [ref=f6e844]:
+        - generic [ref=f6e845]: Ван Хельсинг
+        - generic [ref=f6e846]: Norma Tale
+      - generic [ref=f6e854]:
+        - generic [ref=f6e855]: Декарта
+        - generic [ref=f6e856]: asper x квадрат
+      - generic [ref=f6e865]:
+        - generic [ref=f6e866]: Bride of Despair I
+        - generic [ref=f6e867]: the first berserker khazan
+  - generic [ref=f6e870]:
+    - generic [ref=f6e876]:
+      - generic [ref=f6e877]: Ван Хельсинг
+      - generic [ref=f6e878]: Norma Tale · Ван Хельсинг
+    - generic [ref=f6e894]:
+      - generic [ref=f6e895]: 1:24
+      - generic [ref=f6e899]: 3:41
+    - generic [ref=f6e900]:
+      - generic [ref=f6e901]: MP3 320
+      - generic [ref=f6e902]: 78%

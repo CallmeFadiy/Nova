@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Эскизы иконки — медиаплеер</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600&family=Prata&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{background:#17171A;color:#E9E7E1;font-family:"Golos Text",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+  .sheet{width:1400px;min-height:1000px;margin:0 auto;padding:46px 54px 40px;background:#17171A}
+  .top{display:flex;align-items:flex-end;justify-content:space-between;border-bottom:1px solid #2C2C31;padding-bottom:22px;margin-bottom:28px}
+  .top h1{font-family:Prata,Georgia,serif;font-weight:400;font-size:38px;margin:0;letter-spacing:-.01em}
+  .top p{margin:7px 0 0;font-size:12.5px;color:#8F8B83;max-width:560px;line-height:1.5}
+  .top .meta{font-size:10.5px;color:#6E6A63;text-align:right;line-height:1.7}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  .card{border:1px solid #2C2C31;background:#1D1D21;padding:22px 24px 18px;display:grid;grid-template-columns:236px 1fr;gap:24px;min-height:236px}
+  .icon-wrap{width:236px;height:236px;background:#26262B;border-radius:52px;overflow:hidden}
+  .icon-wrap img{display:block;width:100%;height:100%}
+  .body{display:flex;flex-direction:column;min-width:0}
+  .kicker{font-size:10px;color:#E3A857;letter-spacing:.04em;margin-bottom:7px}
+  .body h2{font-family:Prata,Georgia,serif;font-weight:400;font-size:24px;margin:0 0 4px}
+  .body .sub{font-size:11px;color:#8F8B83;line-height:1.5;max-width:330px;margin-bottom:12px}
+  .sizes{display:flex;align-items:flex-end;gap:18px;margin-top:auto}
+  .size{display:flex;flex-direction:column;align-items:center;gap:6px}
+  .size .box{background:#26262B;border-radius:22%;display:grid;place-items:center;overflow:hidden}
+  .size .box img{display:block;width:100%;height:100%}
+  .size .lab{font-size:8.5px;color:#6E6A63}
+  .light{display:flex;align-items:center;gap:10px;margin-top:10px;padding-top:10px;border-top:1px solid #29292E}
+  .light .lbl{font-size:8.5px;color:#6E6A63;width:58px}
+  .light .box{background:#F2F1EC;border-radius:22%;display:grid;place-items:center;overflow:hidden}
+  .light .box img{display:block;width:100%;height:100%}
+  .foot{display:flex;align-items:center;justify-content:space-between;margin-top:22px;font-size:10px;color:#6E6A63}
+  .swatches{display:flex;gap:6px;align-items:center}
+  .sw{width:10px;height:10px;border-radius:2px}
+</style>
+</head>
+<body>
+<div class="sheet">
+  <div class="top">
+    <div>
+      <h1>Четыре эскиза иконки</h1>
+      <p>Один объект, один акцент, читаемость от 512 до 16 px. Фон — тёмный графит, как в направлениях B и C. Выбранный эскиз доведу до Windows .ico, Android adaptive icon и favicon.</p>
+    </div>
+    <div class="meta">SVG 1024 × 1024<br>Palette: #26262B / #E8E8EA / #E3A857</div>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <div class="icon-wrap"><img src="../../icon-design/prism.svg" alt="Призма"></div>
+      <div class="body">
+        <div class="kicker">01 · современный</div>
+        <h2>Призма</h2>
+        <div class="sub">Один поток звука раскладывается на жанры и папки. Луч — акцент, призма — библиотека.</div>
+        <div class="sizes">
+          <div class="size"><div class="box" style="width:64px;height:64px"><img src="../../icon-design/prism.svg" alt=""></div><div class="lab">64</div></div>
+          <div class="size"><div class="box" style="width:32px;height:32px"><img src="../../icon-design/prism.svg" alt=""></div><div class="lab">32</div></div>
+          <div class="size"><div class="box" style="width:16px;height:16px"><img src="../../icon-design/prism.svg" alt=""></div><div class="lab">16</div></div>
+        </div>
+        <div class="light"><div class="lbl">на светлом</div><div class="box" style="width:34px;height:34px"><img src="../../icon-design/prism.svg" alt=""></div><div class="box" style="width:24px;height:24px"><img src="../../icon-design/prism.svg" alt=""></div><div class="box" style="width:16px;height:16px"><img src="../../icon-design/prism.svg" alt=""></div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="icon-wrap"><img src="../../icon-design/reel.svg" alt="Катушка"></div>
+      <div class="body">
+        <div class="kicker">02 · тёплый</div>
+        <h2>Катушка</h2>
+        <div class="sub">Аналоговая лента и домашняя коллекция. Две катушки и янтарная лента — один силуэт.</div>
+        <div class="sizes">
+          <div class="size"><div class="box" style="width:64px;height:64px"><img src="../../icon-design/reel.svg" alt=""></div><div class="lab">64</div></div>
+          <div class="size"><div class="box" style="width:32px;height:32px"><img src="../../icon-design/reel.svg" alt=""></div><div class="lab">32</div></div>
+          <div class="size"><div class="box" style="width:16px;height:16px"><img src="../../icon-design/reel.svg" alt=""></div><div class="lab">16</div></div>
+        </div>
+        <div class="light"><div class="lbl">на светлом</div><div class="box" style="width:34px;height:34px"><img src="../../icon-design/reel.svg" alt=""></div><div class="box" style="width:24px;height:24px"><img src="../../icon-design/reel.svg" alt=""></div><div class="box" style="width:16px;height:16px"><img src="../../icon-design/reel.svg" alt=""></div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="icon-wrap"><img src="../../icon-design/metronome.svg" alt="Метроном"></div>
+      <div class="body">
+        <div class="kicker">03 · характерный</div>
+        <h2>Метроном</h2>
+        <div class="sub">Ритм и точность для десктопного пульта. Тяжёлая трапеция, окно и янтарный маятник.</div>
+        <div class="sizes">
+          <div class="size"><div class="box" style="width:64px;height:64px"><img src="../../icon-design/metronome.svg" alt=""></div><div class="lab">64</div></div>
+          <div class="size"><div class="box" style="width:32px;height:32px"><img src="../../icon-design/metronome.svg" alt=""></div><div class="lab">32</div></div>
+          <div class="size"><div class="box" style="width:16px;height:16px"><img src="../../icon-design/metronome.svg" alt=""></div><div class="lab">16</div></div>
+        </div>
+        <div class="light"><div class="lbl">на светлом</div><div class="box" style="width:34px;height:34px"><img src="../../icon-design/metronome.svg" alt=""></div><div class="box" style="width:24px;height:24px"><img src="../../icon-design/metronome.svg" alt=""></div><div class="box" style="width:16px;height:16px"><img src="../../icon-design/metronome.svg" alt=""></div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="icon-wrap"><img src="../../icon-design/chime.svg" alt="Колокол"></div>
+      <div class="body">
+        <div class="kicker">04 · собранный</div>
+        <h2>Колокол</h2>
+        <div class="sub">Три трубы — папки, альбомы и плейлисты, звучащие вместе. Янтарный шарик — акцент.</div>
+        <div class="sizes">
+          <div class="size"><div class="box" style="width:64px;height:64px"><img src="../../icon-design/chime.svg" alt=""></div><div class="lab">64</div></div>
+          <div class="size"><div class="box" style="width:32px;height:32px"><img src="../../icon-design/chime.svg" alt=""></div><div class="lab">32</div></div>
+          <div class="size"><div class="box" style="width:16px;height:16px"><img src="../../icon-design/chime.svg" alt=""></div><div class="lab">16</div></div>
+        </div>
+        <div class="light"><div class="lbl">на светлом</div><div class="box" style="width:34px;height:34px"><img src="../../icon-design/chime.svg" alt=""></div><div class="box" style="width:24px;height:24px"><img src="../../icon-design/chime.svg" alt=""></div><div class="box" style="width:16px;height:16px"><img src="../../icon-design/chime.svg" alt=""></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="foot">
+    <div>Финальную иконку можно перекрасить под выбранное направление: кобальт A · янтарь B · синий C.</div>
+    <div class="swatches"><span>акценты</span><span class="sw" style="background:#1F44E0"></span><span class="sw" style="background:#D9A441"></span><span class="sw" style="background:#5B8CFF"></span></div>
+  </div>
+</div>
+</body>
+</html>

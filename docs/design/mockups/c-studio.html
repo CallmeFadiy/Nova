@@ -1,0 +1,522 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Cadence — направление C · студийная консоль</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700&family=Unbounded:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0E0F11;
+    --panel:#141619;
+    --panel-2:#171A1E;
+    --line:#24272C;
+    --line-soft:#1D2024;
+    --ink:#E9EBEE;
+    --muted:#8B9098;
+    --faint:#5E636B;
+    --accent:#5B8CFF;
+    --accent-soft:#17233C;
+    --accent-line:#2D4C86;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{background:#000;font-family:"Golos Text",system-ui,sans-serif;color:var(--ink);-webkit-font-smoothing:antialiased}
+  .app{width:1440px;height:900px;margin:0 auto;background:var(--bg);display:grid;grid-template-columns:216px minmax(0,1fr) 336px;grid-template-rows:1fr 76px;overflow:hidden}
+  .i{width:17px;height:17px;stroke:currentColor;fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;flex:none}
+  .i.fill{fill:currentColor;stroke:none}
+  .display{font-family:Unbounded,system-ui,sans-serif;font-weight:400}
+
+  /* sidebar */
+  .sidebar{grid-column:1;grid-row:1;border-right:1px solid var(--line-soft);padding:22px 12px 16px;display:flex;flex-direction:column;min-height:0}
+  .brand{display:flex;align-items:center;gap:9px;padding:0 10px 22px}
+  .brand .mark{width:26px;height:26px;background:var(--accent);display:grid;place-items:center}
+  .brand .mark svg{width:14px;height:14px}
+  .brand .name{font-family:Unbounded;font-size:14px;letter-spacing:-.01em}
+  .brand .ver{font-size:8px;color:var(--faint);border:1px solid var(--line);padding:1px 4px;margin-left:auto}
+  .nav{display:flex;flex-direction:column;gap:1px}
+  .group-label{font-size:10px;color:var(--faint);padding:14px 10px 6px}
+  .nav-item{display:flex;align-items:center;gap:10px;height:32px;padding:0 10px;font-size:12px;color:#A8ADB5;text-decoration:none;position:relative}
+  .nav-item .i{width:15px;height:15px;color:#6A7078}
+  .nav-item .count{margin-left:auto;font-size:9.5px;color:var(--faint)}
+  .nav-item.active{background:var(--accent-soft);color:var(--ink)}
+  .nav-item.active .i{color:var(--accent)}
+  .nav-item.active:before{content:"";position:absolute;left:0;top:6px;bottom:6px;width:2px;background:var(--accent)}
+  .sources{margin-top:8px;border-top:1px solid var(--line-soft);padding-top:8px}
+  .src-row{display:flex;align-items:center;gap:8px;height:26px;padding:0 10px;font-size:10.5px;color:#9CA1A9}
+  .src-row .i{width:13px;height:13px;color:#626871}
+  .src-row .n{margin-left:auto;font-size:9px;color:var(--faint)}
+  .src-row.add{color:var(--accent)}
+  .src-row.add .i{color:var(--accent)}
+  .sidebar-foot{margin-top:auto;padding:0 4px}
+  .scan-state{border:1px solid var(--line-soft);background:var(--panel);padding:9px 10px;margin-bottom:8px}
+  .scan-state b{display:block;font-size:10px;font-weight:500;color:#C8CCD3}
+  .scan-state span{display:block;font-size:8.5px;color:var(--faint);margin-top:3px}
+  .scan-line{height:2px;background:#23262B;margin-top:8px}
+  .scan-line i{display:block;height:2px;width:100%;background:var(--accent)}
+  .foot-row{display:flex;align-items:center;gap:8px;height:30px;padding:0 8px;font-size:11px;color:#8B9098}
+
+  /* main */
+  .main{grid-column:2;grid-row:1;padding:20px 26px 18px;min-width:0;display:flex;flex-direction:column;min-height:0}
+  .topline{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+  .sync{display:flex;align-items:center;gap:7px;font-size:9.5px;color:var(--faint)}
+  .sync .dot{width:5px;height:5px;border-radius:50%;background:#4CC38A}
+  .top-actions{display:flex;align-items:center;gap:6px}
+  .btn-ghost{height:30px;border:1px solid var(--line);background:transparent;color:#B6BBC3;font-family:"Golos Text";font-size:10.5px;padding:0 10px;display:flex;align-items:center;gap:6px}
+  .btn-ghost .i{width:13px;height:13px}
+  .btn-accent{height:30px;border:1px solid var(--accent-line);background:var(--accent-soft);color:#C9D8FF;font-family:"Golos Text";font-size:10.5px;padding:0 11px;display:flex;align-items:center;gap:6px}
+  .btn-accent .i{width:13px;height:13px;color:var(--accent)}
+  .title-row{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:16px}
+  h1{margin:0;font-size:27px;line-height:1.1;letter-spacing:-.03em}
+  .subline{font-size:10.5px;color:var(--muted);margin-top:7px;display:flex;align-items:center;gap:7px}
+  .subline i{width:2px;height:2px;background:#4E545C;border-radius:50%}
+  .title-tools{display:flex;align-items:center;gap:8px;padding-bottom:2px}
+  .search{height:30px;width:200px;border:1px solid var(--line);background:var(--panel);display:flex;align-items:center;gap:7px;padding:0 9px;font-size:10.5px;color:var(--faint)}
+  .search .i{width:13px;height:13px}
+  .sort-btn{height:30px;border:1px solid var(--line);background:var(--panel);color:#AFB4BC;font-family:"Golos Text";font-size:10.5px;padding:0 9px;display:flex;align-items:center;gap:6px}
+  .sort-btn .i{width:12px;height:12px;color:var(--faint)}
+
+  .wave-panel{height:94px;background:var(--panel);border:1px solid var(--line-soft);display:grid;grid-template-columns:224px minmax(0,1fr);flex:none;margin-bottom:14px}
+  .wave-left{padding:12px 14px;border-right:1px solid var(--line-soft);display:flex;flex-direction:column;justify-content:center}
+  .wave-left .lbl{font-size:9px;color:var(--accent);display:flex;align-items:center;gap:6px}
+  .wave-left .lbl .eq{display:flex;align-items:flex-end;gap:1.5px;height:8px}
+  .wave-left .eq i{display:block;width:2px;background:var(--accent)}
+  .wave-left .eq i:nth-child(1){height:3px}.wave-left .eq i:nth-child(2){height:8px}.wave-left .eq i:nth-child(3){height:5px}.wave-left .eq i:nth-child(4){height:7px}
+  .wave-left b{display:block;font-size:13px;font-weight:600;margin-top:7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .wave-left span{display:block;font-size:9.5px;color:var(--muted);margin-top:2px}
+  .wave-right{padding:10px 14px 6px;display:flex;flex-direction:column;min-width:0}
+  .wave-meta{display:flex;align-items:center;justify-content:space-between;font-size:8.5px;color:var(--faint);font-variant-numeric:tabular-nums}
+  .wave-meta .mid{color:#7A8088}
+  .waveform{flex:1;position:relative;display:flex;align-items:center;gap:2px;overflow:hidden;padding-top:4px}
+  .waveform i{display:block;flex:none;width:3px;background:#2A3E63;min-height:2px;border-radius:1px}
+  .waveform i.on{background:var(--accent)}
+  .waveform .head{position:absolute;top:0;bottom:0;left:34%;width:1px;background:#D7E2FF;opacity:.9}
+  .waveform .head:after{content:"";position:absolute;top:-1px;left:-2.5px;width:6px;height:6px;background:#D7E2FF}
+
+  .tabs{display:flex;align-items:center;gap:20px;border-bottom:1px solid var(--line);height:34px;flex:none}
+  .tab{font-size:11px;color:var(--faint);position:relative;height:34px;display:flex;align-items:center}
+  .tab.active{color:var(--ink)}
+  .tab.active:after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--accent)}
+  .tab .num{font-size:8.5px;color:var(--faint);margin-left:5px}
+  .tab-spacer{flex:1}
+  .view-count{font-size:9px;color:var(--faint)}
+
+  .track-table{width:100%;border-collapse:collapse;table-layout:fixed;margin-top:4px}
+  .track-table th{text-align:left;font-weight:400;font-size:9px;color:var(--faint);padding:7px 6px;border-bottom:1px solid var(--line-soft)}
+  .track-table th:first-child{padding-left:8px}
+  .track-table td{padding:6px;border-bottom:1px solid #191C20;font-size:11px;vertical-align:middle}
+  .track-table th:nth-child(1){width:42%}.track-table th:nth-child(2){width:20%}.track-table th:nth-child(3){width:13%}.track-table th:nth-child(4){width:9%}.track-table th:nth-child(5){width:8%}.track-table th:nth-child(6){width:8%;text-align:right}
+  .tcell{display:flex;align-items:center;gap:10px;min-width:0}
+  .tcell .thumb{width:34px;height:34px;flex:none;position:relative}
+  .tcell .thumb:after{content:"";position:absolute;inset:0;box-shadow:inset 0 0 0 1px rgba(255,255,255,.07)}
+  .tcell .tx{min-width:0}
+  .tcell .tx b{display:block;font-size:11.5px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .tcell .tx span{display:block;font-size:9.5px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .td-muted{color:var(--muted);font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .dur{color:var(--muted);font-size:10px;font-variant-numeric:tabular-nums}
+  .fmt{font-size:8px;color:#8E949C;border:1px solid #2B2F35;padding:2px 4px;letter-spacing:.03em}
+  .tend{display:flex;align-items:center;justify-content:flex-end;gap:11px}
+  .tend .i{width:13px;height:13px;color:#545A62}
+  .tend .i.liked{color:var(--accent);fill:var(--accent);stroke:var(--accent)}
+  tr.now td{background:#131926}
+  tr.now td:first-child{box-shadow:inset 2px 0 0 var(--accent)}
+  tr.now .tx b{color:#DCE7FF}
+  tr.hover td{background:#16191D}
+
+  .drop-row{padding-top:8px}
+  .drop-zone{height:42px;border:1px dashed #262A30;display:flex;align-items:center;justify-content:center;gap:7px;font-size:9.5px;color:var(--faint)}
+  .drop-zone .i{width:13px;height:13px}
+
+  .bottom-block{margin-top:16px;display:grid;grid-template-columns:1fr 1fr 1fr 168px;gap:10px;flex:none}
+  .pl-card{height:78px;border:1px solid var(--line-soft);background:var(--panel);display:flex;align-items:center;gap:11px;padding:10px;min-width:0}
+  .pl-mosaic{width:56px;height:56px;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:1px;flex:none;background:#0B0C0E}
+  .pl-mosaic svg{width:100%;height:100%}
+  .pl-card .pc-t{min-width:0}
+  .pl-card b{display:block;font-size:10.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .pl-card span{display:block;font-size:8.5px;color:var(--faint);margin-top:3px}
+  .pl-add{height:78px;border:1px dashed #2C3037;display:flex;align-items:center;justify-content:center;gap:7px;font-size:10px;color:var(--muted)}
+  .pl-add .i{width:14px;height:14px}
+
+  .source-panel{margin-top:14px;border:1px solid var(--line-soft);background:var(--panel);padding:11px 12px;flex:none}
+  .sp-head{display:flex;align-items:center;justify-content:space-between;font-size:9px;color:var(--faint);margin-bottom:8px}
+  .sp-head b{font-size:9.5px;font-weight:500;color:#B9BEC6}
+  .sp-grid{display:grid;grid-template-columns:1fr 1fr 1.25fr;gap:8px}
+  .sp-folder{height:50px;border:1px solid var(--line-soft);background:#111317;display:flex;align-items:center;gap:8px;padding:0 9px;min-width:0}
+  .sp-folder .i{width:13px;height:13px;color:#6A7078;flex:none}
+  .sp-folder .spt{min-width:0}
+  .sp-folder b{display:block;font-size:9.5px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .sp-folder span{display:block;font-size:8px;color:var(--faint);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .sp-folder button{margin-left:auto;background:none;border:0;color:var(--accent);font-family:"Golos Text";font-size:8px;padding:2px}
+  .sp-link{height:50px;border:1px solid var(--line-soft);background:#111317;display:flex;align-items:center;padding:0 4px 0 9px;gap:6px;min-width:0}
+  .sp-link .i{width:12px;height:12px;color:#6A7078;flex:none}
+  .sp-link input{border:0;background:none;color:var(--faint);font-family:"Golos Text";font-size:8.5px;min-width:0;flex:1;outline:none}
+  .sp-link button{height:30px;background:var(--accent);border:0;color:#0A1526;font-family:"Golos Text";font-size:8.5px;font-weight:600;padding:0 9px;white-space:nowrap}
+
+  /* right rail */
+  .rail{grid-column:3;grid-row:1;border-left:1px solid var(--line-soft);padding:18px 18px 14px;display:flex;flex-direction:column;min-height:0;overflow:hidden}
+  .rail-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:11px}
+  .rail-head h3{font-size:10px;font-weight:500;color:var(--muted);margin:0}
+  .rail-head .i{width:14px;height:14px;color:var(--faint)}
+  .now-cover{width:100%;height:299px;flex:none;position:relative;background:#0B0C0E;overflow:hidden}
+  .now-cover:after{content:"";position:absolute;inset:0;box-shadow:inset 0 0 0 1px rgba(255,255,255,.08)}
+  .now-title{font-size:16px;font-weight:600;margin:11px 0 2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .now-artist{font-size:10px;color:var(--muted)}
+  .now-album{font-size:9px;color:var(--faint);margin-top:3px}
+  .now-progress{display:flex;align-items:center;gap:8px;margin-top:10px}
+  .bar{height:2px;background:#2B2F36;flex:1;position:relative}
+  .bar>span{position:absolute;left:0;top:0;height:2px;background:var(--accent)}
+  .bar>b{position:absolute;top:-2px;width:6px;height:6px;border-radius:50%;background:var(--accent);transform:translateX(-3px)}
+  .time{font-size:8.5px;color:var(--faint);font-variant-numeric:tabular-nums}
+
+  .eq-panel{margin-top:15px;border-top:1px solid var(--line-soft);padding-top:12px}
+  .eq-head{display:flex;align-items:center;justify-content:space-between}
+  .eq-head h4{font-size:10px;font-weight:500;color:var(--muted);margin:0}
+  .eq-preset{font-size:9px;color:#C3C8D0;display:flex;align-items:center;gap:5px}
+  .eq-preset .i{width:11px;height:11px;color:var(--faint)}
+  .eq-bands{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;height:88px;margin-top:12px;position:relative}
+  .eq-curve{position:absolute;left:0;right:0;top:0;height:64px;pointer-events:none}
+  .band{display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:0;position:relative;z-index:1}
+  .band .railv{width:2px;height:58px;background:#2B2F36;position:relative}
+  .band .thumb{position:absolute;left:-4px;width:10px;height:4px;background:#B9CDFF;border-radius:1px}
+  .band .f{font-size:7.5px;color:var(--faint);margin-top:7px}
+  .band.on .railv{background:#314C85}
+  .band.on .thumb{background:var(--accent)}
+  .eq-foot{display:flex;align-items:center;justify-content:space-between;margin-top:9px;font-size:8.5px;color:var(--faint)}
+  .eq-foot button{background:none;border:1px solid var(--line);color:#AEB4BC;font-family:"Golos Text";font-size:8.5px;padding:3px 7px}
+
+  .queue-panel{margin-top:13px;border-top:1px solid var(--line-soft);padding-top:10px;min-height:0}
+  .queue-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:3px}
+  .queue-head h4{font-size:10px;font-weight:500;color:var(--muted);margin:0}
+  .queue-head span{font-size:8px;color:var(--faint)}
+  .q-row{display:grid;grid-template-columns:26px minmax(0,1fr) 12px;gap:8px;align-items:center;height:37px;border-bottom:1px solid #1A1D21}
+  .q-row .thumb{width:26px;height:26px}
+  .q-row .q-name{font-size:9.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#C6CAD1}
+  .q-row .q-art{font-size:8px;color:var(--faint);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .q-row .i{width:10px;height:10px;color:#3E434A}
+  .q-row.playing .q-name{color:var(--accent)}
+
+  /* player */
+  .player{grid-column:1/-1;grid-row:2;background:#101216;border-top:1px solid #23262B;display:grid;grid-template-columns:330px 1fr 330px;align-items:center;padding:0 20px;gap:16px}
+  .np{display:flex;align-items:center;gap:11px;min-width:0}
+  .np .thumb{width:44px;height:44px;flex:none;position:relative}
+  .np .thumb:after{content:"";position:absolute;inset:0;box-shadow:inset 0 0 0 1px rgba(255,255,255,.08)}
+  .np-text{min-width:0}
+  .np-text b{display:block;font-size:10.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .np-text span{display:block;font-size:8.5px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .np .heart{width:13px;height:13px;color:var(--accent);fill:var(--accent);stroke:var(--accent);margin-left:5px}
+  .transport{display:flex;flex-direction:column;align-items:center;gap:6px;min-width:0}
+  .buttons{display:flex;align-items:center;gap:18px;color:#C4C8CF}
+  .buttons .i{width:15px;height:15px}
+  .buttons .sm{width:13px;height:13px;color:#626871}
+  .buttons .sm.on{color:var(--accent)}
+  .play-mid{width:30px;height:30px;border-radius:50%;background:var(--accent);color:#0A1526;display:grid;place-items:center}
+  .play-mid .i{width:12px;height:12px;margin-left:1px}
+  .seek{display:flex;align-items:center;gap:8px;width:100%;max-width:430px}
+  .seek .bar{max-width:none}
+  .seek .bar>span{width:34%}
+  .seek .bar>b{left:34%}
+  .player-right{display:flex;align-items:center;justify-content:flex-end;gap:14px;color:#7E848C}
+  .player-right .i{width:14px;height:14px}
+  .vol{display:flex;align-items:center;gap:7px}
+  .vol-track{width:68px;height:2px;background:#2C3037;position:relative}
+  .vol-track span{position:absolute;left:0;top:0;height:2px;width:72%;background:#AEB4BC}
+  .vol-num{font-size:8px;color:var(--faint);font-variant-numeric:tabular-nums;width:18px}
+  .quality{font-size:7.5px;border:1px solid #2C3037;color:#767C84;padding:2px 4px;letter-spacing:.04em}
+  .art-svg{display:block;width:100%;height:100%}
+  .rail .now-cover{height:299px}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-home" viewBox="0 0 24 24"><path d="M4 10.5 12 4l8 6.5V20h-6v-5h-4v5H4z"/></symbol>
+  <symbol id="i-disc" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2.2"/></symbol>
+  <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3.5 6.5h5l1.8 2h10.2v11H3.5z"/></symbol>
+  <symbol id="i-heart" viewBox="0 0 24 24"><path d="M12 20s-7.5-4.7-7.5-10A4.2 4.2 0 0 1 12 7a4.2 4.2 0 0 1 7.5 3c0 5.3-7.5 10-7.5 10z"/></symbol>
+  <symbol id="i-list" viewBox="0 0 24 24"><path d="M4 6h16M4 12h10M4 18h13"/></symbol>
+  <symbol id="i-wave" viewBox="0 0 24 24"><path d="M3 12h2l2-5 3 10 3-12 3 9 2-2h3"/></symbol>
+  <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 4v11m0 0 4-4m-4 4-4-4M4 19h16"/></symbol>
+  <symbol id="i-scan" viewBox="0 0 24 24"><path d="M4 9V5h4M20 9V5h-4M4 15v4h4M20 15v4h-4M8 12h8"/></symbol>
+  <symbol id="i-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.4-2.4 1a7 7 0 0 0-1.7-1L14.5 3h-5l-.3 3.1a7 7 0 0 0-1.7 1l-2.4-1-2 3.4L5 11a7 7 0 0 0 0 2l-2 1.5 2 3.4 2.4-1a7 7 0 0 0 1.7 1l.3 3.1h5l.3-3.1a7 7 0 0 0 1.7-1l2.4 1 2-3.4-2-1.5a7 7 0 0 0 .1-1z"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5.5 19 12 8 18.5z"/></symbol>
+  <symbol id="i-prev" viewBox="0 0 24 24"><path d="M6 5v14M18 5 8 12l10 7z"/></symbol>
+  <symbol id="i-next" viewBox="0 0 24 24"><path d="M18 5v14M6 5l10 7-10 7z"/></symbol>
+  <symbol id="i-shuffle" viewBox="0 0 24 24"><path d="M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/></symbol>
+  <symbol id="i-repeat" viewBox="0 0 24 24"><path d="M4 11V9a3 3 0 0 1 3-3h12m0 0-3-3m3 3-3 3M20 13v2a3 3 0 0 1-3 3H5m0 0 3 3m-3-3 3-3"/></symbol>
+  <symbol id="i-volume" viewBox="0 0 24 24"><path d="M4 10v4h3l4 3V7l-4 3zM15 9a4 4 0 0 1 0 6M17.5 6.5a8 8 0 0 1 0 11"/></symbol>
+  <symbol id="i-eq" viewBox="0 0 24 24"><path d="M6 4v16M12 4v16M18 4v16"/><circle cx="6" cy="9" r="2"/><circle cx="12" cy="15" r="2"/><circle cx="18" cy="11" r="2"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 14a4 4 0 0 0 6 .5l2-2a4 4 0 0 0-5.5-5.5l-1 1M14 10a4 4 0 0 0-6-.5l-2 2A4 4 0 0 0 11.5 17l1-1"/></symbol>
+  <symbol id="i-grip" viewBox="0 0 24 24"><circle cx="9" cy="6" r="1" fill="currentColor" stroke="none"/><circle cx="15" cy="6" r="1" fill="currentColor" stroke="none"/><circle cx="9" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="15" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="9" cy="18" r="1" fill="currentColor" stroke="none"/><circle cx="15" cy="18" r="1" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="i-chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14m0 0-5-5m5 5-5 5"/></symbol>
+  <symbol id="i-queue" viewBox="0 0 24 24"><path d="M4 6h11M4 11h11M4 16h7M18 8v9m0 0 3-2"/></symbol>
+  <symbol id="i-music" viewBox="0 0 24 24"><path d="M9 18V6l10-2v12"/><circle cx="7" cy="18" r="2.2"/><circle cx="17" cy="16" r="2.2"/></symbol>
+  <symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3M8 21h8"/></symbol>
+  <symbol id="i-filter" viewBox="0 0 24 24"><path d="M4 6h16M7 12h10M10 18h4"/></symbol>
+  <symbol id="i-more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.2" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.2" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1.2" fill="currentColor" stroke="none"/></symbol>
+</svg>
+
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="mark"><svg viewBox="0 0 24 24"><path d="M5 19 12 4l7 15h-3l-4-9-4 9z" fill="#0A1526"/></svg></div>
+      <div class="name">Cadence</div>
+      <div class="ver">v0.1</div>
+    </div>
+
+    <nav class="nav">
+      <div class="group-label">Библиотека</div>
+      <a class="nav-item active" href="#"><svg class="i"><use href="#i-home"/></svg>Обзор</a>
+      <a class="nav-item" href="#"><svg class="i"><use href="#i-music"/></svg>Все треки<span class="count">4</span></a>
+      <a class="nav-item" href="#"><svg class="i"><use href="#i-disc"/></svg>Альбомы<span class="count">4</span></a>
+      <a class="nav-item" href="#"><svg class="i"><use href="#i-folder"/></svg>Папки<span class="count">1</span></a>
+      <a class="nav-item" href="#"><svg class="i"><use href="#i-heart"/></svg>Избранное<span class="count">2</span></a>
+      <a class="nav-item" href="#"><svg class="i"><use href="#i-list"/></svg>Плейлисты<span class="count">3</span></a>
+
+      <div class="group-label">Источники</div>
+      <div class="sources">
+        <div class="src-row"><svg class="i"><use href="#i-folder"/></svg>Music<span class="n">4</span></div>
+        <div class="src-row"><svg class="i"><use href="#i-folder"/></svg>Downloads<span class="n">0</span></div>
+        <div class="src-row add"><svg class="i"><use href="#i-plus"/></svg>Добавить папку</div>
+      </div>
+    </nav>
+
+    <div class="sidebar-foot">
+      <div class="scan-state">
+        <b>Индекс актуален</b>
+        <span>Сканирование · сегодня, 21:42</span>
+        <div class="scan-line"><i></i></div>
+      </div>
+      <div class="foot-row"><svg class="i" style="width:14px;height:14px"><use href="#i-settings"/></svg>Настройки</div>
+      <div class="foot-row"><svg class="i" style="width:14px;height:14px"><use href="#i-download"/></svg>Загрузки<span style="margin-left:auto;font-size:9px;color:#5E636B">0</span></div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="topline">
+      <div class="sync"><span class="dot"></span>Локальная библиотека · 4 трека · 38,2 МБ</div>
+      <div class="top-actions">
+        <button class="btn-ghost"><svg class="i"><use href="#i-mic"/></svg>Распознать</button>
+        <button class="btn-ghost"><svg class="i"><use href="#i-link"/></svg>Импорт ссылки</button>
+        <button class="btn-accent"><svg class="i"><use href="#i-scan"/></svg>Сканировать</button>
+      </div>
+    </div>
+
+    <div class="title-row">
+      <div>
+        <h1 class="display">Библиотека</h1>
+        <div class="subline"><span>4 трека</span><i></i><span>4 альбома</span><i></i><span>файлы MP3</span><i></i><span>обновлено 21:42</span></div>
+      </div>
+      <div class="title-tools">
+        <div class="search"><svg class="i"><use href="#i-search"/></svg>Найти трек, артиста, альбом</div>
+        <button class="sort-btn"><svg class="i"><use href="#i-filter"/></svg>По исполнителю<svg class="i"><use href="#i-chev"/></svg></button>
+      </div>
+    </div>
+
+    <div class="wave-panel">
+      <div class="wave-left">
+        <div class="lbl"><span class="eq"><i></i><i></i><i></i><i></i></span>Сейчас играет</div>
+        <b>Ван Хельсинг</b>
+        <span>Norma Tale · из папки Music</span>
+      </div>
+      <div class="wave-right">
+        <div class="wave-meta"><span>1:24</span><span class="mid">Ван Хельсинг · MP3 320 kbps</span><span>3:41</span></div>
+        <div class="waveform" aria-hidden="true">
+          <span class="head"></span>
+          <i style="height:8px"></i><i style="height:14px"></i><i style="height:22px"></i><i style="height:9px"></i><i style="height:17px"></i><i style="height:28px"></i><i style="height:12px"></i><i style="height:19px"></i><i style="height:31px"></i><i style="height:16px"></i><i style="height:10px"></i><i style="height:24px"></i><i style="height:35px"></i><i style="height:18px"></i><i style="height:12px"></i><i style="height:27px"></i><i style="height:21px"></i><i style="height:14px"></i><i style="height:32px"></i><i style="height:25px"></i><i style="height:11px"></i><i style="height:19px"></i><i style="height:29px"></i><i style="height:15px"></i><i style="height:23px"></i><i style="height:36px"></i><i style="height:18px"></i><i style="height:13px"></i><i style="height:26px"></i><i style="height:20px"></i><i style="height:9px"></i><i style="height:16px"></i><i style="height:30px"></i><i style="height:22px"></i><i style="height:12px"></i><i style="height:25px"></i><i style="height:34px"></i><i style="height:17px"></i><i style="height:11px"></i><i style="height:21px"></i><i style="height:28px"></i><i style="height:15px"></i><i style="height:24px"></i><i style="height:31px"></i><i style="height:13px"></i><i style="height:18px"></i><i style="height:26px"></i><i style="height:9px"></i><i style="height:20px"></i><i style="height:33px"></i><i style="height:16px"></i><i style="height:12px"></i><i style="height:27px"></i><i style="height:22px"></i><i style="height:10px"></i><i style="height:19px"></i><i style="height:30px"></i><i style="height:14px"></i><i style="height:24px"></i><i style="height:18px"></i><i style="height:11px"></i><i style="height:28px"></i><i style="height:35px"></i><i style="height:16px"></i><i style="height:23px"></i><i style="height:13px"></i><i style="height:20px"></i><i style="height:26px"></i><i style="height:9px"></i><i style="height:17px"></i><i style="height:31px"></i><i style="height:21px"></i><i style="height:12px"></i><i style="height:25px"></i><i style="height:29px"></i><i style="height:15px"></i><i style="height:18px"></i><i style="height:34px"></i><i style="height:11px"></i><i style="height:22px"></i><i style="height:27px"></i><i style="height:14px"></i><i style="height:19px"></i><i style="height:32px"></i><i style="height:10px"></i><i style="height:24px"></i><i style="height:16px"></i><i style="height:28px"></i><i style="height:21px"></i><i style="height:13px"></i><i style="height:30px"></i><i style="height:18px"></i><i style="height:23px"></i><i style="height:9px"></i><i style="height:25px"></i><i style="height:33px"></i><i style="height:15px"></i><i style="height:20px"></i><i style="height:29px"></i><i style="height:12px"></i><i style="height:17px"></i><i style="height:26px"></i><i style="height:22px"></i><i style="height:11px"></i><i style="height:31px"></i><i style="height:19px"></i><i style="height:14px"></i><i style="height:27px"></i><i style="height:35px"></i><i style="height:16px"></i><i style="height:24px"></i><i style="height:10px"></i><i style="height:18px"></i><i style="height:28px"></i><i style="height:13px"></i><i style="height:21px"></i><i style="height:32px"></i><i style="height:15px"></i><i style="height:25px"></i><i style="height:9px"></i><i style="height:19px"></i><i style="height:30px"></i><i style="height:12px"></i><i style="height:22px"></i><i style="height:26px"></i><i style="height:17px"></i><i style="height:11px"></i><i style="height:28px"></i><i style="height:34px"></i><i style="height:14px"></i><i style="height:20px"></i><i style="height:24px"></i><i style="height:9px"></i><i style="height:18px"></i><i style="height:31px"></i><i style="height:15px"></i><i style="height:23px"></i><i style="height:12px"></i><i style="height:27px"></i><i style="height:33px"></i><i style="height:16px"></i><i style="height:21px"></i><i style="height:10px"></i><i style="height:25px"></i><i style="height:29px"></i><i style="height:13px"></i><i style="height:18px"></i><i style="height:32px"></i><i style="height:11px"></i><i style="height:22px"></i><i style="height:26px"></i><i style="height:15px"></i><i style="height:20px"></i><i style="height:30px"></i><i style="height:9px"></i><i style="height:24px"></i><i style="height:17px"></i><i style="height:28px"></i><i style="height:12px"></i><i style="height:21px"></i><i style="height:35px"></i><i style="height:14px"></i><i style="height:19px"></i><i style="height:27px"></i><i style="height:10px"></i><i style="height:23px"></i><i style="height:31px"></i><i style="height:16px"></i><i style="height:25px"></i><i style="height:11px"></i><i style="height:18px"></i><i style="height:29px"></i><i style="height:13px"></i><i style="height:22px"></i><i style="height:33px"></i><i style="height:15px"></i><i style="height:20px"></i><i style="height:26px"></i><i style="height:9px"></i><i style="height:24px"></i><i style="height:30px"></i><i style="height:12px"></i><i style="height:17px"></i><i style="height:28px"></i><i style="height:21px"></i><i style="height:14px"></i><i style="height:19px"></i><i style="height:32px"></i><i style="height:10px"></i><i style="height:25px"></i><i style="height:16px"></i><i style="height:23px"></i><i style="height:27px"></i><i style="height:11px"></i><i style="height:18px"></i><i style="height:34px"></i><i style="height:13px"></i><i style="height:20px"></i><i style="height:29px"></i><i style="height:9px"></i><i style="height:22px"></i><i style="height:31px"></i><i style="height:15px"></i><i style="height:24px"></i><i style="height:12px"></i><i style="height:26px"></i><i style="height:17px"></i><i style="height:30px"></i><i style="height:10px"></i><i style="height:19px"></i><i style="height:28px"></i><i style="height:14px"></i><i style="height:21px"></i><i style="height:33px"></i><i style="height:16px"></i><i style="height:23px"></i><i style="height:11px"></i><i style="height:27px"></i><i style="height:18px"></i><i style="height:30px"></i><i style="height:12px"></i><i style="height:20px"></i><i style="height:25px"></i><i style="height:9px"></i><i style="height:22px"></i><i style="height:32px"></i><i style="height:15px"></i><i style="height:24px"></i><i style="height:13px"></i><i style="height:28px"></i><i style="height:17px"></i><i style="height:26px"></i><i style="height:10px"></i><i style="height:21px"></i><i style="height:31px"></i><i style="height:14px"></i><i style="height:19px"></i><i style="height:29px"></i><i style="height:11px"></i><i style="height:23px"></i><i style="height:34px"></i><i style="height:16px"></i><i style="height:25px"></i><i style="height:12px"></i><i style="height:18px"></i><i style="height:27px"></i><i style="height:9px"></i><i style="height:22px"></i><i style="height:30px"></i><i style="height:15px"></i><i style="height:20px"></i><i style="height:33px"></i><i style="height:13px"></i><i style="height:24px"></i><i style="height:17px"></i><i style="height:28px"></i><i style="height:10px"></i><i style="height:21px"></i><i style="height:26px"></i><i style="height:14px"></i><i style="height:19px"></i><i style="height:31px"></i><i style="height:11px"></i><i style="height:23px"></i><i style="height:29px"></i><i style="height:16px"></i><i style="height:25px"></i><i style="height:9px"></i><i style="height:18px"></i><i style="height:32px"></i><i style="height:12px"></i><i style="height:22px"></i><i style="height:27px"></i><i style="height:15px"></i><i style="height:20px"></i><i style="height:30px"></i><i style="height:13px"></i><i style="height:24px"></i><i style="height:17px"></i><i style="height:28px"></i><i style="height:10px"></i><i style="height:21px"></i><i style="height:33px"></i><i style="height:14px"></i><i style="height:19px"></i><i style="height:26px"></i><i style="height:11px"></i><i style="height:23px"></i><i style="height:31px"></i><i style="height:16px"></i><i style="height:25px"></i><i style="height:9px"></i><i style="height:18px"></i><i style="height:29px"></i><i style="height:12px"></i><i style="height:22px"></i><i style="height:27px"></i><i style="height:15px"></i><i style="height:20px"></i><i style="height:32px"></i><i style="height:13px"></i><i style="height:24px"></i><i style="height:17px"></i><i style="height:30px"></i><i style="height:10px"></i><i style="height:21px"></i><i style="height:28px"></i><i style="height:14px"></i><i style="height:19px"></i><i style="height:26px"></i><i style="height:11px"></i><i style="height:23px"></i><i style="height:31px"></i><i style="height:16px"></i><i style="height:25px"></i><i style="height:9px"></i><i style="height:18px"></i><i style="height:29px"></i><i style="height:12px"></i><i style="height:22px"></i><i style="height:27px"></i><i style="height:15px"></i><i style="height:20px"></i><i style="height:33px"></i><i style="height:13px"></i><i style="height:24px"></i><i style="height:17px"></i><i style="height:30px"></i><i style="height:10px"></i><i style="height:21px"></i><i style="height:28px"></i><i style="height:14px"></i><i style="height:19px"></i><i style="height:26px"></i><i style="height:11px"></i><i style="height:23px"></i><i style="height:32px"></i><i style="height:16px"></i><i style="height:25px"></i><i style="height:9px"></i><i style="height:18px"></i><i style="height:29px"></i><i style="height:12px"></i><i style="height:22px"></i><i style="height:27px"></i><i style="height:15px"></i><i style="height:20px"></i><i style="height:31px"></i><i style="height:13px"></i><i style="height:24px"></i><i style="height:17px"></i><i style="height:30px"></i><i style="height:10px"></i><i style="height:21px"></i><i style="height:28px"></i><i style="height:14px"></i><i style="height:19px"></i><i style="height:26px"></i><i style="height:11px"></i><i style="height:23px"></i><i style="height:33px"></i><i style="height:16px"></i><i style="height:25px"></i><i style="height:9px"></i><i style="height:18px"></i><i style="height:29px"></i><i style="height:12px"></i><i style="height:22px"></i><i style="height:27px"></i><i style="height:15px"></i><i style="height:20px"></i><i style="height:32px"></i><i style="height:13px"></i><i style="height:24px"></i><i style="height:17px"></i><i style="height:30px"></i><i style="height:10px"></i><i style="height:21px"></i><i style="height:28px"></i><i style="height:14px"></i><i style="height:19px"></i><i style="height:26px"></i><i style="height:11px"></i><i style="height:23px"></i><i style="height:31px"></i><i style="height:16px"></i><i style="height:25px"></i><i style="height:9px"></i><i style="height:18px"></i><i style="height:29px"></i><i style="height:12px"></i><i style="height:22px"></i><i style="height:27px"></i><i style="height:15px"></i><i style="height:20px"></i><i style="height:33px"></i><i style="height:13px"></i><i style="height:24px"></i><i style="height:17px"></i><i style="height:30px"></i><i style="height:10px"></i><i style="height:21px"></i><i style="height:28px"></i><i style="height:14px"></i><i style="height:19px"></i><i style="height:26px"></i><i style="height:11px"></i><i style="height:23px"></i><i style="height:32px"></i><i style="height:16px"></i><i style="height:25px"></i><i style="height:9px"></i><i style="height:18px"></i><i style="height:29px"></i><i style="height:12px"></i><i style="height:22px"></i><i style="height:27px"></i><i style="height:15px"></i><i style="height:20px"></i><i style="height:31px"></i><i style="height:13px"></i><i style="height:24px"></i><i style="height:17px"></i><i style="height:30px"></i><i style="height:10px"></i><i style="height:21px"></i><i style="height:28px"></i><i style="height:14px"></i><i style="height:19px"></i><i style="height:26px"></i><i style="height:11px"></i><i style="height:23px"></i><i style="height:33px"></i><i style="height:16px"></i><i style="height:25px"></i><i style="height:9px"></i><i style="height:18px"></i><i style="height:29px"></i><i style="height:12px"></i><i style="height:22px"></i><i style="height:27px"></i><i style="height:15px"></i><i style="height:20px"></i><i style="height:32px"></i><i style="height:13px"></i><i style="height:24px"></i><i style="height:17px"></i><i style="height:30px"></i><i style="height:10px"></i><i style="height:21px"></i><i style="height:28px"></i><i style="height:14px"></i><i style="height:19px"></i><i style="height:26px"></i><i style="height:11px"></i><i style="height:23px"></i><i style="height:31px"></i><i style="height:16px"></i><i style="height:25px"></i><i style="height:9px"></i><i style="height:18px"></i><i style="height:29px"></i><i style="height:12px"></i><i style="height:22px"></i><i style="height:27px"></i><i style="height:15px"></i><i style="height:20px"></i><i style="height:33px"></i><i style="height:13px"></i><i style="height:24px"></i><i style="height:17px"></i><i style="height:30px"></i><i style="height:10px"></i><i style="height:21px"></i><i style="height:28px"></i><i style="height:14px"></i><i style="height:19px"></i><i style="height:26px"></i><i style="height:11px"></i><i style="height:23px"></i>
+        </div>
+      </div>
+    </div>
+
+    <div class="tabs">
+      <div class="tab active">Все треки<span class="num">4</span></div>
+      <div class="tab">Альбомы<span class="num">4</span></div>
+      <div class="tab">Папки<span class="num">1</span></div>
+      <div class="tab">Плейлисты<span class="num">3</span></div>
+      <div class="tab">Избранное<span class="num">2</span></div>
+      <div class="tab-spacer"></div>
+      <div class="view-count">Показано 4 из 4</div>
+    </div>
+
+    <table class="track-table">
+      <thead><tr><th>Трек</th><th>Альбом</th><th>Папка</th><th>Время</th><th>Формат</th><th style="text-align:right"></th></tr></thead>
+      <tbody>
+        <tr class="now">
+          <td><div class="tcell">
+            <svg class="thumb art-svg" viewBox="0 0 200 200"><rect width="200" height="200" fill="#10192A"/><circle cx="128" cy="66" r="38" fill="#E8E1D1"/><path d="M0 200V150h18v-24h16v36h12v-50h20v50h12v-36h16v24h18v50z" fill="#070A10"/></svg>
+            <div class="tx"><b>Ван Хельсинг</b><span>Norma Tale</span></div>
+          </div></td>
+          <td class="td-muted">Ван Хельсинг</td>
+          <td class="td-muted">Music</td>
+          <td class="dur">3:41</td>
+          <td><span class="fmt">MP3</span></td>
+          <td><div class="tend"><svg class="i liked"><use href="#i-heart"/></svg><svg class="i"><use href="#i-more"/></svg></div></td>
+        </tr>
+        <tr class="hover">
+          <td><div class="tcell">
+            <svg class="thumb art-svg" viewBox="0 0 200 200"><rect width="200" height="200" fill="#7C2222"/><ellipse cx="100" cy="108" rx="47" ry="60" fill="#150A0A"/><path d="M55 74 40 38l31 20M145 74l15-36-31 20" fill="#150A0A"/><circle cx="100" cy="94" r="7" fill="#E9E0CE"/></svg>
+            <div class="tx"><b>Инкуб</b><span>Sacrothorn feat. Marie Steiner</span></div>
+          </div></td>
+          <td class="td-muted">Инкуб</td>
+          <td class="td-muted">Music</td>
+          <td class="dur">2:38</td>
+          <td><span class="fmt">MP3</span></td>
+          <td><div class="tend"><svg class="i"><use href="#i-heart"/></svg><svg class="i"><use href="#i-more"/></svg></div></td>
+        </tr>
+        <tr>
+          <td><div class="tcell">
+            <svg class="thumb art-svg" viewBox="0 0 200 200"><rect width="200" height="200" fill="#D8D1C1"/><path d="M42 200V92a58 58 0 0 1 116 0v108z" fill="#191817"/><path d="M62 200V96a38 38 0 0 1 76 0v104z" fill="#D8D1C1"/><circle cx="100" cy="96" r="12" fill="#191817"/></svg>
+            <div class="tx"><b>Bride of Despair I</b><span>the first berserker khazan</span></div>
+          </div></td>
+          <td class="td-muted">Bride of Despair</td>
+          <td class="td-muted">Music</td>
+          <td class="dur">4:17</td>
+          <td><span class="fmt">MP3</span></td>
+          <td><div class="tend"><svg class="i"><use href="#i-heart"/></svg><svg class="i"><use href="#i-more"/></svg></div></td>
+        </tr>
+        <tr>
+          <td><div class="tcell">
+            <svg class="thumb art-svg" viewBox="0 0 200 200"><rect width="200" height="200" fill="#1F44E0"/><path d="M0 50h200M0 100h200M0 150h200M50 0v200M100 0v200M150 0v200" stroke="#F2F1EC" stroke-width="1.2" opacity=".4"/><rect x="62" y="62" width="76" height="76" fill="#101012"/><circle cx="100" cy="100" r="19" fill="#F2F1EC"/></svg>
+            <div class="tx"><b>Декарта</b><span>asper x квадрат</span></div>
+          </div></td>
+          <td class="td-muted">Декарта</td>
+          <td class="td-muted">Music</td>
+          <td class="dur">4:11</td>
+          <td><span class="fmt">MP3</span></td>
+          <td><div class="tend"><svg class="i"><use href="#i-heart"/></svg><svg class="i"><use href="#i-more"/></svg></div></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="drop-row">
+      <div class="drop-zone"><svg class="i"><use href="#i-plus"/></svg>Перетащите аудиофайлы сюда или добавьте папку — они появятся в библиотеке</div>
+    </div>
+
+    <div class="bottom-block">
+      <div class="pl-card">
+        <div class="pl-mosaic">
+          <svg viewBox="0 0 100 100"><rect width="100" height="100" fill="#10192A"/><circle cx="64" cy="33" r="19" fill="#E8E1D1"/></svg>
+          <svg viewBox="0 0 100 100"><rect width="100" height="100" fill="#7C2222"/><circle cx="50" cy="54" r="23" fill="#150A0A"/></svg>
+          <svg viewBox="0 0 100 100"><rect width="100" height="100" fill="#D8D1C1"/><path d="M22 100V46a28 28 0 0 1 56 0v54z" fill="#191817"/></svg>
+          <svg viewBox="0 0 100 100"><rect width="100" height="100" fill="#1F44E0"/><rect x="31" y="31" width="38" height="38" fill="#101012"/></svg>
+        </div>
+        <div class="pc-t"><b>Ночная смена</b><span>3 трека · 11 мин · плейлист</span></div>
+      </div>
+      <div class="pl-card">
+        <div class="pl-mosaic">
+          <svg viewBox="0 0 100 100"><rect width="100" height="100" fill="#1F44E0"/><circle cx="50" cy="50" r="18" fill="#F2F1EC"/></svg>
+          <svg viewBox="0 0 100 100"><rect width="100" height="100" fill="#10192A"/><circle cx="64" cy="33" r="19" fill="#E8E1D1"/></svg>
+          <svg viewBox="0 0 100 100"><rect width="100" height="100" fill="#D8D1C1"/><path d="M22 100V46a28 28 0 0 1 56 0v54z" fill="#191817"/></svg>
+          <svg viewBox="0 0 100 100"><rect width="100" height="100" fill="#7C2222"/><ellipse cx="50" cy="54" rx="21" ry="27" fill="#150A0A"/></svg>
+        </div>
+        <div class="pc-t"><b>Для работы</b><span>2 трека · 7 мин · плейлист</span></div>
+      </div>
+      <div class="pl-card">
+        <div class="pl-mosaic">
+          <svg viewBox="0 0 100 100"><rect width="100" height="100" fill="#10192A"/><circle cx="64" cy="33" r="19" fill="#E8E1D1"/></svg>
+          <svg viewBox="0 0 100 100"><rect width="100" height="100" fill="#7C2222"/><circle cx="50" cy="54" r="23" fill="#150A0A"/></svg>
+          <svg viewBox="0 0 100 100"><rect width="100" height="100" fill="#1B2436"/><path d="M50 26v42m0 0 12-10M50 68 38 58" stroke="#5B8CFF" stroke-width="3" fill="none"/></svg>
+          <svg viewBox="0 0 100 100"><rect width="100" height="100" fill="#D8D1C1"/><path d="M22 100V46a28 28 0 0 1 56 0v54z" fill="#191817"/></svg>
+        </div>
+        <div class="pc-t"><b>Избранное</b><span>2 трека · автоальбом</span></div>
+      </div>
+      <div class="pl-add"><svg class="i"><use href="#i-plus"/></svg>Новый плейлист</div>
+    </div>
+
+    <div class="source-panel">
+      <div class="sp-head"><b>Источники и загрузки</b><span>Автосканирование при запуске · включено</span></div>
+      <div class="sp-grid">
+        <div class="sp-folder"><svg class="i"><use href="#i-folder"/></svg><div class="spt"><b>Music</b><span>4 трека · 38,2 МБ · сегодня</span></div><button>Сканировать</button></div>
+        <div class="sp-folder"><svg class="i"><use href="#i-folder"/></svg><div class="spt"><b>Downloads</b><span>0 треков · пусто</span></div><button>Добавить</button></div>
+        <div class="sp-link"><svg class="i"><use href="#i-link"/></svg><input value="Ссылка на плейлист: Spotify, VK, Яндекс"><button>Разобрать</button></div>
+      </div>
+    </div>
+  </main>
+
+  <aside class="rail">
+    <div class="rail-head"><h3>СЕЙЧАС ИГРАЕТ</h3><svg class="i"><use href="#i-more"/></svg></div>
+    <svg class="now-cover art-svg" viewBox="0 0 200 200">
+      <rect width="200" height="200" fill="#10192A"/>
+      <circle cx="128" cy="66" r="38" fill="#E8E1D1"/>
+      <path d="M0 200V150h18v-24h16v36h12v-50h20v50h12v-36h16v24h18v50z" fill="#070A10"/>
+      <path d="M87 200v-30a12 12 0 0 1 24 0v30z" fill="#E8E1D1" opacity=".9"/>
+      <text x="18" y="28" font-family="Golos Text,sans-serif" font-size="6.4" letter-spacing="2" fill="#E8E1D1">NORMA TALE</text>
+      <text x="18" y="184" font-family="Unbounded,sans-serif" font-size="11" fill="#E8E1D1">Ван Хельсинг</text>
+    </svg>
+    <div class="now-title">Ван Хельсинг</div>
+    <div class="now-artist">Norma Tale</div>
+    <div class="now-album">Ван Хельсинг · 2024 · MP3 320</div>
+    <div class="now-progress">
+      <span class="time">1:24</span>
+      <div class="bar"><span style="width:34%"></span><b style="left:34%"></b></div>
+      <span class="time">3:41</span>
+    </div>
+
+    <div class="eq-panel">
+      <div class="eq-head"><h4>Эквалайзер</h4><div class="eq-preset">Тёплый ламповый<svg class="i"><use href="#i-chev"/></svg></div></div>
+      <div class="eq-bands">
+        <svg class="eq-curve" viewBox="0 0 300 64" preserveAspectRatio="none">
+          <path d="M25 38 L75 30 L125 22 L175 34 L225 42 L275 48" fill="none" stroke="#5B8CFF" stroke-width="1" opacity=".45"/>
+        </svg>
+        <div class="band on"><div class="railv"><div class="thumb" style="top:26px"></div></div><div class="f">60</div></div>
+        <div class="band on"><div class="railv"><div class="thumb" style="top:20px"></div></div><div class="f">230</div></div>
+        <div class="band on"><div class="railv"><div class="thumb" style="top:14px"></div></div><div class="f">910</div></div>
+        <div class="band on"><div class="railv"><div class="thumb" style="top:24px"></div></div><div class="f">3.6k</div></div>
+        <div class="band on"><div class="railv"><div class="thumb" style="top:32px"></div></div><div class="f">7k</div></div>
+        <div class="band on"><div class="railv"><div class="thumb" style="top:38px"></div></div><div class="f">14k</div></div>
+      </div>
+      <div class="eq-foot"><span>+2 dB · предусиление 0</span><button>Свои пресеты</button></div>
+    </div>
+
+    <div class="queue-panel">
+      <div class="queue-head"><h4>Далее в очереди</h4><span>перемешано</span></div>
+      <div class="q-row playing">
+        <svg class="thumb art-svg" viewBox="0 0 200 200"><rect width="200" height="200" fill="#10192A"/><circle cx="128" cy="66" r="38" fill="#E8E1D1"/><path d="M0 200V150h18v-24h16v36h12v-50h20v50h12v-36h16v24h18v50z" fill="#070A10"/></svg>
+        <div><div class="q-name">Ван Хельсинг</div><div class="q-art">Norma Tale</div></div>
+        <svg class="i"><use href="#i-grip"/></svg>
+      </div>
+      <div class="q-row">
+        <svg class="thumb art-svg" viewBox="0 0 200 200"><rect width="200" height="200" fill="#1F44E0"/><rect x="62" y="62" width="76" height="76" fill="#101012"/><circle cx="100" cy="100" r="19" fill="#F2F1EC"/></svg>
+        <div><div class="q-name">Декарта</div><div class="q-art">asper x квадрат</div></div>
+        <svg class="i"><use href="#i-grip"/></svg>
+      </div>
+      <div class="q-row">
+        <svg class="thumb art-svg" viewBox="0 0 200 200"><rect width="200" height="200" fill="#D8D1C1"/><path d="M42 200V92a58 58 0 0 1 116 0v108z" fill="#191817"/><path d="M62 200V96a38 38 0 0 1 76 0v104z" fill="#D8D1C1"/><circle cx="100" cy="96" r="12" fill="#191817"/></svg>
+        <div><div class="q-name">Bride of Despair I</div><div class="q-art">the first berserker khazan</div></div>
+        <svg class="i"><use href="#i-grip"/></svg>
+      </div>
+    </div>
+  </aside>
+
+  <div class="player">
+    <div class="np">
+      <svg class="thumb art-svg" viewBox="0 0 200 200"><rect width="200" height="200" fill="#10192A"/><circle cx="128" cy="66" r="38" fill="#E8E1D1"/><path d="M0 200V150h18v-24h16v36h12v-50h20v50h12v-36h16v24h18v50z" fill="#070A10"/></svg>
+      <div class="np-text"><b>Ван Хельсинг</b><span>Norma Tale · Ван Хельсинг</span></div>
+      <svg class="i heart"><use href="#i-heart"/></svg>
+    </div>
+    <div class="transport">
+      <div class="buttons">
+        <svg class="i sm on"><use href="#i-shuffle"/></svg>
+        <svg class="i"><use href="#i-prev"/></svg>
+        <div class="play-mid"><svg class="i fill"><use href="#i-play"/></svg></div>
+        <svg class="i"><use href="#i-next"/></svg>
+        <svg class="i sm"><use href="#i-repeat"/></svg>
+      </div>
+      <div class="seek">
+        <span class="time">1:24</span>
+        <div class="bar"><span></span><b></b></div>
+        <span class="time">3:41</span>
+      </div>
+    </div>
+    <div class="player-right">
+      <span class="quality">MP3 320</span>
+      <div class="vol"><svg class="i"><use href="#i-volume"/></svg><div class="vol-track"><span></span></div><span class="vol-num">78%</span></div>
+      <svg class="i"><use href="#i-eq"/></svg>
+      <svg class="i"><use href="#i-queue"/></svg>
+    </div>
+  </div>
+</div>
+</body>
+</html>

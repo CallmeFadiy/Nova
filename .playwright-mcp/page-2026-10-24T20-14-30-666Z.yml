@@ -1,0 +1,173 @@
+- generic [ref=e2]:
+  - complementary [ref=e3]:
+    - generic [ref=e4]: Фонотека
+    - navigation [ref=e9]:
+      - generic [ref=e10]: Библиотека
+      - link "Главная" [ref=e11] [cursor=pointer]:
+        - /url: "#"
+      - link "Треки 4" [ref=e14] [cursor=pointer]:
+        - /url: "#"
+        - text: Треки
+        - generic [ref=e17]: "4"
+      - link "Альбомы 4" [ref=e18] [cursor=pointer]:
+        - /url: "#"
+        - text: Альбомы
+        - generic [ref=e21]: "4"
+      - link "Папки 2" [ref=e22] [cursor=pointer]:
+        - /url: "#"
+        - text: Папки
+        - generic [ref=e25]: "2"
+      - generic [ref=e26]: Коллекции
+      - link "Избранное 2" [ref=e27] [cursor=pointer]:
+        - /url: "#"
+        - text: Избранное
+        - generic [ref=e30]: "2"
+      - link "Плейлисты 3" [ref=e31] [cursor=pointer]:
+        - /url: "#"
+        - text: Плейлисты
+        - generic [ref=e34]: "3"
+      - generic [ref=e35]: Инструменты
+      - link "Распознать трек" [ref=e36] [cursor=pointer]:
+        - /url: "#"
+      - link "Загрузки" [ref=e39] [cursor=pointer]:
+        - /url: "#"
+      - link "Импорт по ссылке" [ref=e42] [cursor=pointer]:
+        - /url: "#"
+    - generic [ref=e45]:
+      - generic [ref=e46]:
+        - generic [ref=e47]: Локальная музыка
+        - generic [ref=e48]: 38,2 МБ
+      - generic [ref=e51]: Сканировать папки
+      - generic [ref=e54]: Настройки
+  - main [ref=e57]:
+    - generic [ref=e58]:
+      - generic [ref=e59]: Библиотека / Главная
+      - generic [ref=e60]:
+        - generic [ref=e61]: Поиск по трекам, альбомам…
+        - generic "Сканировать" [ref=e64]
+    - generic [ref=e68]:
+      - generic [ref=e69]:
+        - heading "Библиотека" [level=1] [ref=e70]
+        - generic [ref=e71]:
+          - generic [ref=e72]: 4 трека
+          - generic [ref=e74]: 2 папки
+          - generic [ref=e76]: 38,2 МБ на устройстве
+      - generic [ref=e77]: "Сортировка: А – Я"
+    - generic [ref=e80]:
+      - 'img "Обложка: Norma Tale — Ван Хельсинг" [ref=e81]':
+        - generic [ref=e87]: NORMA TALE
+        - generic [ref=e88]: Ван Хельсинг
+      - generic [ref=e89]:
+        - generic [ref=e90]: Вы остановились на
+        - heading "Ван Хельсинг" [level=2] [ref=e91]
+        - generic [ref=e92]: Norma Tale
+        - generic [ref=e93]: Альбом «Ван Хельсинг» · 2024 · Локальный файл
+        - generic [ref=e94]:
+          - generic [ref=e95]: 1:24
+          - generic [ref=e99]: 3:41
+        - generic [ref=e100]:
+          - button [ref=e101]
+          - button "Перемешано" [ref=e104]
+          - button "Повтор альбома" [ref=e107]
+          - generic [ref=e110]: Играет из папки Music
+    - generic [ref=e111]:
+      - heading "Недавно добавленные" [level=3] [ref=e112]
+      - link "Все треки" [ref=e113] [cursor=pointer]:
+        - /url: "#"
+    - table [ref=e116]:
+      - rowgroup [ref=e117]:
+        - row [ref=e118]:
+          - columnheader "Трек" [ref=e119]
+          - columnheader "Альбом" [ref=e120]
+          - columnheader "Длительность" [ref=e121]
+          - columnheader "Добавлено" [ref=e122]
+      - rowgroup [ref=e123]:
+        - row [ref=e124]:
+          - cell "Ван Хельсинг Norma Tale" [ref=e125]:
+            - generic [ref=e131]:
+              - generic [ref=e132]: Ван Хельсинг
+              - generic [ref=e133]: Norma Tale
+          - cell "Ван Хельсинг" [ref=e138]
+          - cell "3:41" [ref=e139]
+          - cell [ref=e140]
+        - row [ref=e144]:
+          - cell "Инкуб Sacrothorn feat. Marie Steiner" [ref=e145]:
+            - generic [ref=e152]:
+              - generic [ref=e153]: Инкуб
+              - generic [ref=e154]: Sacrothorn feat. Marie Steiner
+          - cell "Инкуб" [ref=e155]
+          - cell "2:38" [ref=e156]
+          - cell [ref=e157]
+        - row [ref=e161]:
+          - cell "Bride of Despair I the first berserker khazan" [ref=e162]:
+            - generic [ref=e169]:
+              - generic [ref=e170]: Bride of Despair I
+              - generic [ref=e171]: the first berserker khazan
+          - cell "Bride of Despair" [ref=e172]
+          - cell "4:17" [ref=e173]
+          - cell [ref=e174]
+        - row [ref=e178]:
+          - cell "Декарта asper x квадрат" [ref=e179]:
+            - generic [ref=e186]:
+              - generic [ref=e187]: Декарта
+              - generic [ref=e188]: asper x квадрат
+          - cell "Декарта" [ref=e189]
+          - cell "4:11" [ref=e190]
+          - cell [ref=e191]
+  - complementary [ref=e195]:
+    - generic [ref=e196]:
+      - heading "Очередь" [level=3] [ref=e197]
+      - button [ref=e198]
+    - generic [ref=e201]:
+      - generic [ref=e202]: Перемешано
+      - text: Новый порядок сохранён
+    - generic [ref=e203]:
+      - generic [ref=e204]:
+        - generic [ref=e205]: "01"
+        - generic [ref=e210]:
+          - generic [ref=e211]: Ван Хельсинг
+          - generic [ref=e212]: Norma Tale
+      - generic [ref=e215]:
+        - generic [ref=e216]: "02"
+        - generic [ref=e221]:
+          - generic [ref=e222]: Декарта
+          - generic [ref=e223]: asper x квадрат
+      - generic [ref=e226]:
+        - generic [ref=e227]: "03"
+        - generic [ref=e233]:
+          - generic [ref=e234]: Bride of Despair I
+          - generic [ref=e235]: the first berserker khazan
+      - generic [ref=e238]:
+        - generic [ref=e239]: "04"
+        - generic [ref=e245]:
+          - generic [ref=e246]: Инкуб
+          - generic [ref=e247]: Sacrothorn, Marie Steiner
+    - generic [ref=e250]:
+      - heading "Плейлисты" [level=4] [ref=e251]
+      - button [ref=e252]
+    - generic [ref=e255]:
+      - generic [ref=e260]:
+        - generic [ref=e261]: Ночная смена
+        - generic [ref=e262]: 3 трека · 11 мин
+      - generic [ref=e267]:
+        - generic [ref=e268]: Для работы
+        - generic [ref=e269]: 2 трека · 7 мин
+      - generic [ref=e274]:
+        - generic [ref=e275]: Избранное
+        - generic [ref=e276]: 2 трека · с альбомами
+    - generic [ref=e277]:
+      - heading "Скачать по ссылке" [level=4] [ref=e278]
+      - paragraph [ref=e279]: Плейлист из Spotify, Яндекса, VK или Apple Music
+      - generic [ref=e280]: Вставьте ссылку на плейлист
+      - button "Разобрать и показать треки" [ref=e283]
+      - generic [ref=e284]: Spotify · Яндекс Музыка · VK · Apple Music
+  - generic [ref=e285]:
+    - generic [ref=e291]:
+      - generic [ref=e292]: Ван Хельсинг
+      - generic [ref=e293]: Norma Tale · Ван Хельсинг
+    - generic [ref=e309]:
+      - generic [ref=e310]: 1:24
+      - generic [ref=e314]: 3:41
+    - generic [ref=e315]:
+      - generic [ref=e316]: MP3 · 320
+      - generic [ref=e317]: 78%

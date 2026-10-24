@@ -1,0 +1,431 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Фонотека — направление A · редакционный архив</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Prata&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#F2F1EC;
+    --paper-2:#E7E3D9;
+    --paper-3:#EAE7DE;
+    --bar:#F8F6F0;
+    --ink:#171715;
+    --muted:#746F64;
+    --faint:#9B968A;
+    --line:#DDD9CE;
+    --accent:#1F44E0;
+    --accent-soft:#E3E7FA;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{background:#D6D2C7;font-family:Inter,system-ui,sans-serif;color:var(--ink);-webkit-font-smoothing:antialiased}
+  .app{
+    width:1440px;height:900px;margin:0 auto;background:var(--paper);
+    display:grid;grid-template-columns:248px minmax(0,1fr) 336px;grid-template-rows:1fr 92px;
+    overflow:hidden;
+  }
+  .serif{font-family:Prata,Georgia,serif;font-weight:400}
+  .i{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.55;stroke-linecap:round;stroke-linejoin:round;flex:none}
+  .i.fill{fill:currentColor;stroke:none}
+
+  /* ---------- sidebar ---------- */
+  .sidebar{grid-column:1;grid-row:1;border-right:1px solid var(--line);padding:26px 18px 18px;display:flex;flex-direction:column;min-height:0}
+  .brand{display:flex;align-items:center;gap:11px;padding:0 10px 26px}
+  .brand svg{width:27px;height:27px}
+  .brand .name{font-family:Prata,serif;font-size:21px;letter-spacing:.01em}
+  .nav{display:flex;flex-direction:column;gap:2px}
+  .group-label{font-size:11px;color:var(--faint);padding:16px 10px 7px;letter-spacing:.01em}
+  .nav-item{display:flex;align-items:center;gap:11px;height:35px;padding:0 10px;border-radius:6px;font-size:13.5px;color:#3B382F;text-decoration:none}
+  .nav-item .i{color:#6C675B}
+  .nav-item .count{margin-left:auto;font-size:11px;color:var(--faint)}
+  .nav-item.active{background:#E6E2D7;color:var(--ink);font-weight:500}
+  .nav-item.active .i{color:var(--ink)}
+  .sidebar-foot{margin-top:auto;padding:0 10px}
+  .storage{font-size:11px;color:var(--muted);display:flex;justify-content:space-between;margin-bottom:7px}
+  .storage-bar{height:3px;background:#DAD6CB;position:relative;margin-bottom:18px}
+  .storage-bar span{position:absolute;left:0;top:0;height:3px;width:14%;background:var(--ink)}
+  .settings-row{display:flex;align-items:center;gap:10px;font-size:13px;color:#4C483D;padding:8px 0}
+
+  /* ---------- main ---------- */
+  .main{grid-column:2;grid-row:1;padding:24px 34px 18px;min-width:0;display:flex;flex-direction:column;min-height:0}
+  .topline{display:flex;align-items:center;justify-content:space-between;height:36px;margin-bottom:16px}
+  .crumbs{font-size:12px;color:var(--faint)}
+  .crumbs b{color:var(--muted);font-weight:500}
+  .tools{display:flex;gap:8px;align-items:center}
+  .search{display:flex;align-items:center;gap:8px;height:36px;width:226px;border:1px solid var(--line);border-radius:5px;padding:0 11px;color:var(--faint);font-size:12px;background:#F6F4EE;white-space:nowrap;overflow:hidden}
+  .search .i{width:15px;height:15px}
+  .icon-btn{width:36px;height:36px;border:1px solid var(--line);border-radius:5px;display:grid;place-items:center;background:#F6F4EE;color:#4B473D;position:relative}
+  .icon-btn .dot{position:absolute;top:7px;right:7px;width:5px;height:5px;border-radius:50%;background:var(--accent)}
+  .title-row{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:17px}
+  h1{margin:0;font-size:52px;line-height:1;letter-spacing:-.02em}
+  .subline{font-size:12.5px;color:var(--muted);margin-top:9px;display:flex;gap:7px;align-items:center}
+  .subline i{width:2px;height:2px;background:#B4AFA2;border-radius:50%;display:inline-block}
+  .sort{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px;padding-bottom:4px}
+  .sort .i{width:13px;height:13px}
+
+  .hero{height:236px;background:var(--paper-2);display:grid;grid-template-columns:236px minmax(0,1fr);flex:none}
+  .hero .art{width:236px;height:236px}
+  .hero-body{padding:22px 26px;display:flex;flex-direction:column;min-width:0}
+  .eyebrow{font-size:11.5px;color:var(--muted);margin-bottom:8px}
+  .hero h2{font-size:36px;line-height:1.04;margin:0 0 4px;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .hero .artist{font-size:14px;color:#4B473D}
+  .hero .album{font-size:12px;color:var(--faint);margin-top:3px}
+  .hero-progress{margin-top:auto;display:flex;align-items:center;gap:10px}
+  .bar{height:3px;background:#CFCABD;position:relative;flex:1;max-width:250px}
+  .bar>span{position:absolute;left:0;top:0;height:3px;background:var(--ink)}
+  .bar>b{position:absolute;top:-2px;width:7px;height:7px;border-radius:50%;background:var(--ink);transform:translateX(-3px)}
+  .time{font-size:10.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+  .hero-actions{display:flex;align-items:center;gap:10px;margin-top:15px}
+  .play-big{width:48px;height:48px;border-radius:50%;background:var(--ink);color:var(--paper);display:grid;place-items:center;border:0}
+  .play-big .i{width:18px;height:18px;margin-left:2px}
+  .ghost-btn{height:38px;min-width:38px;padding:0 12px;border:1px solid #C9C4B7;border-radius:100px;background:transparent;display:flex;align-items:center;gap:7px;font-size:12px;color:#38352D}
+  .ghost-btn.on{background:var(--accent-soft);border-color:#C4CCF8;color:var(--accent)}
+  .ghost-btn .i{width:15px;height:15px}
+  .hero .hint{margin-left:auto;font-size:11px;color:var(--faint);align-self:center}
+
+  .section-head{display:flex;align-items:baseline;justify-content:space-between;margin:25px 0 4px}
+  .section-head h3{font-family:Prata,serif;font-size:19px;font-weight:400;margin:0}
+  .section-head a{font-size:12px;color:var(--muted);text-decoration:none;display:flex;align-items:center;gap:5px}
+  .track-table{width:100%;border-collapse:collapse;table-layout:fixed}
+  .track-table th{text-align:left;font-weight:400;font-size:10.5px;color:var(--faint);padding:9px 0 8px;border-bottom:1px solid var(--line)}
+  .track-table th:nth-child(1){width:48%}
+  .track-table th:nth-child(2){width:26%}
+  .track-table th:nth-child(3){width:13%}
+  .track-table th:nth-child(4){width:13%;text-align:right}
+  .track-table td{padding:7px 0;border-bottom:1px solid #E6E2D7;font-size:12.5px;vertical-align:middle}
+  .track-cell{display:flex;align-items:center;gap:11px;min-width:0}
+  .track-cell .thumb{width:38px;height:38px;flex:none}
+  .track-cell .nm{min-width:0}
+  .track-cell .nm b{display:block;font-size:12.5px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .track-cell .nm span{display:block;font-size:10.5px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .album-cell{color:var(--muted);font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:10px}
+  .dur{color:var(--muted);font-size:11.5px;font-variant-numeric:tabular-nums}
+  .row-end{display:flex;align-items:center;justify-content:flex-end;gap:14px}
+  .row-end .i{width:15px;height:15px;color:#A29C8E}
+  .row-end .i.liked{color:var(--accent);fill:var(--accent);stroke:var(--accent)}
+  tr.now td{background:#EDE9DF}
+  tr.now .nm b{color:var(--accent)}
+  .eq{display:flex;align-items:flex-end;gap:1.5px;height:11px;width:12px;margin-left:1px}
+  .eq i{display:block;width:2px;background:var(--accent)}
+  .eq i:nth-child(1){height:5px}.eq i:nth-child(2){height:11px}.eq i:nth-child(3){height:8px}
+  tr.hover td{background:#F6F3EB}
+
+  .folders{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:13px}
+  .folder-card{height:62px;border:1px solid var(--line);background:#F6F4EE;display:flex;align-items:center;gap:11px;padding:0 13px;min-width:0}
+  .folder-card .ficon{width:30px;height:30px;display:grid;place-items:center;background:#E6E2D7;color:#5C574B;flex:none}
+  .folder-card .ficon .i{width:15px;height:15px}
+  .folder-card b{display:block;font-size:12px;font-weight:600}
+  .folder-card span{display:block;font-size:10px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .folder-card .fmeta{margin-left:auto;font-size:9.5px;color:var(--faint);white-space:nowrap;padding-left:8px}
+  .folder-card.add{border-style:dashed;background:transparent;color:var(--muted)}
+  .folder-card.add .ficon{background:transparent;border:1px dashed #C9C4B7;color:var(--muted)}
+
+  /* ---------- right rail ---------- */
+  .rail{grid-column:3;grid-row:1;border-left:1px solid var(--line);padding:28px 22px 20px;display:flex;flex-direction:column;min-height:0}
+  .rail-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:2px}
+  .rail-head h3{font-family:Prata,serif;font-size:21px;font-weight:400;margin:0}
+  .rail-sub{font-size:10.5px;color:var(--faint);display:flex;align-items:center;gap:6px;margin:6px 0 14px}
+  .tag{font-size:10px;border:1px solid #CFCABC;border-radius:100px;padding:2px 7px;color:var(--muted)}
+  .queue{display:flex;flex-direction:column}
+  .q-row{display:grid;grid-template-columns:16px 34px minmax(0,1fr) 14px;gap:9px;align-items:center;height:52px;border-bottom:1px solid #E6E2D7}
+  .q-row .pos{font-size:10.5px;color:#A8A294;font-variant-numeric:tabular-nums}
+  .q-row .thumb{width:34px;height:34px}
+  .q-row .q-name{font-size:11.5px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .q-row .q-art{font-size:10px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .q-row .i{width:13px;height:13px;color:#B3AD9F}
+  .q-row.playing .pos{color:var(--accent);font-weight:600}
+  .q-row.playing .q-name{color:var(--accent)}
+  .rail-section{display:flex;align-items:center;justify-content:space-between;margin:24px 0 8px}
+  .rail-section h4{font-family:Prata,serif;font-size:15px;font-weight:400;margin:0}
+  .rail-section button{background:none;border:0;color:var(--muted);padding:2px;display:flex}
+  .playlists{display:flex;flex-direction:column}
+  .pl-row{display:flex;align-items:center;gap:10px;height:40px}
+  .pl-icon{width:30px;height:30px;background:#E6E2D7;display:grid;place-items:center;color:#6C675B;flex:none}
+  .pl-icon .i{width:14px;height:14px}
+  .pl-icon.fav{background:var(--accent-soft);color:var(--accent)}
+  .pl-name{font-size:12px;font-weight:500}
+  .pl-meta{font-size:10px;color:var(--faint);margin-top:1px}
+  .import{margin-top:auto;border-top:1px solid var(--line);padding-top:18px}
+  .import h4{font-size:11.5px;margin:0 0 3px;font-weight:600}
+  .import p{font-size:10.5px;color:var(--faint);margin:0 0 9px}
+  .import-box{display:flex;border:1px solid #CFCABC;background:#F7F5EF;height:36px;align-items:center;padding:0 10px;gap:7px;color:#A39D8F;font-size:11px}
+  .import-box .i{width:13px;height:13px}
+  .import-btn{height:34px;width:100%;background:var(--ink);color:var(--paper);border:0;font-size:11.5px;margin-top:7px;font-family:Inter;letter-spacing:.01em}
+  .services{font-size:9.5px;color:#AAA495;margin-top:8px;text-align:center;letter-spacing:.02em}
+
+  /* ---------- player ---------- */
+  .player{grid-column:1/-1;grid-row:2;background:var(--bar);border-top:1px solid #D4D0C4;display:grid;grid-template-columns:340px 1fr 340px;align-items:center;padding:0 24px;gap:16px}
+  .np{display:flex;align-items:center;gap:11px;min-width:0}
+  .np .thumb{width:54px;height:54px;flex:none}
+  .np .np-text{min-width:0}
+  .np .np-text b{display:block;font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .np .np-text span{display:block;font-size:10.5px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .np .i{width:15px;height:15px;color:#8C8577}
+  .np .heart{margin-left:8px}
+  .transport{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:9px;min-width:0}
+  .buttons{display:flex;align-items:center;gap:17px;color:#3C392F}
+  .buttons .i{width:17px;height:17px}
+  .buttons .sm{width:15px;height:15px;color:#8B8577}
+  .buttons .sm.on{color:var(--accent)}
+  .play-mid{width:38px;height:38px;border-radius:50%;background:var(--ink);color:var(--paper);display:grid;place-items:center}
+  .play-mid .i{width:15px;height:15px;margin-left:1px}
+  .seek{display:flex;align-items:center;gap:9px;width:100%;max-width:420px}
+  .seek .bar{max-width:none}
+  .seek .bar>span{width:38%}
+  .seek .bar>b{left:38%}
+  .player-right{display:flex;align-items:center;justify-content:flex-end;gap:16px;color:#6C675B}
+  .player-right .i{width:16px;height:16px}
+  .vol{display:flex;align-items:center;gap:7px}
+  .vol-track{width:78px;height:3px;background:#D5D0C3;position:relative}
+  .vol-track span{position:absolute;left:0;top:0;height:3px;width:72%;background:#4C483D}
+  .vol-num{font-size:10px;color:#8B8577;font-variant-numeric:tabular-nums;width:20px}
+  .quality{font-size:9px;border:1px solid #D5D0C3;color:#8B8577;padding:2px 5px;letter-spacing:.03em}
+
+  /* ---------- album art ---------- */
+  .art-svg{display:block;width:100%;height:100%}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-home" viewBox="0 0 24 24"><path d="M4 10.5 12 4l8 6.5V20h-6v-5h-4v5H4z"/></symbol>
+  <symbol id="i-disc" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2.2"/></symbol>
+  <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3.5 6.5h5l1.8 2h10.2v11H3.5z"/></symbol>
+  <symbol id="i-heart" viewBox="0 0 24 24"><path d="M12 20s-7.5-4.7-7.5-10A4.2 4.2 0 0 1 12 7a4.2 4.2 0 0 1 7.5 3c0 5.3-7.5 10-7.5 10z"/></symbol>
+  <symbol id="i-list" viewBox="0 0 24 24"><path d="M4 6h16M4 12h10M4 18h13"/></symbol>
+  <symbol id="i-wave" viewBox="0 0 24 24"><path d="M3 12h2l2-5 3 10 3-12 3 9 2-2h3"/></symbol>
+  <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 4v11m0 0 4-4m-4 4-4-4M4 19h16"/></symbol>
+  <symbol id="i-scan" viewBox="0 0 24 24"><path d="M4 9V5h4M20 9V5h-4M4 15v4h4M20 15v4h-4M8 12h8"/></symbol>
+  <symbol id="i-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.4-2.4 1a7 7 0 0 0-1.7-1L14.5 3h-5l-.3 3.1a7 7 0 0 0-1.7 1l-2.4-1-2 3.4L5 11a7 7 0 0 0 0 2l-2 1.5 2 3.4 2.4-1a7 7 0 0 0 1.7 1l.3 3.1h5l.3-3.1a7 7 0 0 0 1.7-1l2.4 1 2-3.4-2-1.5a7 7 0 0 0 .1-1z"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5.5 19 12 8 18.5z"/></symbol>
+  <symbol id="i-prev" viewBox="0 0 24 24"><path d="M6 5v14M18 5 8 12l10 7z"/></symbol>
+  <symbol id="i-next" viewBox="0 0 24 24"><path d="M18 5v14M6 5l10 7-10 7z"/></symbol>
+  <symbol id="i-shuffle" viewBox="0 0 24 24"><path d="M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/></symbol>
+  <symbol id="i-repeat" viewBox="0 0 24 24"><path d="M4 11V9a3 3 0 0 1 3-3h12m0 0-3-3m3 3-3 3M20 13v2a3 3 0 0 1-3 3H5m0 0 3 3m-3-3 3-3"/></symbol>
+  <symbol id="i-volume" viewBox="0 0 24 24"><path d="M4 10v4h3l4 3V7l-4 3zM15 9a4 4 0 0 1 0 6M17.5 6.5a8 8 0 0 1 0 11"/></symbol>
+  <symbol id="i-eq" viewBox="0 0 24 24"><path d="M6 4v16M12 4v16M18 4v16"/><circle cx="6" cy="9" r="2"/><circle cx="12" cy="15" r="2"/><circle cx="18" cy="11" r="2"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 14a4 4 0 0 0 6 .5l2-2a4 4 0 0 0-5.5-5.5l-1 1M14 10a4 4 0 0 0-6-.5l-2 2A4 4 0 0 0 11.5 17l1-1"/></symbol>
+  <symbol id="i-grip" viewBox="0 0 24 24"><circle cx="9" cy="6" r="1" fill="currentColor" stroke="none"/><circle cx="15" cy="6" r="1" fill="currentColor" stroke="none"/><circle cx="9" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="15" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="9" cy="18" r="1" fill="currentColor" stroke="none"/><circle cx="15" cy="18" r="1" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="i-chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14m0 0-5-5m5 5-5 5"/></symbol>
+  <symbol id="i-queue" viewBox="0 0 24 24"><path d="M4 6h11M4 11h11M4 16h7M18 8v9m0 0 3-2"/></symbol>
+  <symbol id="i-music" viewBox="0 0 24 24"><path d="M9 18V6l10-2v12"/><circle cx="7" cy="18" r="2.2"/><circle cx="17" cy="16" r="2.2"/></symbol>
+</svg>
+
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <svg viewBox="0 0 32 32" aria-hidden="true">
+        <rect width="32" height="32" fill="#171715"/>
+        <path d="M8 23.5 15.5 8h2L25 23.5h-2.6L16.5 11l-5.8 12.5z" fill="#F2F1EC"/>
+        <path d="M12.5 18.5h8" stroke="#1F44E0" stroke-width="2.2"/>
+      </svg>
+      <div class="name">Фонотека</div>
+    </div>
+
+    <nav class="nav">
+      <div class="group-label">Библиотека</div>
+      <a class="nav-item active" href="#"><svg class="i"><use href="#i-home"/></svg>Главная</a>
+      <a class="nav-item" href="#"><svg class="i"><use href="#i-music"/></svg>Треки<span class="count">4</span></a>
+      <a class="nav-item" href="#"><svg class="i"><use href="#i-disc"/></svg>Альбомы<span class="count">4</span></a>
+      <a class="nav-item" href="#"><svg class="i"><use href="#i-folder"/></svg>Папки<span class="count">1</span></a>
+
+      <div class="group-label">Коллекции</div>
+      <a class="nav-item" href="#"><svg class="i"><use href="#i-heart"/></svg>Избранное<span class="count">2</span></a>
+      <a class="nav-item" href="#"><svg class="i"><use href="#i-list"/></svg>Плейлисты<span class="count">3</span></a>
+
+      <div class="group-label">Инструменты</div>
+      <a class="nav-item" href="#"><svg class="i"><use href="#i-wave"/></svg>Распознать трек</a>
+      <a class="nav-item" href="#"><svg class="i"><use href="#i-download"/></svg>Загрузки</a>
+      <a class="nav-item" href="#"><svg class="i"><use href="#i-link"/></svg>Импорт по ссылке</a>
+    </nav>
+
+    <div class="sidebar-foot">
+      <div class="storage"><span>Локальная музыка</span><span>38,2 МБ</span></div>
+      <div class="storage-bar"><span></span></div>
+      <div class="settings-row"><svg class="i"><use href="#i-scan"/></svg>Сканировать папки</div>
+      <div class="settings-row"><svg class="i"><use href="#i-settings"/></svg>Настройки</div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="topline">
+      <div class="crumbs">Библиотека / <b>Главная</b></div>
+      <div class="tools">
+        <div class="search"><svg class="i"><use href="#i-search"/></svg>Поиск в библиотеке</div>
+        <div class="icon-btn" title="Сканировать"><svg class="i"><use href="#i-scan"/></svg><span class="dot"></span></div>
+      </div>
+    </div>
+
+    <div class="title-row">
+      <div>
+        <h1 class="serif">Библиотека</h1>
+        <div class="subline"><span>4 трека</span><i></i><span>1 папка</span><i></i><span>38,2 МБ на устройстве</span></div>
+      </div>
+      <div class="sort">Сортировка: А – Я <svg class="i"><use href="#i-chev"/></svg></div>
+    </div>
+
+    <section class="hero">
+      <svg class="art-svg" viewBox="0 0 200 200" aria-label="Обложка: Norma Tale — Ван Хельсинг">
+        <rect width="200" height="200" fill="#16202F"/>
+        <circle cx="132" cy="62" r="36" fill="#E9E4D6"/>
+        <rect x="58" y="0" width="3" height="200" fill="#E9E4D6" opacity=".22"/>
+        <path d="M0 200V148h19v-22h17v34h13v-48h21v48h13v-34h17v22h19v52z" fill="#080C13"/>
+        <path d="M89 200v-28a11 11 0 0 1 22 0v28z" fill="#E9E4D6" opacity=".85"/>
+        <text x="20" y="30" font-family="Inter,sans-serif" font-size="7.5" letter-spacing="2.4" fill="#E9E4D6">NORMA TALE</text>
+        <text x="20" y="184" font-family="Georgia,serif" font-size="14" fill="#E9E4D6">Ван Хельсинг</text>
+      </svg>
+      <div class="hero-body">
+        <div class="eyebrow">Вы остановились на</div>
+        <h2 class="serif">Ван Хельсинг</h2>
+        <div class="artist">Norma Tale</div>
+        <div class="album">Альбом «Ван Хельсинг» · 2024 · Локальный файл</div>
+        <div class="hero-progress">
+          <span class="time">1:24</span>
+          <div class="bar"><span style="width:34%"></span><b style="left:34%"></b></div>
+          <span class="time">3:41</span>
+        </div>
+        <div class="hero-actions">
+          <button class="play-big"><svg class="i fill"><use href="#i-play"/></svg></button>
+          <button class="ghost-btn on"><svg class="i"><use href="#i-shuffle"/></svg>Перемешано</button>
+          <button class="ghost-btn"><svg class="i"><use href="#i-repeat"/></svg>Повтор альбома</button>
+          <span class="hint">Играет из папки Music</span>
+        </div>
+      </div>
+    </section>
+
+    <div class="section-head">
+      <h3>Недавно добавленные</h3>
+      <a href="#">Все треки <svg class="i" style="width:13px;height:13px"><use href="#i-arrow"/></svg></a>
+    </div>
+    <table class="track-table">
+      <thead><tr><th>Трек</th><th>Альбом</th><th>Длительность</th><th style="text-align:right">Избранное</th></tr></thead>
+      <tbody>
+        <tr class="now">
+          <td><div class="track-cell">
+            <svg class="thumb art-svg" viewBox="0 0 200 200"><rect width="200" height="200" fill="#16202F"/><circle cx="132" cy="62" r="36" fill="#E9E4D6"/><path d="M0 200V148h19v-22h17v34h13v-48h21v48h13v-34h17v22h19v52z" fill="#080C13"/></svg>
+            <div class="nm"><b>Ван Хельсинг</b><span>Norma Tale</span></div>
+            <div class="eq"><i></i><i></i><i></i></div>
+          </div></td>
+          <td class="album-cell">Ван Хельсинг</td>
+          <td class="dur">3:41</td>
+          <td><div class="row-end"><svg class="i liked"><use href="#i-heart"/></svg></div></td>
+        </tr>
+        <tr class="hover">
+          <td><div class="track-cell">
+            <svg class="thumb art-svg" viewBox="0 0 200 200"><rect width="200" height="200" fill="#7C2222"/><ellipse cx="100" cy="108" rx="47" ry="60" fill="#150A0A"/><path d="M55 74 40 38l31 20M145 74l15-36-31 20" fill="#150A0A"/><circle cx="100" cy="94" r="7" fill="#E9E0CE"/></svg>
+            <div class="nm"><b>Инкуб</b><span>Sacrothorn feat. Marie Steiner</span></div>
+          </div></td>
+          <td class="album-cell">Инкуб</td>
+          <td class="dur">2:38</td>
+          <td><div class="row-end"><svg class="i"><use href="#i-heart"/></svg></div></td>
+        </tr>
+        <tr>
+          <td><div class="track-cell">
+            <svg class="thumb art-svg" viewBox="0 0 200 200"><rect width="200" height="200" fill="#D8D1C1"/><path d="M42 200V92a58 58 0 0 1 116 0v108z" fill="#191817"/><path d="M62 200V96a38 38 0 0 1 76 0v104z" fill="#D8D1C1"/><circle cx="100" cy="96" r="12" fill="#191817"/></svg>
+            <div class="nm"><b>Bride of Despair I</b><span>the first berserker khazan</span></div>
+          </div></td>
+          <td class="album-cell">Bride of Despair</td>
+          <td class="dur">4:17</td>
+          <td><div class="row-end"><svg class="i"><use href="#i-heart"/></svg></div></td>
+        </tr>
+        <tr>
+          <td><div class="track-cell">
+            <svg class="thumb art-svg" viewBox="0 0 200 200"><rect width="200" height="200" fill="#1F44E0"/><path d="M0 50h200M0 100h200M0 150h200M50 0v200M100 0v200M150 0v200" stroke="#F2F1EC" stroke-width="1.4" opacity=".45"/><rect x="62" y="62" width="76" height="76" fill="#171715"/><circle cx="100" cy="100" r="19" fill="#F2F1EC"/></svg>
+            <div class="nm"><b>Декарта</b><span>asper x квадрат</span></div>
+          </div></td>
+          <td class="album-cell">Декарта</td>
+          <td class="dur">4:11</td>
+          <td><div class="row-end"><svg class="i"><use href="#i-heart"/></svg></div></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="folders">
+      <div class="folder-card">
+        <div class="ficon"><svg class="i"><use href="#i-folder"/></svg></div>
+        <div style="min-width:0"><b>Music</b><span>C:\Users\keytom\Another\GnH\Music</span></div>
+        <div class="fmeta">4 трека · сегодня</div>
+      </div>
+      <div class="folder-card add">
+        <div class="ficon"><svg class="i"><use href="#i-plus"/></svg></div>
+        <div><b>Добавить папку</b><span>Сканирование при запуске</span></div>
+      </div>
+    </div>
+  </main>
+
+  <aside class="rail">
+    <div class="rail-head">
+      <h3>Очередь</h3>
+      <button class="icon-btn" style="width:30px;height:30px;border:0;background:none;color:var(--accent)"><svg class="i"><use href="#i-shuffle"/></svg></button>
+    </div>
+    <div class="rail-sub"><span class="tag">Перемешано</span> Новый порядок сохранён</div>
+    <div class="queue">
+      <div class="q-row playing"><span class="pos">01</span>
+        <svg class="thumb art-svg" viewBox="0 0 200 200"><rect width="200" height="200" fill="#16202F"/><circle cx="132" cy="62" r="36" fill="#E9E4D6"/><path d="M0 200V148h19v-22h17v34h13v-48h21v48h13v-34h17v22h19v52z" fill="#080C13"/></svg>
+        <div><div class="q-name">Ван Хельсинг</div><div class="q-art">Norma Tale</div></div>
+        <svg class="i"><use href="#i-grip"/></svg></div>
+      <div class="q-row"><span class="pos">02</span>
+        <svg class="thumb art-svg" viewBox="0 0 200 200"><rect width="200" height="200" fill="#1F44E0"/><rect x="62" y="62" width="76" height="76" fill="#171715"/><circle cx="100" cy="100" r="19" fill="#F2F1EC"/></svg>
+        <div><div class="q-name">Декарта</div><div class="q-art">asper x квадрат</div></div>
+        <svg class="i"><use href="#i-grip"/></svg></div>
+      <div class="q-row"><span class="pos">03</span>
+        <svg class="thumb art-svg" viewBox="0 0 200 200"><rect width="200" height="200" fill="#D8D1C1"/><path d="M42 200V92a58 58 0 0 1 116 0v108z" fill="#191817"/><path d="M62 200V96a38 38 0 0 1 76 0v104z" fill="#D8D1C1"/><circle cx="100" cy="96" r="12" fill="#191817"/></svg>
+        <div><div class="q-name">Bride of Despair I</div><div class="q-art">the first berserker khazan</div></div>
+        <svg class="i"><use href="#i-grip"/></svg></div>
+      <div class="q-row"><span class="pos">04</span>
+        <svg class="thumb art-svg" viewBox="0 0 200 200"><rect width="200" height="200" fill="#7C2222"/><ellipse cx="100" cy="108" rx="47" ry="60" fill="#150A0A"/><path d="M55 74 40 38l31 20M145 74l15-36-31 20" fill="#150A0A"/><circle cx="100" cy="94" r="7" fill="#E9E0CE"/></svg>
+        <div><div class="q-name">Инкуб</div><div class="q-art">Sacrothorn, Marie Steiner</div></div>
+        <svg class="i"><use href="#i-grip"/></svg></div>
+    </div>
+
+    <div class="rail-section"><h4>Плейлисты</h4><button><svg class="i" style="width:15px;height:15px"><use href="#i-plus"/></svg></button></div>
+    <div class="playlists">
+      <div class="pl-row"><div class="pl-icon"><svg class="i"><use href="#i-list"/></svg></div><div><div class="pl-name">Ночная смена</div><div class="pl-meta">3 трека · 11 мин</div></div></div>
+      <div class="pl-row"><div class="pl-icon"><svg class="i"><use href="#i-list"/></svg></div><div><div class="pl-name">Для работы</div><div class="pl-meta">2 трека · 7 мин</div></div></div>
+      <div class="pl-row"><div class="pl-icon fav"><svg class="i"><use href="#i-heart"/></svg></div><div><div class="pl-name">Избранное</div><div class="pl-meta">2 трека · с альбомами</div></div></div>
+    </div>
+
+    <div class="import">
+      <h4>Скачать по ссылке</h4>
+      <p>Плейлист из Spotify, Яндекса, VK или Apple Music</p>
+      <div class="import-box"><svg class="i"><use href="#i-link"/></svg>Вставьте ссылку на плейлист</div>
+      <button class="import-btn">Разобрать и показать треки</button>
+      <div class="services">Spotify · Яндекс Музыка · VK · Apple Music</div>
+    </div>
+  </aside>
+
+  <div class="player">
+    <div class="np">
+      <svg class="thumb art-svg" viewBox="0 0 200 200"><rect width="200" height="200" fill="#16202F"/><circle cx="132" cy="62" r="36" fill="#E9E4D6"/><path d="M0 200V148h19v-22h17v34h13v-48h21v48h13v-34h17v22h19v52z" fill="#080C13"/></svg>
+      <div class="np-text"><b>Ван Хельсинг</b><span>Norma Tale · Ван Хельсинг</span></div>
+      <svg class="i heart" style="color:var(--accent);fill:var(--accent);stroke:var(--accent)"><use href="#i-heart"/></svg>
+    </div>
+    <div class="transport">
+      <div class="buttons">
+        <svg class="i sm on"><use href="#i-shuffle"/></svg>
+        <svg class="i"><use href="#i-prev"/></svg>
+        <div class="play-mid"><svg class="i fill"><use href="#i-play"/></svg></div>
+        <svg class="i"><use href="#i-next"/></svg>
+        <svg class="i sm on"><use href="#i-repeat"/></svg>
+      </div>
+      <div class="seek">
+        <span class="time">1:24</span>
+        <div class="bar"><span></span><b></b></div>
+        <span class="time">3:41</span>
+      </div>
+    </div>
+    <div class="player-right">
+      <span class="quality">MP3 · 320</span>
+      <div class="vol"><svg class="i"><use href="#i-volume"/></svg><div class="vol-track"><span></span></div><span class="vol-num">78%</span></div>
+      <svg class="i"><use href="#i-eq"/></svg>
+      <svg class="i"><use href="#i-queue"/></svg>
+    </div>
+  </div>
+</div>
+</body>
+</html>
