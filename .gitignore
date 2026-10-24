@@ -9,6 +9,7 @@ build/
 target/
 src-tauri/target/
 src-tauri/gen/
+*.tsbuildinfo
 
 # local data / caches
 *.local
