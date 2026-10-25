@@ -1,31 +1,22 @@
 import {
   ArrowRight,
-  Disc3,
   FolderPlus,
-  ListMusic,
+  Pause,
   Play,
-  ScanLine,
   Shuffle,
 } from "lucide-react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { Cover } from "../components/Cover";
-import { PlaylistMosaic } from "../components/PlaylistMosaic";
 import {
   formatDuration,
-  formatMinutes,
   pluralRu,
   trackCountLabel,
 } from "../lib/format";
 import { pickFolder } from "../lib/tauri";
-import {
-  favoriteTracks,
-  groupAlbums,
-  useLibraryStore,
-  visibleTracks,
-} from "../store/library";
+import { groupAlbums, useLibraryStore, visibleTracks } from "../store/library";
 import { useCurrentTrack, usePlayerStore } from "../store/player";
 import { useUiStore } from "../store/ui";
-import type { Playlist, Track } from "../types";
+import type { Track } from "../types";
 
 function greeting(): string {
   const hour = new Date().getHours();
@@ -37,21 +28,18 @@ function greeting(): string {
 
 export function Home() {
   const tracks = useLibraryStore((state) => state.tracks);
-  const playlists = useLibraryStore((state) => state.playlists);
   const folders = useLibraryStore((state) => state.folders);
-  const scanning = useLibraryStore((state) => state.scanning);
-  const scan = useLibraryStore((state) => state.scan);
   const addFolder = useLibraryStore((state) => state.addFolder);
   const setContext = usePlayerStore((state) => state.setContext);
   const toggleShuffle = usePlayerStore((state) => state.toggleShuffle);
+  const togglePlay = usePlayerStore((state) => state.togglePlay);
   const shuffle = usePlayerStore((state) => state.shuffle);
+  const isPlaying = usePlayerStore((state) => state.isPlaying);
   const positionMs = usePlayerStore((state) => state.positionMs);
   const current = useCurrentTrack();
   const notify = useUiStore((state) => state.notify);
-  const navigate = useNavigate();
 
   const visible = visibleTracks(tracks);
-  const favorites = favoriteTracks(tracks);
   const albums = groupAlbums(tracks);
   const recent = [...visible]
     .sort((a, b) => b.addedAt - a.addedAt)
@@ -61,10 +49,24 @@ export function Home() {
 
   const playHero = () => {
     if (!hero) return;
+    if (heroIsCurrent) {
+      togglePlay();
+      return;
+    }
     setContext(
       visible.map((track) => track.id),
       hero.id,
-      heroIsCurrent ? "Продолжение" : "Библиотека",
+      "Библиотека",
+    );
+  };
+
+  const shuffleHero = () => {
+    if (!hero) return;
+    if (!shuffle) toggleShuffle();
+    setContext(
+      visible.map((track) => track.id),
+      hero.id,
+      "Библиотека",
     );
   };
 
@@ -73,18 +75,6 @@ export function Home() {
       visible.map((item) => item.id),
       track.id,
       "Библиотека",
-    );
-  };
-
-  const playPlaylist = (playlist: Playlist) => {
-    if (playlist.trackIds.length === 0) {
-      notify("В плейлисте пока нет треков", "info");
-      return;
-    }
-    setContext(
-      playlist.trackIds,
-      playlist.trackIds[0],
-      `Плейлист «${playlist.name}»`,
     );
   };
 
@@ -130,14 +120,6 @@ export function Home() {
                 <FolderPlus size={16} />
                 Добавить папку
               </button>
-              <button
-                className="secondary-button"
-                onClick={() => void scan()}
-                disabled={scanning || folders.length === 0}
-              >
-                <ScanLine size={16} />
-                {scanning ? "Сканирование…" : "Сканировать"}
-              </button>
             </div>
             {folders.length > 0 ? (
               <p className="onboarding-note">
@@ -164,9 +146,7 @@ export function Home() {
           <h1 className="serif">{greeting()}</h1>
           <p className="page-sub">
             {trackCountLabel(visible.length)} · {albums.length}{" "}
-            {pluralRu(albums.length, ["альбом", "альбома", "альбомов"])} ·{" "}
-            {playlists.length}{" "}
-            {pluralRu(playlists.length, ["плейлист", "плейлиста", "плейлистов"])}
+            {pluralRu(albums.length, ["альбом", "альбома", "альбомов"])}
           </p>
         </div>
         <div className="head-actions">
@@ -176,10 +156,6 @@ export function Home() {
             title="Перемешать"
           >
             <Shuffle size={17} />
-          </button>
-          <button className="secondary-button" onClick={() => void scan()}>
-            <ScanLine size={15} className={scanning ? "spin" : ""} />
-            {scanning ? "Сканирование…" : "Сканировать"}
           </button>
         </div>
       </header>
@@ -229,16 +205,20 @@ export function Home() {
             ) : null}
 
             <div className="hero-actions">
-              <button className="play-hero" onClick={playHero}>
-                <Play size={18} fill="currentColor" />
-              </button>
               <button
-                className="ghost-button"
-                onClick={() => {
-                  if (!shuffle) toggleShuffle();
-                  playHero();
-                }}
+                className="play-hero"
+                onClick={playHero}
+                aria-label={
+                  heroIsCurrent && isPlaying ? "Пауза" : "Играть"
+                }
               >
+                {heroIsCurrent && isPlaying ? (
+                  <Pause size={18} fill="currentColor" />
+                ) : (
+                  <Play size={18} fill="currentColor" />
+                )}
+              </button>
+              <button className="ghost-button" onClick={shuffleHero}>
                 <Shuffle size={14} />
                 Перемешать
               </button>
@@ -274,85 +254,6 @@ export function Home() {
         </div>
       </section>
 
-      <section className="home-section">
-        <div className="section-head">
-          <h3 className="serif">Плейлисты</h3>
-          <Link to="/playlists" className="section-link">
-            Все плейлисты <ArrowRight size={13} />
-          </Link>
-        </div>
-        <div className="playlist-grid">
-          {playlists.slice(0, 3).map((playlist) => {
-            const playlistTracks = playlist.trackIds
-              .map((id) => tracks.find((track) => track.id === id))
-              .filter((track): track is Track => Boolean(track));
-            return (
-              <button
-                className="playlist-card"
-                key={playlist.id}
-                onClick={() => playPlaylist(playlist)}
-              >
-                <PlaylistMosaic tracks={playlistTracks} />
-                <div className="playlist-card-text">
-                  <strong>{playlist.name}</strong>
-                  <span>
-                    {trackCountLabel(playlistTracks.length)} ·{" "}
-                    {formatMinutes(
-                      playlistTracks.reduce(
-                        (sum, track) => sum + track.durationMs,
-                        0,
-                      ),
-                    )}
-                  </span>
-                </div>
-              </button>
-            );
-          })}
-
-          <button
-            className="playlist-card add"
-            onClick={() => useUiStore.getState().setCreatePlaylistOpen(true)}
-          >
-            <span className="playlist-add-icon">
-              <ListMusic size={18} />
-            </span>
-            <div className="playlist-card-text">
-              <strong>Новый плейлист</strong>
-              <span>Собрать из разных папок</span>
-            </div>
-          </button>
-        </div>
-      </section>
-
-      <section className="home-section sources-section">
-        <div className="section-head">
-          <h3 className="serif">Источники</h3>
-          <Link to="/folders" className="section-link">
-            Управлять <ArrowRight size={13} />
-          </Link>
-        </div>
-        <div className="source-row">
-          <div className="source-icon">
-            <Disc3 size={17} />
-          </div>
-          <div className="source-text">
-            <strong>{folders[0]?.path.split(/[\\/]/).pop() ?? "Папка"}</strong>
-            <span>
-              {trackCountLabel(visible.length)} · {formatMinutes(
-                visible.reduce((sum, track) => sum + track.durationMs, 0),
-              )} · {favorites.length} в избранном
-            </span>
-          </div>
-          <button
-            className="ghost-button"
-            onClick={() => {
-              if (folders[0]) navigate("/folders");
-            }}
-          >
-            Открыть
-          </button>
-        </div>
-      </section>
     </div>
   );
 }

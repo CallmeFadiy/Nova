@@ -3896,3 +3896,243 @@ p {
   height: 30px;
   font-size: 9px;
 }
+
+/* readability pass */
+.global-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  height: 34px;
+  margin: 0 0 4px;
+}
+
+.global-scan-status {
+  font-size: 9.5px;
+  color: var(--faint);
+}
+
+.global-scan-button {
+  height: 32px;
+  font-size: 10px;
+}
+
+.settings-page .settings-section-head h2 {
+  font-size: 24px;
+}
+
+.settings-page .settings-hint {
+  font-size: 11.5px;
+  line-height: 1.6;
+}
+
+.settings-page .settings-row {
+  min-height: 58px;
+  padding: 12px 14px;
+}
+
+.settings-page .settings-row-main strong {
+  font-size: 13px;
+}
+
+.settings-page .settings-row-main span {
+  font-size: 10.5px;
+}
+
+.settings-page .settings-row-meta {
+  font-size: 10.5px;
+}
+
+.settings-page .settings-row-meta span {
+  font-size: 9.5px;
+}
+
+.settings-page .settings-empty {
+  font-size: 11px;
+  padding: 16px;
+}
+
+.settings-page .settings-field label {
+  font-size: 11px;
+}
+
+.settings-page .settings-field .text-input,
+.settings-page .settings-field .select-input {
+  font-size: 12px;
+  height: 38px;
+}
+
+.settings-page .bg-card-foot strong {
+  font-size: 12px;
+}
+
+.settings-page .bg-card-foot span {
+  font-size: 10px;
+}
+
+.settings-page .bg-placeholder {
+  font-size: 11px;
+}
+
+.settings-page .settings-inline {
+  font-size: 10.5px;
+}
+
+.settings-page .settings-badge {
+  font-size: 9.5px;
+}
+
+.settings-page .about-section p {
+  font-size: 11.5px;
+}
+
+.settings-page .about-section span {
+  font-size: 10px;
+}
+
+.settings-page .settings-value {
+  font-size: 11px;
+}
+
+.app-shell {
+  grid-template-columns: 228px minmax(0, 1fr) 320px;
+}
+
+.queue-panel {
+  padding: 24px 18px 16px;
+}
+
+.queue-head h2 {
+  font-size: 24px;
+}
+
+.queue-head p {
+  font-size: 10.5px;
+}
+
+.queue-list {
+  margin-top: 14px;
+}
+
+.queue-item {
+  height: 60px;
+  grid-template-columns: 20px 40px minmax(0, 1fr) 13px;
+  gap: 10px;
+}
+
+.queue-cover {
+  width: 40px;
+}
+
+.queue-index {
+  font-size: 9.5px;
+}
+
+.queue-text strong {
+  font-size: 12px;
+}
+
+.queue-text span {
+  font-size: 9.5px;
+}
+
+.queue-empty p {
+  font-size: 12px;
+}
+
+.queue-empty span {
+  font-size: 10px;
+}
+
+.queue-foot {
+  font-size: 10px;
+}
+
+.queue-foot .ghost-button {
+  height: 30px;
+  font-size: 10px;
+}
+
+:root {
+  --player-height: 96px;
+}
+
+.player-bar {
+  grid-template-columns: 330px minmax(0, 1fr) 330px;
+}
+
+.player-cover {
+  width: 58px;
+}
+
+.player-track-text strong {
+  font-size: 12.5px;
+}
+
+.player-track-text span {
+  font-size: 10px;
+}
+
+.player-seek > span {
+  font-size: 9.5px;
+  width: 32px;
+}
+
+.volume-value {
+  font-size: 9px;
+  width: 28px;
+}
+
+.quality-badge {
+  font-size: 8.5px;
+}
+
+.player-controls {
+  gap: 16px;
+}
+
+.play-button {
+  width: 38px;
+  height: 38px;
+}
+
+@media (max-width: 1280px) {
+  .app-shell {
+    grid-template-columns: 210px minmax(0, 1fr) 300px;
+  }
+
+  .app-shell.queue-hidden {
+    grid-template-columns: 210px minmax(0, 1fr) 0;
+  }
+}
+
+@media (max-width: 1100px) {
+  .app-shell,
+  .app-shell.queue-hidden {
+    grid-template-columns: 200px minmax(0, 1fr) 0;
+  }
+}
+
+@media (max-width: 1280px) {
+  .player-bar {
+    grid-template-columns: 300px minmax(0, 1fr) 300px;
+  }
+}
+
+@media (max-width: 1100px) {
+  .player-bar {
+    grid-template-columns: 260px minmax(0, 1fr) 260px;
+  }
+}
+
+@media (max-width: 900px) {
+  .player-bar {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+}
+
+@media (max-width: 620px) {
+  :root {
+    --player-height: 76px;
+  }
+}

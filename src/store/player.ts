@@ -188,6 +188,11 @@ export const usePlayerStore = create<PlayerState>()(
           audioEngine.pause();
           persistPosition(state.positionMs);
         } else {
+          if (state.durationMs > 0 && state.positionMs >= state.durationMs - 200) {
+            audioEngine.seek(0);
+            set({ positionMs: 0 });
+            persistPosition(0);
+          }
           void audioEngine.play();
         }
       },
