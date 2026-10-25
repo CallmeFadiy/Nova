@@ -26,6 +26,8 @@ lofty = "0.25"
 walkdir = "2"
 sha1 = "0.10"
 dunce = "1"
+regex = "1"
+base64 = "0.22"
 reqwest = { version = "0.13", features = ["json", "rustls", "multipart"] }
 cpal = "0.16"
 hound = "3.5"

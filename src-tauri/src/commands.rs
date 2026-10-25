@@ -1,8 +1,8 @@
 use crate::models::{
-    DownloadResult, Folder, ImportPlaylist, MediaCandidate, Playlist, RecognitionResult, ScanResult,
-    Snapshot, Track,
+    DownloadResult, Folder, ImportPlaylist, LyricsFile, LyricsResult, MediaCandidate, Playlist,
+    RecognitionResult, ScanResult, Snapshot, Track,
 };
-use crate::{media, scanner, AppState};
+use crate::{lyrics, media, scanner, AppState};
 use rusqlite::{params, Connection, OptionalExtension};
 use std::fs;
 use std::path::PathBuf;
@@ -492,4 +492,28 @@ pub async fn recognize_shazam() -> Result<RecognitionResult, String> {
 #[tauri::command]
 pub async fn recognize_shazam_file(path: String) -> Result<RecognitionResult, String> {
     media::recognize_shazam_file(path).await
+}
+
+#[tauri::command]
+pub async fn get_lyrics(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    track_id: i64,
+) -> Result<LyricsResult, String> {
+    lyrics::get_lyrics(app, state, track_id).await
+}
+
+#[tauri::command]
+pub fn list_lyrics(app: AppHandle) -> Result<Vec<LyricsFile>, String> {
+    lyrics::list(&app)
+}
+
+#[tauri::command]
+pub fn delete_lyrics(app: AppHandle, file_name: String) -> Result<(), String> {
+    lyrics::delete(&app, &file_name)
+}
+
+#[tauri::command]
+pub fn clear_lyrics(app: AppHandle) -> Result<usize, String> {
+    lyrics::clear(&app)
 }

@@ -244,44 +244,187 @@ export interface AlbumGroup {
   key: string;
   name: string;
   artist: string;
+  albums: string[];
+  isCollaboration: boolean;
   year: number | null;
   coverPath: string | null;
   tracks: Track[];
   durationMs: number;
 }
 
+const SOURCE_SUFFIX =
+  /\(\s*[^)]*(?:musmore|topde|sefon|muzish|drive\s*music|drivemusic|telegram|слив|zvuk|zaycev|mp3)[^)]*\)|\[\s*[^\]]*(?:musmore|topde|sefon|muzish|drive\s*music|drivemusic|telegram|слив|zvuk|zaycev|mp3)[^\]]*\]/gi;
+
+const TRAILING_NUMBER = /\s*\(\d{1,2}\)\s*$/;
+
+const TRANSLITERATION: Record<string, string> = {
+  а: "a",
+  б: "b",
+  в: "v",
+  г: "g",
+  д: "d",
+  е: "e",
+  ё: "e",
+  ж: "zh",
+  з: "z",
+  и: "i",
+  й: "i",
+  к: "k",
+  л: "l",
+  м: "m",
+  н: "n",
+  о: "o",
+  п: "p",
+  р: "r",
+  с: "s",
+  т: "t",
+  у: "u",
+  ф: "f",
+  х: "x",
+  ц: "c",
+  ч: "ch",
+  ш: "sh",
+  щ: "sch",
+  ъ: "",
+  ы: "y",
+  ь: "",
+  э: "e",
+  ю: "yu",
+  я: "ya",
+  і: "i",
+  ї: "i",
+  є: "e",
+  ґ: "g",
+};
+
+export function cleanArtistName(raw: string): string {
+  let value = (raw || "")
+    .normalize("NFKC")
+    .replace(/_/g, " ")
+    .replace(/[\u2013\u2014]/g, "-")
+    .replace(/\s+/g, " ")
+    .trim();
+  for (let index = 0; index < 3; index += 1) {
+    const next = value.replace(SOURCE_SUFFIX, " ").replace(/\s+/g, " ").trim();
+    if (next === value) break;
+    value = next;
+  }
+  value = value.replace(TRAILING_NUMBER, "").trim();
+
+  // Some files carry "Artist - Title" in the artist tag. Keep only the artist
+  // part; a real collaboration still survives because it is before the dash.
+  const dash = value.split(/\s+-\s+/);
+  if (dash.length > 1 && dash[0]?.trim()) {
+    value = dash[0].trim();
+  }
+  return value.replace(/\s+/g, " ").trim();
+}
+
+function looksLikeCollaboration(name: string): boolean {
+  const padded = ` ${name.toLowerCase()} `;
+  return (
+    /\b(?:feat|ft|при участии|совместно|vs)\b/i.test(padded) ||
+    /[&×]/.test(name) ||
+    /,\s*\S/.test(name) ||
+    /\s[xх]\s+\S/i.test(padded)
+  );
+}
+
+export function isCollaboration(name: string): boolean {
+  return looksLikeCollaboration(cleanArtistName(name));
+}
+
+export function normalizeArtistKey(name: string): string {
+  const transliterated = Array.from(name.toLowerCase())
+    .map((character) => TRANSLITERATION[character] ?? character)
+    .join("");
+  return transliterated.replace(/[^a-z0-9]+/g, "");
+}
+
+function displayPreference(name: string): number {
+  let score = 0;
+  if (/[a-z]/i.test(name) && /[а-яё]/i.test(name)) score += 2;
+  if (name !== name.toUpperCase()) score += 1;
+  if (!name.includes("_")) score += 1;
+  return score;
+}
+
+interface AlbumAccumulator {
+  key: string;
+  counts: Map<string, number>;
+  tracks: Track[];
+  albums: Set<string>;
+  isCollaboration: boolean;
+  year: number | null;
+  coverPath: string | null;
+  durationMs: number;
+}
+
 export function groupAlbums(tracks: Track[]): AlbumGroup[] {
-  const map = new Map<string, AlbumGroup>();  for (const track of visibleTracks(tracks)) {
-    const key = `${track.albumArtist || track.artist}::${track.album}`;
-    const existing = map.get(key);
+  const groups = new Map<string, AlbumAccumulator>();
+
+  for (const track of visibleTracks(tracks)) {
+    const rawArtist =
+      track.artist || track.albumArtist || "Неизвестный исполнитель";
+    const artist = cleanArtistName(rawArtist) || "Неизвестный исполнитель";
+    const collaboration = looksLikeCollaboration(artist);
+    const normalized = normalizeArtistKey(artist) || "unknown";
+    const key = `${collaboration ? "collab" : "artist"}:${normalized}`;
+    const existing = groups.get(key);
+
     if (existing) {
       existing.tracks.push(track);
       existing.durationMs += track.durationMs;
+      existing.counts.set(artist, (existing.counts.get(artist) ?? 0) + 1);
+      if (track.album) existing.albums.add(track.album);
       if (!existing.coverPath) {
         existing.coverPath = track.customCoverPath || track.coverPath;
       }
+      if (existing.year === null && track.year) existing.year = track.year;
     } else {
-      map.set(key, {
+      groups.set(key, {
         key,
-        name: track.album || "Без альбома",
-        artist: track.albumArtist || track.artist,
+        counts: new Map([[artist, 1]]),
+        tracks: [track],
+        albums: new Set(track.album ? [track.album] : []),
+        isCollaboration: collaboration,
         year: track.year,
         coverPath: track.customCoverPath || track.coverPath,
-        tracks: [track],
         durationMs: track.durationMs,
       });
     }
   }
-  return [...map.values()]
-    .map((album) => ({
-      ...album,
-      tracks: [...album.tracks].sort((a, b) => {
-        const trackA = a.trackNo ?? 0;
-        const trackB = b.trackNo ?? 0;
-        if (trackA !== trackB) return trackA - trackB;
-        return a.title.localeCompare(b.title, "ru");
-      }),
-    }))
+
+  return [...groups.values()]
+    .map((group) => {
+      const display =
+        [...group.counts.entries()]
+          .sort(
+            (a, b) =>
+              b[1] - a[1] ||
+              displayPreference(b[0]) - displayPreference(a[0]) ||
+              a[0].localeCompare(b[0], "ru"),
+          )
+          .map(([name]) => name)[0] ?? "Неизвестный исполнитель";
+      return {
+        key: group.key,
+        name: display,
+        artist: display,
+        albums: [...group.albums],
+        isCollaboration: group.isCollaboration,
+        year: group.year,
+        coverPath: group.coverPath,
+        durationMs: group.durationMs,
+        tracks: [...group.tracks].sort((a, b) => {
+          const albumCompare = a.album.localeCompare(b.album, "ru");
+          if (albumCompare !== 0) return albumCompare;
+          const trackA = a.trackNo ?? 0;
+          const trackB = b.trackNo ?? 0;
+          if (trackA !== trackB) return trackA - trackB;
+          return a.title.localeCompare(b.title, "ru");
+        }),
+      };
+    })
     .sort((a, b) => a.name.localeCompare(b.name, "ru"));
 }
 

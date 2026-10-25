@@ -22,11 +22,8 @@ import type { ImportPlaylist, ImportTrack } from "../types";
 const SOURCES = [
   "Deezer",
   "YouTube",
-  "Прямые аудио-ссылки",
-  "Spotify",
-  "Apple Music",
   "Яндекс Музыка",
-  "VK Музыка",
+  "Прямые аудио-ссылки",
 ];
 
 export function Import() {
@@ -377,7 +374,7 @@ export function Import() {
           <input
             value={url}
             onChange={(event) => setUrl(event.target.value)}
-            placeholder="https://www.deezer.com/playlist/… или https://youtube.com/playlist?list=…"
+            placeholder="Deezer, YouTube или ссылка на плейлист Яндекс Музыки"
             onKeyDown={(event) => {
               if (event.key === "Enter") void resolve();
             }}
@@ -403,8 +400,8 @@ export function Import() {
           <span className="step-number">1</span>
           <h3 className="serif">Ссылка</h3>
           <p>
-            Deezer и YouTube разбираются без ключей. Spotify, Apple, Яндекс и VK
-            требуют API-ключей или авторизации.
+            Deezer, YouTube и публичные плейлисты Яндекс Музыки разбираются без
+            ключей. Для одиночного видео YouTube достаточно ссылки youtu.be.
           </p>
         </article>
         <article className="step-card">
@@ -430,9 +427,9 @@ export function Import() {
         <div>
           <strong>Без обхода DRM</strong>
           <p>
-            Spotify, Apple Music, Яндекс и VK используются для метаданных и
-            сопоставления. Аудио скачивается из источников, которые вы
-            добавили сами, и только для контента, на который у вас есть права.
+            Яндекс Музыка используется только для списка треков. Аудио
+            скачивается через yt-dlp или из источников, которые вы добавили
+            сами, и только для контента, на который у вас есть права.
           </p>
         </div>
         <Check size={18} />

@@ -1,9 +1,10 @@
 import { useEffect, useRef } from "react";
-import { Menu, ScanLine } from "lucide-react";
+import { Menu } from "lucide-react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { AddToPlaylistModal } from "./components/AddToPlaylistModal";
 import { CreatePlaylistModal } from "./components/CreatePlaylistModal";
 import { EqualizerPanel } from "./components/EqualizerPanel";
+import { LyricsModal } from "./components/LyricsModal";
 import { NowPlaying } from "./components/NowPlaying";
 import { PlayerBar } from "./components/PlayerBar";
 import { QueuePanel } from "./components/QueuePanel";
@@ -32,8 +33,6 @@ export default function App() {
   const error = useLibraryStore((state) => state.error);
   const load = useLibraryStore((state) => state.load);
   const scan = useLibraryStore((state) => state.scan);
-  const scanning = useLibraryStore((state) => state.scanning);
-  const scanProgress = useLibraryStore((state) => state.scanProgress);
   const setScanProgress = useLibraryStore((state) => state.setScanProgress);
   const queueOpen = useUiStore((state) => state.queueOpen);
   const mobileNavOpen = useUiStore((state) => state.mobileNavOpen);
@@ -187,21 +186,6 @@ export default function App() {
           <Menu size={18} />
         </button>
         <main className="main-scroll">
-          <div className="global-toolbar">
-            {scanning && scanProgress ? (
-              <span className="global-scan-status">
-                Сканирование {scanProgress.current}/{scanProgress.total}
-              </span>
-            ) : null}
-            <button
-              className="secondary-button global-scan-button"
-              onClick={() => void scan()}
-              disabled={scanning}
-            >
-              <ScanLine size={15} className={scanning ? "spin" : ""} />
-              {scanning ? "Сканирование…" : "Сканировать папки"}
-            </button>
-          </div>
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/library" element={<Library key="tracks" />} />
@@ -235,6 +219,7 @@ export default function App() {
       <CreatePlaylistModal />
       <EqualizerPanel />
       <NowPlaying />
+      <LyricsModal />
       <Toasts />
       {!isTauri ? <div className="demo-badge">Демо-режим браузера</div> : null}
     </>

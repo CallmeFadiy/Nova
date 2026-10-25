@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-windows.ps1",
+    "build:web": "tsc -b && vite build",
+    "build:exe": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-windows.ps1",
     "preview": "vite preview",
     "tauri": "tauri"
   },

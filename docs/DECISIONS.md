@@ -30,9 +30,11 @@
 
 - SQLite + `lofty`, инкрементальный скан, обложки в `%APPDATA%\com.fadiy.nova\covers`.
 - Web Audio + `HTMLAudioElement`, 10-полосный эквалайзер, asset protocol с динамическим allowlist папок.
-- Deezer/iTunes поиск и превью, yt-dlp sidecar для полных треков, импорт Deezer/YouTube.
+- Поиск Zaycev/Muzofond/DriveMusic с выбором лучшего битрейта, yt-dlp sidecar для полных треков, импорт Deezer/YouTube/Яндекс Музыки.
+- Плоские альбомы по каноническому исполнителю; фиты и совместные проекты вынесены отдельно.
+- Тексты песен с Genius и файловым кэшем в `%APPDATA%\com.fadiy.nova\lyrics`.
 - Встроенное Shazam-распознавание через `songrec-lib` (GPL-3.0+) и AudD по ключу.
-- Windows MSI/NSIS-установщики.
+- Windows MSI/NSIS-установщики; `npm run build` всегда пересобирает портативный exe.
 
 ## Лицензионное следствие
 

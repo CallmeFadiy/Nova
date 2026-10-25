@@ -6,6 +6,7 @@ import {
   Play,
   Repeat,
   Repeat1,
+  ScrollText,
   Shuffle,
   SkipBack,
   SkipForward,
@@ -27,6 +28,7 @@ export function NowPlaying() {
   const open = useUiStore((state) => state.nowPlayingOpen);
   const setOpen = useUiStore((state) => state.setNowPlayingOpen);
   const setEqualizerOpen = useUiStore((state) => state.setEqualizerOpen);
+  const openLyrics = useUiStore((state) => state.openLyrics);
   const setQueueOpen = useUiStore((state) => state.setQueueOpen);
   const current = useCurrentTrack();
   const tracks = useLibraryStore((state) => state.tracks);
@@ -179,6 +181,13 @@ export function NowPlaying() {
                   }
                 />
               </div>
+              <button
+                className="icon-button"
+                onClick={() => current && openLyrics(current.id)}
+                aria-label="Текст песни"
+              >
+                <ScrollText size={18} />
+              </button>
               <button
                 className="icon-button"
                 onClick={() => setEqualizerOpen(true)}

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import {
   Download,
   ExternalLink,
+  FolderOpen,
   Loader2,
   Music2,
   Pause,
@@ -12,7 +13,7 @@ import {
 } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { formatDuration, pluralRu } from "../lib/format";
-import { api, openExternal } from "../lib/tauri";
+import { api, openExternal, pickFolder } from "../lib/tauri";
 import { useDownloadProgress } from "../hooks/useDownloadProgress";
 import { useLibraryStore } from "../store/library";
 import { useSettingsStore } from "../store/settings";
@@ -21,6 +22,7 @@ import type { DownloadResult, MediaCandidate } from "../types";
 
 export function Downloads() {
   const downloadDir = useSettingsStore((state) => state.downloadDir);
+  const setDownloadDir = useSettingsStore((state) => state.setDownloadDir);
   const ytdlpPath = useSettingsStore((state) => state.ytdlpPath);
   const addFolder = useLibraryStore((state) => state.addFolder);
   const scan = useLibraryStore((state) => state.scan);
@@ -103,72 +105,81 @@ export function Downloads() {
     notify(`Скачано: ${result.title}`, "success");
   };
 
+  const chooseDownloadDir = async () => {
+    const path = await pickFolder("Выбрать папку загрузок");
+    if (!path) {
+      notify("Выбор папки доступен в приложении Nova", "info");
+      return;
+    }
+    setDownloadDir(path);
+    notify("Папка загрузок обновлена", "success");
+  };
+
   const startCandidate = async (candidate: MediaCandidate) => {
     const id = `${candidate.id}-${Date.now()}`;
     setProgress({
       id,
       percent: 0,
-      line: "Подготовка загрузки…",
+      line: `Подготовка: ${candidate.artist} — ${candidate.title} (${candidate.quality})`,
       status: "starting",
       path: null,
       error: null,
     });
     try {
-      const result = await api.downloadMedia({
-        id,
-        url: candidate.webpageUrl || candidate.previewUrl || "",
-        query: candidate.query,
-        outputDir: downloadDir,
-        ytdlpPath,
-      });
+      const result = candidate.downloadUrl
+        ? await api.downloadDirect({
+            id,
+            url: candidate.downloadUrl,
+            outputDir: downloadDir,
+            fileName: `${candidate.artist} - ${candidate.title}`,
+          })
+        : await api.downloadMedia({
+            id,
+            url: candidate.webpageUrl || "",
+            query: candidate.query,
+            outputDir: downloadDir,
+            ytdlpPath,
+          });
       await finishDownload(id, result);
     } catch (error) {
-      if (candidate.previewUrl) {
-        setProgress({
-          id,
-          percent: 0,
-          line: "Полный трек недоступен, скачиваю превью 30 секунд…",
-          status: "starting",
-          path: null,
-          error: null,
-        });
+      if (
+        candidate.downloadUrl &&
+        candidate.webpageUrl &&
+        candidate.webpageUrl !== candidate.downloadUrl
+      ) {
         try {
-          const result = await api.downloadDirect({
-            id,
-            url: candidate.previewUrl,
-            outputDir: downloadDir,
-            fileName: `${candidate.artist} - ${candidate.title} (preview)`,
-          });
-          await finishDownload(id, result);
-          notify("Полный трек недоступен — сохранено превью 30 секунд", "info");
-        } catch (previewError) {
-          const message =
-            previewError instanceof Error
-              ? previewError.message
-              : "Ошибка загрузки превью";
           setProgress({
             id,
             percent: 0,
-            line: message,
-            status: "error",
+            line: "Прямая ссылка не сработала — пробую yt-dlp…",
+            status: "starting",
             path: null,
-            error: message,
+            error: null,
           });
-          notify(message, "error");
+          const result = await api.downloadMedia({
+            id,
+            url: candidate.webpageUrl,
+            query: candidate.query,
+            outputDir: downloadDir,
+            ytdlpPath,
+          });
+          await finishDownload(id, result);
+          return;
+        } catch {
+          // show the original direct-download error below
         }
-      } else {
-        const message =
-          error instanceof Error ? error.message : "Ошибка загрузки";
-        setProgress({
-          id,
-          percent: 0,
-          line: message,
-          status: "error",
-          path: null,
-          error: message,
-        });
-        notify(message, "error");
       }
+      const message =
+        error instanceof Error ? error.message : "Ошибка загрузки";
+      setProgress({
+        id,
+        percent: 0,
+        line: message,
+        status: "error",
+        path: null,
+        error: message,
+      });
+      notify(message, "error");
     }
   };
 
@@ -188,19 +199,25 @@ export function Downloads() {
       const isDirectAudio = /\.(mp3|m4a|aac|ogg|opus|wav|flac|webm)(\?|$)/i.test(
         link.trim(),
       );
-      const result = isDirectAudio
-        ? await api.downloadDirect({
-            id,
-            url: link.trim(),
-            outputDir: downloadDir,
-            fileName: link.split("/").pop()?.split("?")[0] ?? "track",
-          })
-        : await api.downloadMedia({
-            id,
-            url: link.trim(),
-            outputDir: downloadDir,
-            ytdlpPath,
-          });
+      const isZaycevPage = /zaycev\.net\/pages\/[^/]+\/\d+\.shtml/i.test(
+        link.trim(),
+      );
+      const result =
+        isDirectAudio || isZaycevPage
+          ? await api.downloadDirect({
+              id,
+              url: link.trim(),
+              outputDir: downloadDir,
+              fileName: isZaycevPage
+                ? undefined
+                : (link.split("/").pop()?.split("?")[0] ?? "track"),
+            })
+          : await api.downloadMedia({
+              id,
+              url: link.trim(),
+              outputDir: downloadDir,
+              ytdlpPath,
+            });
       await finishDownload(id, result);
       setLink("");
     } catch (error) {
@@ -233,8 +250,8 @@ export function Downloads() {
           <p className="page-date">Поиск, ссылки, yt-dlp</p>
           <h1 className="serif">Загрузки</h1>
           <p className="page-sub">
-            Скачивание только после подтверждения. Полные треки — через yt-dlp,
-            превью — напрямую.
+            Скачивание только после подтверждения. Прямые источники и yt-dlp,
+            лучший доступный битрейт.
           </p>
         </div>
         <button
@@ -245,6 +262,17 @@ export function Downloads() {
           Настройки
         </button>
       </header>
+
+      <div className="download-dir-row">
+        <FolderOpen size={15} />
+        <div>
+          <strong>Папка загрузок</strong>
+          <span>{downloadDir || "По умолчанию: данные приложения / downloads"}</span>
+        </div>
+        <button className="ghost-button" onClick={() => void chooseDownloadDir()}>
+          Изменить
+        </button>
+      </div>
 
       <section className="download-link-card">
         <div className="download-link-head">
@@ -282,7 +310,10 @@ export function Downloads() {
         <div className="download-search-head">
           <div>
             <h2 className="serif">Найти и скачать</h2>
-            <p>Название песни или исполнитель · iTunes и Deezer</p>
+            <p>
+              Название песни или исполнитель · zaycev.net · muzofond.fm ·
+              ru.drivemusic.me
+            </p>
           </div>
         </div>
         <div className="download-search-row">
@@ -323,7 +354,8 @@ export function Downloads() {
                     {candidate.album ? ` · ${candidate.album}` : ""}
                   </span>
                   <em>
-                    {formatDuration(candidate.durationMs)} · {candidate.source}
+                    {formatDuration(candidate.durationMs)} · {candidate.quality}{" "}
+                    · {candidate.source}
                   </em>
                 </div>
                 <div className="media-actions">
@@ -364,8 +396,8 @@ export function Downloads() {
           <div className="download-search-empty">
             <Search size={18} />
             <span>
-              Введите название или исполнителя. Для Deezer доступно превью 30
-              секунд, полный трек — через yt-dlp.
+              Введите название или исполнителя. Nova найдёт варианты на трёх
+              сайтах и поставит лучший доступный битрейт первым.
             </span>
           </div>
         )}
@@ -425,10 +457,11 @@ export function Downloads() {
 
       <div className="downloads-info">
         <div>
-          <strong>Полные треки</strong>
+          <strong>Качество</strong>
           <p>
-            yt-dlp скачивает лучший аудиопоток. Если источник не отвечает,
-            Nova предложит легальное превью 30 секунд.
+            Если сайт предлагает несколько вариантов, Nova автоматически
+            выбирает лучший доступный битрейт. yt-dlp также настроен на
+            максимальное качество аудио.
           </p>
         </div>
         <div>

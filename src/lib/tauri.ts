@@ -7,6 +7,8 @@ import type {
   DownloadResult,
   Folder,
   ImportPlaylist,
+  LyricsFile,
+  LyricsResult,
   MediaCandidate,
   Playlist,
   RecognitionResult,
@@ -345,6 +347,8 @@ export const api = {
           previewUrl: null,
           downloadUrl: null,
           query: `${track.artist} ${track.title}`,
+          quality: "MP3",
+          bitrate: 320,
         }));
     }
     return call<MediaCandidate[]>("search_media", { query, limit });
@@ -470,6 +474,39 @@ export const api = {
     }
     return call<RecognitionResult>("recognize_shazam_file", { path });
   },
+
+  async getLyrics(trackId: number): Promise<LyricsResult> {
+    if (!isTauri) {
+      await delay(500);
+      return {
+        trackId,
+        title: "Ван Хельсинг",
+        artist: "Norma Tale",
+        fileName: "Norma Tale - Ван Хельсинг.txt",
+        path: "demo/lyrics/Norma Tale - Ван Хельсинг.txt",
+        text:
+          "Это демонстрационный текст.\n\nВ приложении Nova текст загружается с Genius и сохраняется в файл с именем трека в папке данных приложения.",
+        sourceUrl: "https://genius.com/",
+        cached: false,
+      };
+    }
+    return call<LyricsResult>("get_lyrics", { trackId });
+  },
+
+  async listLyrics(): Promise<LyricsFile[]> {
+    if (!isTauri) return [];
+    return call<LyricsFile[]>("list_lyrics");
+  },
+
+  async deleteLyrics(fileName: string): Promise<void> {
+    if (!isTauri) return;
+    await call<void>("delete_lyrics", { fileName });
+  },
+
+  async clearLyrics(): Promise<number> {
+    if (!isTauri) return 0;
+    return call<number>("clear_lyrics");
+  },
 };
 
 export function coverUrl(track: Track | null | undefined): string | null {
@@ -491,12 +528,14 @@ export function backgroundUrl(path: string | null): string | null {
   return convertFileSrc(path);
 }
 
-export async function pickFolder(): Promise<string | null> {
+export async function pickFolder(
+  title = "Добавить папку с музыкой",
+): Promise<string | null> {
   if (!isTauri) return null;
   const result = await open({
     directory: true,
     multiple: false,
-    title: "Добавить папку с музыкой",
+    title,
   });
   if (Array.isArray(result)) return result[0] ?? null;
   return result;

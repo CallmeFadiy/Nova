@@ -1,6 +1,9 @@
+import { useEffect, useState } from "react";
 import {
   Download,
   EyeOff,
+  FileText,
+  FolderOpen,
   FolderPlus,
   Image,
   Info,
@@ -10,11 +13,13 @@ import {
   Trash2,
   Undo2,
 } from "lucide-react";
+import { ScanButton } from "../components/ScanButton";
 import { api, backgroundUrl, pickFolder, pickImage } from "../lib/tauri";
 import { formatBytes, formatDate, trackCountLabel } from "../lib/format";
 import { useLibraryStore, visibleTracks } from "../store/library";
 import { useSettingsStore } from "../store/settings";
 import { useUiStore } from "../store/ui";
+import type { LyricsFile } from "../types";
 
 export function Settings() {
   const tracks = useLibraryStore((state) => state.tracks);
@@ -44,9 +49,64 @@ export function Settings() {
   const autoScan = useSettingsStore((state) => state.autoScan);
   const setAutoScan = useSettingsStore((state) => state.setAutoScan);
 
+  const [lyricsFiles, setLyricsFiles] = useState<LyricsFile[]>([]);
+  const [lyricsLoading, setLyricsLoading] = useState(true);
+
   const visible = visibleTracks(tracks);
   const hidden = tracks.filter((track) => track.hidden);
   const totalSize = visible.reduce((sum, track) => sum + track.size, 0);
+
+  const refreshLyrics = async () => {
+    setLyricsLoading(true);
+    try {
+      setLyricsFiles(await api.listLyrics());
+    } catch {
+      setLyricsFiles([]);
+    } finally {
+      setLyricsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void refreshLyrics();
+  }, []);
+
+  const chooseDownloadDir = async () => {
+    const path = await pickFolder("Выбрать папку загрузок");
+    if (!path) {
+      notify("Выбор папки доступен в приложении Nova", "info");
+      return;
+    }
+    setDownloadDir(path);
+    notify("Папка загрузок обновлена", "success");
+  };
+
+  const removeLyricsFile = async (fileName: string) => {
+    try {
+      await api.deleteLyrics(fileName);
+      await refreshLyrics();
+      notify("Текст удалён из кэша", "success");
+    } catch (error) {
+      notify(
+        error instanceof Error ? error.message : "Не удалось удалить текст",
+        "error",
+      );
+    }
+  };
+
+  const clearLyricsCache = async () => {
+    if (!window.confirm("Удалить все сохранённые тексты песен?")) return;
+    try {
+      const removed = await api.clearLyrics();
+      await refreshLyrics();
+      notify(`Удалено текстов: ${removed}`, "success");
+    } catch (error) {
+      notify(
+        error instanceof Error ? error.message : "Не удалось очистить кэш",
+        "error",
+      );
+    }
+  };
 
   const handleAddFolder = async () => {
     const path = await pickFolder();
@@ -82,6 +142,9 @@ export function Settings() {
           <p className="page-date">Nova · локальная музыка</p>
           <h1 className="serif">Настройки</h1>
           <p className="page-sub">Папки, оформление, звук и источники</p>
+        </div>
+        <div className="head-actions">
+          <ScanButton />
         </div>
       </header>
 
@@ -300,17 +363,27 @@ export function Settings() {
         </div>
         <p className="settings-hint">
           Скачивание работает только после подтверждения и только для
-          контента, на который у вас есть права. Spotify и Apple Music
-          используются для метаданных, без обхода DRM.
+          контента, на который у вас есть права. Поиск идёт по zaycev.net,
+          muzofond.fm и ru.drivemusic.me; yt-dlp используется как резервный
+          загрузчик.
         </p>
         <div className="settings-field">
           <label>Папка загрузок</label>
-          <input
-            className="text-input"
-            value={downloadDir}
-            placeholder="По умолчанию: Downloads/Nova"
-            onChange={(event) => setDownloadDir(event.target.value)}
-          />
+          <div className="settings-field-row">
+            <input
+              className="text-input"
+              value={downloadDir}
+              placeholder="По умолчанию: данные приложения / downloads"
+              onChange={(event) => setDownloadDir(event.target.value)}
+            />
+            <button
+              className="secondary-button"
+              onClick={() => void chooseDownloadDir()}
+            >
+              <FolderOpen size={15} />
+              Выбрать
+            </button>
+          </div>
         </div>
         <div className="settings-field">
           <label>Путь к yt-dlp</label>
@@ -324,10 +397,65 @@ export function Settings() {
         <div className="settings-inline">
           <Download size={15} />
           <span>
-            Загрузчик подключается на следующем этапе. Настройки сохраняются
-            локально.
+            yt-dlp всегда выбирает лучший доступный аудиопоток. Настройки
+            сохраняются локально.
           </span>
         </div>
+      </section>
+
+      <section className="settings-section">
+        <div className="settings-section-head">
+          <h2 className="serif">Тексты песен</h2>
+          <div className="settings-section-actions">
+            <span className="settings-badge">{lyricsFiles.length}</span>
+            {lyricsFiles.length > 0 ? (
+              <button
+                className="ghost-button"
+                onClick={() => void clearLyricsCache()}
+              >
+                <Trash2 size={14} />
+                Очистить всё
+              </button>
+            ) : null}
+          </div>
+        </div>
+        <p className="settings-hint">
+          Текст ищется на genius.com по полному названию трека и исполнителя, а
+          затем сохраняется в файл с именем трека в папке данных Nova. При
+          следующем открытии используется кэш.
+        </p>
+        {lyricsLoading ? (
+          <div className="settings-empty">Читаем кэш текстов…</div>
+        ) : lyricsFiles.length === 0 ? (
+          <div className="settings-empty">
+            <FileText size={15} /> Сохранённых текстов пока нет.
+          </div>
+        ) : (
+          <div className="settings-list">
+            {lyricsFiles.map((file) => (
+              <div className="settings-row" key={file.fileName}>
+                <div className="settings-row-main">
+                  <strong>{file.title}</strong>
+                  <span title={file.path}>{file.fileName}</span>
+                </div>
+                <div className="settings-row-meta">
+                  <span>{formatBytes(file.size)}</span>
+                  <span>{file.modified ? formatDate(file.modified) : ""}</span>
+                </div>
+                <div className="settings-row-actions">
+                  <button
+                    className="icon-button"
+                    onClick={() => void removeLyricsFile(file.fileName)}
+                    aria-label="Удалить текст"
+                    title="Удалить текст"
+                  >
+                    <Trash2 size={15} />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </section>
 
       <section className="settings-section">

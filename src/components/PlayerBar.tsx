@@ -5,6 +5,7 @@ import {
   Play,
   Repeat,
   Repeat1,
+  ScrollText,
   Shuffle,
   SkipBack,
   SkipForward,
@@ -38,6 +39,7 @@ export function PlayerBar() {
   const cycleRepeat = usePlayerStore((state) => state.cycleRepeat);
   const toggleFavorite = useLibraryStore((state) => state.toggleFavorite);
   const setNowPlayingOpen = useUiStore((state) => state.setNowPlayingOpen);
+  const openLyrics = useUiStore((state) => state.openLyrics);
   const queueOpen = useUiStore((state) => state.queueOpen);
   const setQueueOpen = useUiStore((state) => state.setQueueOpen);
   const setEqualizerOpen = useUiStore((state) => state.setEqualizerOpen);
@@ -178,6 +180,15 @@ export function PlayerBar() {
             {Math.round((muted ? 0 : volume) * 100)}%
           </span>
         </div>
+        <button
+          className="icon-button"
+          onClick={() => current && openLyrics(current.id)}
+          disabled={!current}
+          title="Текст песни"
+          aria-label="Текст песни"
+        >
+          <ScrollText size={16} />
+        </button>
         <button
           className="icon-button"
           onClick={() => setEqualizerOpen(true)}
