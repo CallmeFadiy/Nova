@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Cover } from "../components/Cover";
+import { ScanButton } from "../components/ScanButton";
 import {
   formatDuration,
   pluralRu,
@@ -120,6 +121,7 @@ export function Home() {
                 <FolderPlus size={16} />
                 Добавить папку
               </button>
+              {folders.length > 0 ? <ScanButton /> : null}
             </div>
             {folders.length > 0 ? (
               <p className="onboarding-note">
@@ -157,6 +159,7 @@ export function Home() {
           >
             <Shuffle size={17} />
           </button>
+          <ScanButton />
         </div>
       </header>
 

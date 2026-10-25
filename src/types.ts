@@ -78,6 +78,8 @@ export interface MediaCandidate {
   previewUrl: string | null;
   downloadUrl: string | null;
   query: string;
+  quality: string;
+  bitrate: number;
 }
 
 export interface ImportTrack {
@@ -120,4 +122,23 @@ export interface RecognitionResult {
   sourceUrl: string | null;
   query: string;
   provider: string;
+}
+
+export interface LyricsResult {
+  trackId: number;
+  title: string;
+  artist: string;
+  fileName: string;
+  path: string;
+  text: string;
+  sourceUrl: string | null;
+  cached: boolean;
+}
+
+export interface LyricsFile {
+  fileName: string;
+  title: string;
+  path: string;
+  size: number;
+  modified: number;
 }

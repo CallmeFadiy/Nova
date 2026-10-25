@@ -84,6 +84,8 @@ pub struct MediaCandidate {
     pub preview_url: Option<String>,
     pub download_url: Option<String>,
     pub query: String,
+    pub quality: String,
+    pub bitrate: i64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -136,4 +138,27 @@ pub struct RecognitionResult {
     pub source_url: Option<String>,
     pub query: String,
     pub provider: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LyricsResult {
+    pub track_id: i64,
+    pub title: String,
+    pub artist: String,
+    pub file_name: String,
+    pub path: String,
+    pub text: String,
+    pub source_url: Option<String>,
+    pub cached: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LyricsFile {
+    pub file_name: String,
+    pub title: String,
+    pub path: String,
+    pub size: i64,
+    pub modified: i64,
 }

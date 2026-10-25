@@ -1,5 +1,6 @@
 mod commands;
 mod db;
+mod lyrics;
 mod media;
 mod models;
 mod scanner;
@@ -63,6 +64,10 @@ pub fn run() {
             commands::recognize_audd,
             commands::recognize_shazam,
             commands::recognize_shazam_file,
+            commands::get_lyrics,
+            commands::list_lyrics,
+            commands::delete_lyrics,
+            commands::clear_lyrics,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

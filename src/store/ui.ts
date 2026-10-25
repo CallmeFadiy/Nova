@@ -15,6 +15,7 @@ interface UiState {
   createPlaylistOpen: boolean;
   equalizerOpen: boolean;
   nowPlayingOpen: boolean;
+  lyricsTrackId: number | null;
   queueOpen: boolean;
   mobileNavOpen: boolean;
   notify: (message: string, tone?: ToastTone) => void;
@@ -24,6 +25,7 @@ interface UiState {
   setCreatePlaylistOpen: (open: boolean) => void;
   setEqualizerOpen: (open: boolean) => void;
   setNowPlayingOpen: (open: boolean) => void;
+  openLyrics: (trackId: number | null) => void;
   setQueueOpen: (open: boolean) => void;
   setMobileNavOpen: (open: boolean) => void;
 }
@@ -37,6 +39,7 @@ export const useUiStore = create<UiState>((set) => ({
   createPlaylistOpen: false,
   equalizerOpen: false,
   nowPlayingOpen: false,
+  lyricsTrackId: null,
   queueOpen: true,
   mobileNavOpen: false,
 
@@ -63,6 +66,7 @@ export const useUiStore = create<UiState>((set) => ({
   setCreatePlaylistOpen: (open) => set({ createPlaylistOpen: open }),
   setEqualizerOpen: (open) => set({ equalizerOpen: open }),
   setNowPlayingOpen: (open) => set({ nowPlayingOpen: open }),
+  openLyrics: (trackId) => set({ lyricsTrackId: trackId }),
   setQueueOpen: (open) => set({ queueOpen: open }),
   setMobileNavOpen: (open) => set({ mobileNavOpen: open }),
 }));

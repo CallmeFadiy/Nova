@@ -4136,3 +4136,135 @@ p {
     --player-height: 76px;
   }
 }
+
+/* download directory + provider quality */
+.download-dir-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+  padding: 10px 14px;
+  border: 1px solid var(--line-soft);
+  background: var(--panel);
+  color: var(--muted);
+}
+.download-dir-row > svg {
+  flex: none;
+  color: var(--accent);
+}
+.download-dir-row > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+.download-dir-row strong {
+  font-size: 11px;
+  color: var(--ink);
+  font-weight: 600;
+}
+.download-dir-row span {
+  font-size: 9.5px;
+  color: var(--faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.download-dir-row .ghost-button {
+  flex: none;
+}
+
+.settings-field-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.settings-field-row .text-input {
+  flex: 1;
+  min-width: 0;
+}
+.settings-field-row .secondary-button {
+  flex: none;
+}
+.settings-section-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.album-detail-albums {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.5;
+  max-width: 620px;
+}
+
+/* lyrics */
+.lyrics-modal {
+  min-height: 180px;
+}
+.lyrics-loading,
+.lyrics-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  min-height: 180px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.6;
+}
+.lyrics-loading {
+  flex-direction: row;
+}
+.lyrics-empty strong {
+  color: var(--ink);
+  font-size: 13px;
+}
+.lyrics-empty p {
+  margin: 0;
+  max-width: 520px;
+}
+.lyrics-hint {
+  color: var(--faint);
+  font-size: 10px;
+}
+.lyrics-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line-soft);
+  color: var(--muted);
+  font-size: 9.5px;
+}
+.lyrics-toolbar > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.lyrics-path {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--faint);
+}
+.lyrics-text {
+  margin: 0;
+  max-height: min(58vh, 560px);
+  overflow: auto;
+  padding: 2px 6px 8px 2px;
+  white-space: pre-wrap;
+  font-family: inherit;
+  font-size: 12.5px;
+  line-height: 1.75;
+  color: var(--ink);
+  tab-size: 2;
+}

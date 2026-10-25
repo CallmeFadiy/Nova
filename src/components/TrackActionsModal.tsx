@@ -4,6 +4,7 @@ import {
   Image,
   ListPlus,
   Play,
+  ScrollText,
   Trash2,
 } from "lucide-react";
 import { pickImage, revealInFolder } from "../lib/tauri";
@@ -16,6 +17,7 @@ export function TrackActionsModal() {
   const trackId = useUiStore((state) => state.trackActionsTrackId);
   const openTrackActions = useUiStore((state) => state.openTrackActions);
   const openAddToPlaylist = useUiStore((state) => state.openAddToPlaylist);
+  const openLyrics = useUiStore((state) => state.openLyrics);
   const tracks = useLibraryStore((state) => state.tracks);
   const toggleFavorite = useLibraryStore((state) => state.toggleFavorite);
   const hideTrack = useLibraryStore((state) => state.hideTrack);
@@ -58,6 +60,16 @@ export function TrackActionsModal() {
             >
               <ListPlus size={16} />
               Добавить в плейлист
+            </button>
+            <button
+              className="action-row"
+              onClick={() => {
+                openLyrics(track.id);
+                openTrackActions(null);
+              }}
+            >
+              <ScrollText size={16} />
+              Текст песни
             </button>
             <button
               className="action-row"

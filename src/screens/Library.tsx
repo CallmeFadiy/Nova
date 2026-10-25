@@ -12,6 +12,7 @@ import {
 import { useNavigate } from "react-router-dom";
 import { Cover } from "../components/Cover";
 import { PlaylistMosaic } from "../components/PlaylistMosaic";
+import { ScanButton } from "../components/ScanButton";
 import { TrackTable } from "../components/TrackTable";
 import {
   formatDate,
@@ -134,9 +135,17 @@ export function Library({ initialTab = "tracks" }: { initialTab?: Tab }) {
         <header className="album-detail-head">
           <Cover track={selectedAlbum.tracks[0]} className="album-detail-cover" />
           <div className="album-detail-text">
-            <span className="eyebrow">Альбом</span>
+            <span className="eyebrow">
+              {selectedAlbum.isCollaboration
+                ? "Совместный проект"
+                : "Альбом исполнителя"}
+            </span>
             <h1 className="serif">{selectedAlbum.name}</h1>
-            <p className="album-detail-artist">{selectedAlbum.artist}</p>
+            {selectedAlbum.albums.length > 0 ? (
+              <p className="album-detail-albums">
+                {selectedAlbum.albums.join(" · ")}
+              </p>
+            ) : null}
             <p className="page-sub">
               {trackCountLabel(selectedAlbum.tracks.length)} ·{" "}
               {formatMinutes(selectedAlbum.durationMs)}
@@ -175,7 +184,7 @@ export function Library({ initialTab = "tracks" }: { initialTab?: Tab }) {
         <TrackTable
           tracks={selectedAlbum.tracks}
           label={`Альбом «${selectedAlbum.name}»`}
-          showAlbum={false}
+          showAlbum
           showFolder={false}
           emptyTitle="В альбоме нет треков"
         />
@@ -208,6 +217,7 @@ export function Library({ initialTab = "tracks" }: { initialTab?: Tab }) {
           </p>
         </div>
         <div className="head-actions">
+          <ScanButton />
           <button className="primary-button" onClick={() => void handleAddFolder()}>
             <FolderPlus size={15} />
             Добавить папку
@@ -295,7 +305,12 @@ export function Library({ initialTab = "tracks" }: { initialTab?: Tab }) {
               </span>
               <strong>{album.name}</strong>
               <span>
-                {album.artist} · {trackCountLabel(album.tracks.length)}
+                {trackCountLabel(album.tracks.length)}
+                {album.albums.length > 1
+                  ? ` · ${album.albums.length} ${pluralRu(album.albums.length, ["альбом", "альбома", "альбомов"])}`
+                  : album.albums.length === 1
+                    ? ` · ${album.albums[0]}`
+                    : ""}
               </span>
             </button>
           ))}
