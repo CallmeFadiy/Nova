@@ -36,6 +36,12 @@ if (-not $exe) {
 Copy-Item $exe.FullName (Join-Path $release "Nova.exe") -Force
 Write-Host "[Nova] Nova.exe -> release\Windows\Nova.exe"
 
+$icon = Join-Path $root "src-tauri\icons\icon.ico"
+if (Test-Path $icon) {
+    Copy-Item $icon (Join-Path $release "Nova.ico") -Force
+    Write-Host "[Nova] ghost icon -> release\Windows\Nova.ico"
+}
+
 $sidecar = Join-Path $root "src-tauri\binaries\yt-dlp-x86_64-pc-windows-msvc.exe"
 if (Test-Path $sidecar) {
     Copy-Item $sidecar (Join-Path $release "yt-dlp-x86_64-pc-windows-msvc.exe") -Force
@@ -75,6 +81,9 @@ if (Test-Path $stage) {
 }
 New-Item -ItemType Directory -Force -Path $stage | Out-Null
 Copy-Item (Join-Path $release "Nova.exe") (Join-Path $stage "Nova.exe") -Force
+if (Test-Path $icon) {
+    Copy-Item $icon (Join-Path $stage "Nova.ico") -Force
+}
 if (Test-Path $sidecar) {
     Copy-Item $sidecar (Join-Path $stage "yt-dlp-x86_64-pc-windows-msvc.exe") -Force
 }

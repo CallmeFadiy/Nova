@@ -1,10 +1,12 @@
 use crate::models::{
     DeleteTracksResult, DownloadResult, Folder, ImportPlaylist, LyricsFile, LyricsResult,
-    MediaCandidate, Playlist, RecognitionResult, ScanResult, Snapshot, Track,
+    MediaCandidate, Playlist, RecognitionResult, ScanResult, Snapshot, Track, TrackHash,
 };
 use crate::{lyrics, media, recognition, scanner, AppState};
 use rusqlite::{params, Connection, OptionalExtension};
+use sha1::{Digest, Sha1};
 use std::fs;
+use std::io::Read;
 use std::path::PathBuf;
 use tauri::{AppHandle, Manager, State};
 
@@ -513,6 +515,59 @@ pub fn delete_tracks(
     })
 }
 
+fn sha1_file(path: &std::path::Path) -> std::io::Result<String> {
+    let mut file = fs::File::open(path)?;
+    let mut hasher = Sha1::new();
+    let mut buffer = [0u8; 128 * 1024];
+    loop {
+        let read = file.read(&mut buffer)?;
+        if read == 0 {
+            break;
+        }
+        hasher.update(&buffer[..read]);
+    }
+    Ok(format!("{:x}", hasher.finalize()))
+}
+
+#[tauri::command]
+pub async fn hash_tracks(
+    state: State<'_, AppState>,
+    track_ids: Vec<i64>,
+) -> Result<Vec<TrackHash>, String> {
+    let paths: Vec<(i64, String)> = {
+        let conn = state.db.lock().map_err(|e| e.to_string())?;
+        let mut stmt = conn
+            .prepare("SELECT path FROM tracks WHERE id = ?1")
+            .map_err(|e| e.to_string())?;
+        let mut paths = Vec::new();
+        for track_id in track_ids {
+            let path: Option<String> = stmt
+                .query_row(params![track_id], |row| row.get(0))
+                .optional()
+                .map_err(|e| e.to_string())?;
+            if let Some(path) = path {
+                paths.push((track_id, path));
+            }
+        }
+        paths
+    };
+
+    let hashes = tauri::async_runtime::spawn_blocking(move || {
+        paths
+            .into_iter()
+            .map(|(track_id, path)| {
+                let hash = sha1_file(std::path::Path::new(&path))
+                    .unwrap_or_else(|_| format!("unreadable:{track_id}"));
+                TrackHash { track_id, hash }
+            })
+            .collect::<Vec<_>>()
+    })
+    .await
+    .map_err(|e| e.to_string())?;
+
+    Ok(hashes)
+}
+
 #[tauri::command]
 pub fn merge_albums(
     state: State<'_, AppState>,
@@ -618,8 +673,20 @@ pub async fn download_media(
     query: Option<String>,
     output_dir: String,
     ytdlp_path: Option<String>,
+    expected_artist: Option<String>,
+    expected_title: Option<String>,
 ) -> Result<DownloadResult, String> {
-    media::download_media(&app, id, url, query, output_dir, ytdlp_path).await
+    media::download_media(
+        &app,
+        id,
+        url,
+        query,
+        output_dir,
+        ytdlp_path,
+        expected_artist,
+        expected_title,
+    )
+    .await
 }
 
 #[tauri::command]
@@ -629,8 +696,19 @@ pub async fn download_direct(
     url: String,
     output_dir: String,
     file_name: Option<String>,
+    expected_artist: Option<String>,
+    expected_title: Option<String>,
 ) -> Result<DownloadResult, String> {
-    media::download_direct(&app, id, url, output_dir, file_name).await
+    media::download_direct(
+        &app,
+        id,
+        url,
+        output_dir,
+        file_name,
+        expected_artist,
+        expected_title,
+    )
+    .await
 }
 
 #[tauri::command]

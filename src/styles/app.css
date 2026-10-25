@@ -4912,27 +4912,54 @@ body {
 }
 .duplicate-track-title {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: 10px;
   padding: 9px 10px;
   border-bottom: 1px solid var(--line-soft);
 }
+.duplicate-track-heading {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
 .duplicate-track-title strong {
   color: var(--ink);
   font-size: 11px;
 }
-.duplicate-track-title span {
+.duplicate-track-heading span {
   color: var(--muted);
   font-size: 9.5px;
 }
+.duplicate-group-actions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 9px;
+}
+.duplicate-group-count {
+  color: var(--faint);
+  font-size: 9px;
+}
+.duplicate-verified {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 5px;
+  border: 1px solid #2d4a34;
+  color: #9fc3a6;
+  font-size: 8px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
 .duplicate-track-row {
   display: grid;
-  grid-template-columns: 66px minmax(0, 1fr) 72px;
+  grid-template-columns: 78px minmax(0, 1fr) 108px 84px;
   gap: 8px;
   align-items: center;
   padding: 6px 10px;
-  border-bottom: 1px solid #1a1a1f;
+  border-bottom: 1px solid var(--line-soft);
   color: var(--faint);
   font-size: 9px;
 }
@@ -4943,11 +4970,29 @@ body {
   background: #172019;
   color: #9fc3a6;
 }
-.duplicate-track-mark {
-  font-weight: 700;
+.duplicate-track-row.is-marked {
+  background: #201314;
+  color: #c98b84;
+}
+.duplicate-track-check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: inherit;
   font-size: 8px;
-  text-transform: uppercase;
+  font-weight: 700;
   letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.duplicate-track-check input {
+  width: 12px;
+  height: 12px;
+  margin: 0;
+  accent-color: var(--danger);
+}
+.duplicate-track-check input:disabled {
+  opacity: 0.45;
 }
 .duplicate-track-path {
   overflow: hidden;
@@ -4955,8 +5000,15 @@ body {
   white-space: nowrap;
 }
 .duplicate-track-size {
-  text-align: right;
+  color: inherit;
+  font-size: 9px;
   font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+.duplicate-keep-button {
+  justify-self: end;
+  font-size: 9px;
 }
 
 /* theme-aware surface pass */

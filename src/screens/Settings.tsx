@@ -132,6 +132,7 @@ export function Settings() {
   );
   const [duplicateOpen, setDuplicateOpen] = useState(false);
   const [duplicateBusy, setDuplicateBusy] = useState(false);
+  const [duplicateScanning, setDuplicateScanning] = useState(false);
   const deleteTracks = useLibraryStore((state) => state.deleteTracks);
 
   const visible = visibleTracks(tracks);
@@ -176,20 +177,42 @@ export function Settings() {
     }
   };
 
-  const checkDuplicates = () => {
-    const groups = findDuplicateGroups(tracks);
-    if (groups.length === 0) {
+  const checkDuplicates = async () => {
+    if (duplicateScanning) return;
+    const candidates = findDuplicateGroups(tracks);
+    if (candidates.length === 0) {
       notify("Дубликаты не найдены", "success");
       return;
     }
-    setDuplicateGroups(groups);
-    setDuplicateOpen(true);
+
+    setDuplicateScanning(true);
+    try {
+      const hashes = await api.hashTracks(
+        candidates.flatMap((group) => group.tracks.map((track) => track.id)),
+      );
+      const groups = findDuplicateGroups(tracks, hashes);
+      if (groups.length === 0) {
+        notify(
+          "Совпадения по тегам оказались разными записями – дубликатов нет",
+          "success",
+        );
+        return;
+      }
+      setDuplicateGroups(groups);
+      setDuplicateOpen(true);
+    } catch (error) {
+      notify(
+        error instanceof Error
+          ? error.message
+          : "Не удалось проверить содержимое файлов",
+        "error",
+      );
+    } finally {
+      setDuplicateScanning(false);
+    }
   };
 
-  const removeDuplicates = async () => {
-    const ids = duplicateGroups.flatMap((group) =>
-      group.duplicates.map((track) => track.id),
-    );
+  const removeDuplicates = async (ids: number[]) => {
     if (ids.length === 0) return;
     if (
       usePlayerStore.getState().currentId !== null &&
@@ -754,15 +777,20 @@ export function Settings() {
       <section className="settings-section">
         <div className="settings-section-head">
           <h2 className="serif">Дубликаты треков</h2>
-          <button className="secondary-button" onClick={checkDuplicates}>
+          <button
+            className="secondary-button"
+            onClick={() => void checkDuplicates()}
+            disabled={duplicateScanning}
+          >
             <Copy size={15} />
-            Проверить дубликаты
+            {duplicateScanning ? "Сверяю содержимое…" : "Проверить дубликаты"}
           </button>
         </div>
         <p className="settings-hint">
-          Ручная проверка по исполнителю и названию. Nova покажет группы
-          дубликатов и сможет оставить по одной копии лучшего качества, удалив
-          остальные файлы из приложения и с диска.
+          Ручная проверка: Nova сначала ищет совпадения по исполнителю и
+          названию, затем сверяет SHA-1 содержимого файлов. В одну группу
+          попадают только реально одинаковые записи. Вы сами отмечаете, какие
+          копии удалить, а какие оставить.
         </p>
         <div className="settings-inline">
           <Copy size={15} />
@@ -823,7 +851,7 @@ export function Settings() {
         groups={duplicateGroups}
         busy={duplicateBusy}
         onClose={() => setDuplicateOpen(false)}
-        onConfirm={() => void removeDuplicates()}
+        onConfirm={(ids) => void removeDuplicates(ids)}
       />
     </div>
   );

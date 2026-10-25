@@ -160,6 +160,8 @@ export function Downloads() {
             url: candidate.downloadUrl,
             outputDir: downloadDir,
             fileName: `${candidate.artist} - ${candidate.title}`,
+            expectedArtist: candidate.artist,
+            expectedTitle: candidate.title,
           })
         : await api.downloadMedia({
             id,
@@ -167,6 +169,8 @@ export function Downloads() {
             query: candidate.query,
             outputDir: downloadDir,
             ytdlpPath,
+            expectedArtist: candidate.artist,
+            expectedTitle: candidate.title,
           });
       await finishDownload(id, result);
       if (replace) {
@@ -196,6 +200,8 @@ export function Downloads() {
             query: candidate.query,
             outputDir: downloadDir,
             ytdlpPath,
+            expectedArtist: candidate.artist,
+            expectedTitle: candidate.title,
           });
           await finishDownload(id, result);
           return;

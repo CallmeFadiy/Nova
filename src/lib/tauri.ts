@@ -19,6 +19,7 @@ import type {
   ScanResult,
   Snapshot,
   Track,
+  TrackHash,
 } from "../types";
 
 export const isTauri =
@@ -389,6 +390,25 @@ export const api = {
     });
   },
 
+  async hashTracks(trackIds: number[]): Promise<Map<number, string>> {
+    if (!isTauri) {
+      await delay(250);
+      return new Map(
+        trackIds.map((trackId) => {
+          const track = demo.tracks.find((item) => item.id === trackId);
+          return [
+            trackId,
+            track
+              ? `${track.title.toLowerCase()}|${track.artist.toLowerCase()}|${track.durationMs}`
+              : `missing:${trackId}`,
+          ];
+        }),
+      );
+    }
+    const rows = await call<TrackHash[]>("hash_tracks", { trackIds });
+    return new Map(rows.map((row) => [row.trackId, row.hash]));
+  },
+
   async mergeAlbums(trackIds: number[], name: string): Promise<Snapshot> {
     if (!isTauri) {
       const key = `merged:${Date.now()}`;
@@ -479,6 +499,8 @@ export const api = {
     query?: string;
     outputDir: string;
     ytdlpPath?: string;
+    expectedArtist?: string;
+    expectedTitle?: string;
   }): Promise<DownloadResult> {
     if (!isTauri) {
       await delay(1400);
@@ -494,6 +516,8 @@ export const api = {
       query: args.query ?? null,
       outputDir: args.outputDir,
       ytdlpPath: args.ytdlpPath ?? null,
+      expectedArtist: args.expectedArtist ?? null,
+      expectedTitle: args.expectedTitle ?? null,
     });
   },
 
@@ -502,6 +526,8 @@ export const api = {
     url: string;
     outputDir: string;
     fileName?: string;
+    expectedArtist?: string;
+    expectedTitle?: string;
   }): Promise<DownloadResult> {
     if (!isTauri) {
       await delay(800);
@@ -516,6 +542,8 @@ export const api = {
       url: args.url,
       outputDir: args.outputDir,
       fileName: args.fileName ?? null,
+      expectedArtist: args.expectedArtist ?? null,
+      expectedTitle: args.expectedTitle ?? null,
     });
   },
 
