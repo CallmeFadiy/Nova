@@ -58,6 +58,7 @@ pub fn run() {
             commands::clear_track_cover,
             commands::update_track_metadata,
             commands::delete_track,
+            commands::delete_tracks,
             commands::merge_albums,
             commands::set_background,
             commands::clear_background,

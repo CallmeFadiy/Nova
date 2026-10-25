@@ -1,14 +1,20 @@
 import { ArrowDown, ArrowUp, Heart, MoreHorizontal } from "lucide-react";
+import type { KeyboardEvent, MouseEvent } from "react";
 import { formatDuration } from "../lib/format";
 import type { Track } from "../types";
 import { Cover } from "./Cover";
+
+type ActivationEvent =
+  | MouseEvent<HTMLDivElement>
+  | KeyboardEvent<HTMLDivElement>;
 
 interface TrackRowProps {
   track: Track;
   index: number;
   active?: boolean;
   isPlaying?: boolean;
-  onPlay: () => void;
+  selected?: boolean;
+  onActivate: (event: ActivationEvent) => void;
   onToggleFavorite: () => void;
   onMenu: () => void;
   showAlbum?: boolean;
@@ -20,7 +26,7 @@ interface TrackRowProps {
 
 function folderName(path: string): string {
   const parts = path.replace(/\\/g, "/").split("/");
-  return parts[parts.length - 2] ?? "—";
+  return parts[parts.length - 2] ?? "–";
 }
 
 export function TrackRow({
@@ -28,7 +34,8 @@ export function TrackRow({
   index,
   active = false,
   isPlaying = false,
-  onPlay,
+  selected = false,
+  onActivate,
   onToggleFavorite,
   onMenu,
   showAlbum = true,
@@ -39,10 +46,12 @@ export function TrackRow({
 }: TrackRowProps) {
   return (
     <div
-      className={`track-row${active ? " is-active" : ""}`}
+      className={`track-row${active ? " is-active" : ""}${
+        selected ? " is-selected" : ""
+      }`}
       role="button"
       tabIndex={0}
-      onClick={onPlay}
+      onClick={onActivate}
       onContextMenu={(event) => {
         event.preventDefault();
         onMenu();
@@ -50,7 +59,7 @@ export function TrackRow({
       onKeyDown={(event) => {
         if (event.key === "Enter" || event.key === " ") {
           event.preventDefault();
-          onPlay();
+          onActivate(event);
         }
       }}
     >
@@ -73,13 +82,13 @@ export function TrackRow({
         </div>
       </div>
 
-      {showAlbum ? <div className="track-album">{track.album || "—"}</div> : null}
+      {showAlbum ? <div className="track-album">{track.album || "–"}</div> : null}
       {showFolder ? (
         <div className="track-folder">{folderName(track.path)}</div>
       ) : null}
       <div className="track-duration">{formatDuration(track.durationMs)}</div>
       <div className="track-format">
-        <span>{track.format || "—"}</span>
+        <span>{track.format || "–"}</span>
       </div>
 
       <div className="track-actions">

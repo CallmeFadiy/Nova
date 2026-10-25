@@ -2,7 +2,7 @@
 
 Локальный медиаплеер для Windows (и позже Android). Tauri 2 + React + TypeScript, SQLite, всё хранится на устройстве.
 
-**Статус:** десктопная версия собрана и проверена на тестовой библиотеке. Android ещё не начат — по правилу проекта он подключается только по команде, после чего собираются обе платформы.
+**Статус:** десктопная версия собрана и проверена на тестовой библиотеке. Android ещё не начат – по правилу проекта он подключается только по команде, после чего собираются обе платформы.
 
 ## Что работает
 
@@ -47,10 +47,10 @@ npm.cmd run build
 
 Готовые установщики:
 
-- `release/Windows/Nova-0.1.0-setup.exe` — установщик NSIS
-- `release/Windows/Nova-0.1.0.msi` — MSI
-- `release/Windows/Nova.exe` — портативный exe
-- `release/Windows/yt-dlp-x86_64-pc-windows-msvc.exe` — sidecar для загрузок
+- `release/Windows/Nova-0.1.0-setup.exe` – установщик NSIS
+- `release/Windows/Nova-0.1.0.msi` – MSI
+- `release/Windows/Nova.exe` – портативный exe
+- `release/Windows/yt-dlp-x86_64-pc-windows-msvc.exe` – sidecar для загрузок
 
 Подробнее: `docs/RELEASE.md`.
 
@@ -58,7 +58,7 @@ npm.cmd run build
 
 ## Данные
 
-- `Music/` — тестовая библиотека.
+- `Music/` – тестовая библиотека.
 - SQLite: `%APPDATA%\com.fadiy.nova\nova.db`
 - Обложки: `%APPDATA%\com.fadiy.nova\covers`
 - Фоны: `%APPDATA%\com.fadiy.nova\backgrounds`
@@ -67,14 +67,14 @@ npm.cmd run build
 
 ## Документы
 
-- `docs/specs/2026-10-25-nova-design.md` — дизайн и архитектура.
-- `docs/DECISIONS.md` — правила проекта и платформ.
-- `docs/THIRD_PARTY.md` — лицензии, включая GPL-3.0 у `songrec-lib`.
-- `docs/ideas/artist-albums.md` — реализованная группировка альбомов по исполнителю.
-- `icon-design/variants/` — четыре варианта иконки и контактный лист; по умолчанию выбрана тёмная плитка.
-- `docs/design/mockups/b-nocturne.html` — выбранный макет.
-- `docs/design/screens/` — снимки готового интерфейса.
-- `Icon_exmp/` — исходные изображения иконки от пользователя; `icon-design/nova-app-icon.png` — очищенный мастер 1024 × 1024.
+- `docs/specs/2026-10-25-nova-design.md` – дизайн и архитектура.
+- `docs/DECISIONS.md` – правила проекта и платформ.
+- `docs/THIRD_PARTY.md` – лицензии, включая GPL-3.0 у `songrec-lib`.
+- `docs/ideas/artist-albums.md` – реализованная группировка альбомов по исполнителю.
+- `icon-design/variants/` – четыре варианта иконки и контактный лист; по умолчанию выбрана тёмная плитка.
+- `docs/design/mockups/b-nocturne.html` – выбранный макет.
+- `docs/design/screens/` – снимки готового интерфейса.
+- `Icon_exmp/` – исходные изображения иконки от пользователя; `icon-design/nova-app-icon.png` – очищенный мастер 1024 × 1024.
 
 ## Ограничения
 
@@ -83,13 +83,13 @@ npm.cmd run build
 - YouTube в тестовой сети недоступен для медиапотоков; импорт одиночного видео проверяется через noembed. Яндекс Музыка даёт список треков без авторизации; если источник не отдаёт файл, Nova ищет трек на Zaycev/Muzofond/DriveMusic. Для системного распознавания нужен активный вывод звука Windows.
 - Медиа-клавиши Windows и системный трей ещё не сделаны.
 - Очень большие библиотеки (десятки тысяч треков) потребуют виртуализации списков.
-- Android-версия, фон, audio focus и внешние интенты — следующий этап по команде.
+- Android-версия, фон, audio focus и внешние интенты – следующий этап по команде.
 
 ## Тестовая библиотека
 
 `Music/` содержит:
 
-- Norma Tale — Ван Хельсинг
-- Sacrothorn feat. Marie Steiner — Инкуб
-- the first berserker khazan — Bride of Despair I
-- asper x квадрат — Декарта
+- Norma Tale – Ван Хельсинг
+- Sacrothorn feat. Marie Steiner – Инкуб
+- the first berserker khazan – Bride of Despair I
+- asper x квадрат – Декарта

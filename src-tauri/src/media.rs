@@ -1344,7 +1344,7 @@ async fn resolve_youtube_noembed(url: &str) -> Result<ImportPlaylist, String> {
         .to_string();
 
     Ok(ImportPlaylist {
-        title: format!("{artist} — {title}"),
+        title: format!("{artist} – {title}"),
         source: "YouTube".to_string(),
         tracks: vec![ImportTrack {
             title: title.clone(),
@@ -1365,7 +1365,7 @@ fn split_media_title(raw_title: &str, fallback_artist: &str) -> (String, String)
         .trim_end_matches(" - Topic")
         .trim()
         .to_string();
-    for separator in [" - ", " – ", " — "] {
+    for separator in [" - ", " \u{2013} ", " \u{2014} "] {
         if let Some((left, right)) = raw_title.split_once(separator) {
             let left = left.trim();
             let right = right.trim();

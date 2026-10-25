@@ -62,6 +62,8 @@ export type RecognitionInput = "microphone" | "system";
 
 export type NotificationSound = "off" | "soft" | "glass" | "low" | "pop";
 
+export type Theme = "nocturne" | "ice" | "fire" | "ash" | "cyberpunk";
+
 export interface RecognitionLevel {
   level: number;
   peak: number;
@@ -124,6 +126,12 @@ export interface DownloadResult {
   path: string;
   title: string;
   directory: string;
+}
+
+export interface DeleteTracksResult {
+  deleted: number;
+  failed: string[];
+  snapshot: Snapshot;
 }
 
 export interface RecognitionResult {

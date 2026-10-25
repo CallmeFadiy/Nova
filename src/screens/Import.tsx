@@ -54,6 +54,10 @@ export function Import() {
   const [previewing, setPreviewing] = useState<number | null>(null);
   const [conflictCount, setConflictCount] = useState(0);
   const [conflictOpen, setConflictOpen] = useState(false);
+  const [conflictAnchor, setConflictAnchor] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
 
   useEffect(() => {
     return () => {
@@ -143,7 +147,7 @@ export function Import() {
     setProgress({
       id,
       percent: 0,
-      line: `Подготовка: ${track.artist} — ${track.title}`,
+      line: `Подготовка: ${track.artist} – ${track.title}`,
       status: "starting",
       path: null,
       error: null,
@@ -197,7 +201,7 @@ export function Import() {
         setProgress({
           id,
           percent: 0,
-          line: "Полный трек недоступен — качаю превью",
+          line: "Полный трек недоступен – качаю превью",
           status: "starting",
           path: null,
           error: null,
@@ -244,11 +248,14 @@ export function Import() {
     return duplicates;
   };
 
-  const requestDownloadSelected = () => {
+  const requestDownloadSelected = (
+    anchor: { x: number; y: number } | null = null,
+  ) => {
     if (!playlist || selected.size === 0) return;
     const duplicates = duplicateMap();
     if (duplicates.size > 0) {
       setConflictCount(duplicates.size);
+      setConflictAnchor(anchor);
       setConflictOpen(true);
       return;
     }
@@ -340,7 +347,12 @@ export function Import() {
             </button>
             <button
               className="primary-button"
-              onClick={requestDownloadSelected}
+              onClick={(event) =>
+                requestDownloadSelected({
+                  x: event.clientX,
+                  y: event.clientY,
+                })
+              }
               disabled={downloading || selectedCount === 0}
             >
               {downloading ? (
@@ -356,7 +368,7 @@ export function Import() {
         <div className="import-confirm-note">
           <ShieldCheck size={17} />
           <div>
-            <strong>Сначала список — потом загрузка</strong>
+            <strong>Сначала список – потом загрузка</strong>
             <p>
               Снимите галочки с ненужных песен. Полный трек скачивается через
               yt-dlp; если источник недоступен, Nova сохранит легальное превью
@@ -397,7 +409,7 @@ export function Import() {
                   <strong>{track.title}</strong>
                   <small>{track.artist}</small>
                 </span>
-                <span className="import-track-album">{track.album || "—"}</span>
+                <span className="import-track-album">{track.album || "–"}</span>
                 <span className="import-track-duration">
                   {formatDuration(track.durationMs)}
                 </span>
@@ -454,7 +466,7 @@ export function Import() {
                   ) : isSelected ? (
                     "Выбран"
                   ) : (
-                    "—"
+                    "–"
                   )}
                 </span>
               </div>
@@ -470,7 +482,12 @@ export function Import() {
           </span>
           <button
             className="primary-button"
-            onClick={requestDownloadSelected}
+            onClick={(event) =>
+              requestDownloadSelected({
+                x: event.clientX,
+                y: event.clientY,
+              })
+            }
             disabled={downloading || selectedCount === 0}
           >
             <Download size={15} />
@@ -482,6 +499,7 @@ export function Import() {
           open={conflictOpen}
           title={`${conflictCount} ${trackCountLabel(conflictCount)} уже есть в библиотеке`}
           description="Среди выбранных треков есть уже знакомые песни. Можно пропустить их, заменить старые версии или скачать всё равно."
+          anchor={conflictAnchor}
           onClose={() => setConflictOpen(false)}
           onSkip={() => {
             setConflictOpen(false);
@@ -507,7 +525,7 @@ export function Import() {
           <p className="page-date">Ссылки из других приложений</p>
           <h1 className="serif">Импорт плейлиста</h1>
           <p className="page-sub">
-            Вставьте ссылку — Nova покажет список треков и спросит, что скачать
+            Вставьте ссылку – Nova покажет список треков и спросит, что скачать
           </p>
         </div>
       </header>
@@ -560,7 +578,7 @@ export function Import() {
           <span className="step-number">3</span>
           <h3 className="serif">Загрузка</h3>
           <p>
-            Полный трек — через yt-dlp, превью — напрямую. Файлы попадают в
+            Полный трек – через yt-dlp, превью – напрямую. Файлы попадают в
             папку загрузок и в библиотеку.
           </p>
         </article>
@@ -582,7 +600,7 @@ export function Import() {
       <div className="import-preview">
         <Music2 size={16} />
         <span>
-          Хотите проверить без ссылки? Нажмите «Разобрать» с пустым полем — в
+          Хотите проверить без ссылки? Нажмите «Разобрать» с пустым полем – в
           демо-режиме появится пример списка.
         </span>
         <button

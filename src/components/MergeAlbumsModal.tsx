@@ -99,7 +99,7 @@ export function MergeAlbumsModal() {
             className="text-input"
             value={name}
             onChange={(event) => setName(event.target.value)}
-            placeholder="Например, Asper X — все треки"
+            placeholder="Например, Asper X – все треки"
           />
         </div>
         <div className="modal-actions">

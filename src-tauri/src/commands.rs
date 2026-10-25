@@ -1,6 +1,6 @@
 use crate::models::{
-    DownloadResult, Folder, ImportPlaylist, LyricsFile, LyricsResult, MediaCandidate, Playlist,
-    RecognitionResult, ScanResult, Snapshot, Track,
+    DeleteTracksResult, DownloadResult, Folder, ImportPlaylist, LyricsFile, LyricsResult,
+    MediaCandidate, Playlist, RecognitionResult, ScanResult, Snapshot, Track,
 };
 use crate::{lyrics, media, recognition, scanner, AppState};
 use rusqlite::{params, Connection, OptionalExtension};
@@ -470,6 +470,47 @@ pub fn delete_track(
     conn.execute("DELETE FROM tracks WHERE id = ?1", params![track_id])
         .map_err(|e| e.to_string())?;
     snapshot(&conn)
+}
+
+#[tauri::command]
+pub fn delete_tracks(
+    state: State<'_, AppState>,
+    track_ids: Vec<i64>,
+    delete_files: bool,
+) -> Result<DeleteTracksResult, String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    let mut deleted = 0usize;
+    let mut failed = Vec::new();
+    for track_id in track_ids {
+        let path: Option<String> = conn
+            .query_row(
+                "SELECT path FROM tracks WHERE id = ?1",
+                params![track_id],
+                |row| row.get(0),
+            )
+            .optional()
+            .map_err(|e| e.to_string())?;
+        let Some(path) = path else {
+            continue;
+        };
+        if delete_files {
+            let file = std::path::Path::new(&path);
+            if file.exists() {
+                if let Err(error) = fs::remove_file(file) {
+                    failed.push(format!("{path}: {error}"));
+                    continue;
+                }
+            }
+        }
+        conn.execute("DELETE FROM tracks WHERE id = ?1", params![track_id])
+            .map_err(|e| e.to_string())?;
+        deleted += 1;
+    }
+    Ok(DeleteTracksResult {
+        deleted,
+        failed,
+        snapshot: snapshot(&conn)?,
+    })
 }
 
 #[tauri::command]

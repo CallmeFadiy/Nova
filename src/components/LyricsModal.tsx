@@ -55,9 +55,9 @@ export function LyricsModal() {
       title="Текст песни"
       subtitle={
         result
-          ? `${result.artist} — ${result.title}`
+          ? `${result.artist} – ${result.title}`
           : track
-            ? `${track.artist} — ${track.title}`
+            ? `${track.artist} – ${track.title}`
             : undefined
       }
       size="lg"

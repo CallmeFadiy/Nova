@@ -38,6 +38,10 @@ interface LibraryState {
     },
   ) => Promise<void>;
   deleteTrack: (trackId: number, deleteFile: boolean) => Promise<void>;
+  deleteTracks: (
+    trackIds: number[],
+    deleteFiles: boolean,
+  ) => Promise<{ deleted: number; failed: string[] } | null>;
   mergeAlbums: (trackIds: number[], name: string) => Promise<void>;
   clearError: () => void;
 }
@@ -265,6 +269,24 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
     }
   },
 
+  deleteTracks: async (trackIds, deleteFiles) => {
+    try {
+      const result = await api.deleteTracks(trackIds, deleteFiles);
+      set(applySnapshot(result.snapshot));
+      useUiStore.getState().notify(
+        result.failed.length > 0
+          ? `Удалено ${result.deleted}, не удалось ${result.failed.length}`
+          : `Удалено треков: ${result.deleted}`,
+        result.failed.length > 0 ? "error" : "success",
+      );
+      return { deleted: result.deleted, failed: result.failed };
+    } catch (error) {
+      set({ error: error instanceof Error ? error.message : String(error) });
+      useUiStore.getState().notify("Не удалось удалить треки", "error");
+      return null;
+    }
+  },
+
   mergeAlbums: async (trackIds, name) => {
     try {
       const snapshot = await api.mergeAlbums(trackIds, name);
@@ -287,6 +309,56 @@ export function favoriteTracks(tracks: Track[]): Track[] {
   return tracks.filter(
     (track) => track.favorite && !track.hidden && !track.missing,
   );
+}
+
+export interface DuplicateTrackGroup {
+  key: string;
+  title: string;
+  artist: string;
+  keep: Track;
+  duplicates: Track[];
+  tracks: Track[];
+}
+
+export function findDuplicateGroups(tracks: Track[]): DuplicateTrackGroup[] {
+  const groups = new Map<string, Track[]>();
+  for (const track of tracks) {
+    const artist = cleanArtistName(track.artist);
+    const title = cleanTitle(track.title);
+    if (!artist || !title) continue;
+    const key = `${normalizeArtistKey(artist)}::${titleIdentity(
+      track.title,
+      track.artist,
+    )}`;
+    const existing = groups.get(key);
+    if (existing) existing.push(track);
+    else groups.set(key, [track]);
+  }
+
+  return [...groups.entries()]
+    .filter(([, items]) => items.length > 1)
+    .map(([key, items]) => {
+      const ordered = [...items].sort(
+        (a, b) =>
+          b.size - a.size ||
+          b.addedAt - a.addedAt ||
+          a.path.localeCompare(b.path),
+      );
+      const keep = ordered[0];
+      return {
+        key,
+        title: cleanTitle(keep.title),
+        artist: cleanArtistName(keep.artist),
+        keep,
+        duplicates: ordered.slice(1),
+        tracks: ordered,
+      };
+    })
+    .sort(
+      (a, b) =>
+        a.artist.localeCompare(b.artist, "ru") ||
+        a.title.localeCompare(b.title, "ru"),
+    );
 }
 
 export interface AlbumGroup {

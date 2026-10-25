@@ -21,6 +21,7 @@ import {
   trackCountLabel,
 } from "../lib/format";
 import { pickFolder } from "../lib/tauri";
+import { useConfirmStore } from "../store/confirm";
 import {
   groupAlbums,
   useLibraryStore,
@@ -80,6 +81,7 @@ export function Library({ initialTab = "tracks" }: { initialTab?: Tab }) {
   const openCreatePlaylist = useUiStore((state) => state.setCreatePlaylistOpen);
   const openMergeAlbums = useUiStore((state) => state.openMergeAlbums);
   const notify = useUiStore((state) => state.notify);
+  const confirm = useConfirmStore((state) => state.confirm);
   const navigate = useNavigate();
 
   const [tab, setTab] = useState<Tab>(initialTab);
@@ -359,13 +361,14 @@ export function Library({ initialTab = "tracks" }: { initialTab?: Tab }) {
                   <button
                     className="icon-button"
                     onClick={() => {
-                      if (
-                        window.confirm(
-                          "Убрать папку из библиотеки? Файлы на диске останутся.",
-                        )
-                      ) {
-                        void removeFolder(folder.id);
-                      }
+                      void confirm({
+                        title: "Убрать папку?",
+                        message:
+                          "Убрать папку из библиотеки Nova? Файлы на диске останутся.",
+                        confirmLabel: "Убрать папку",
+                      }).then((confirmed) => {
+                        if (confirmed) void removeFolder(folder.id);
+                      });
                     }}
                     aria-label="Убрать папку"
                   >

@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import {
   Download,
   EyeOff,
   Bell,
   BellRing,
+  Copy,
   FileText,
   FolderOpen,
   FolderPlus,
@@ -24,10 +25,56 @@ import {
   playNotificationSound,
 } from "../lib/notificationSound";
 import { formatBytes, formatDate, trackCountLabel } from "../lib/format";
-import { useLibraryStore, visibleTracks } from "../store/library";
+import { DuplicateTracksModal } from "../components/DuplicateTracksModal";
+import { useConfirmStore } from "../store/confirm";
+import {
+  findDuplicateGroups,
+  useLibraryStore,
+  visibleTracks,
+  type DuplicateTrackGroup,
+} from "../store/library";
+import { usePlayerStore } from "../store/player";
 import { useSettingsStore } from "../store/settings";
 import { useUiStore } from "../store/ui";
-import type { LyricsFile } from "../types";
+import type { LyricsFile, Theme } from "../types";
+
+const THEMES: Array<{
+  id: Theme;
+  name: string;
+  description: string;
+  colors: [string, string, string];
+}> = [
+  {
+    id: "nocturne",
+    name: "Nocturne",
+    description: "Тёплое золото на глубоком графите",
+    colors: ["#0b0b0d", "#d9a441", "#f1eee7"],
+  },
+  {
+    id: "ice",
+    name: "Лёд",
+    description: "Холодный циан, синие тени и стекло",
+    colors: ["#071018", "#66d9ff", "#e9f7ff"],
+  },
+  {
+    id: "fire",
+    name: "Огонь",
+    description: "Раскалённый янтарь и тлеющий уголь",
+    colors: ["#150806", "#ff7a3d", "#ffece4"],
+  },
+  {
+    id: "ash",
+    name: "Пепел",
+    description: "Серый вулканический пепел и медь",
+    colors: ["#0e1010", "#c9a37b", "#e7e3dc"],
+  },
+  {
+    id: "cyberpunk",
+    name: "Киберпанк",
+    description: "Неоновая магента в фиолетовой ночи",
+    colors: ["#090012", "#ff4fd8", "#f5e9ff"],
+  },
+];
 
 export function Settings() {
   const tracks = useLibraryStore((state) => state.tracks);
@@ -37,6 +84,7 @@ export function Settings() {
   const restoreTrack = useLibraryStore((state) => state.restoreTrack);
   const notify = useUiStore((state) => state.notify);
   const setEqualizerOpen = useUiStore((state) => state.setEqualizerOpen);
+  const confirm = useConfirmStore((state) => state.confirm);
 
   const appBackground = useSettingsStore((state) => state.appBackground);
   const nowBackground = useSettingsStore((state) => state.nowBackground);
@@ -44,6 +92,8 @@ export function Settings() {
   const setAppBackground = useSettingsStore((state) => state.setAppBackground);
   const setNowBackground = useSettingsStore((state) => state.setNowBackground);
   const setBackgroundDim = useSettingsStore((state) => state.setBackgroundDim);
+  const theme = useSettingsStore((state) => state.theme);
+  const setTheme = useSettingsStore((state) => state.setTheme);
   const downloadDir = useSettingsStore((state) => state.downloadDir);
   const setDownloadDir = useSettingsStore((state) => state.setDownloadDir);
   const ytdlpPath = useSettingsStore((state) => state.ytdlpPath);
@@ -77,6 +127,12 @@ export function Settings() {
 
   const [lyricsFiles, setLyricsFiles] = useState<LyricsFile[]>([]);
   const [lyricsLoading, setLyricsLoading] = useState(true);
+  const [duplicateGroups, setDuplicateGroups] = useState<DuplicateTrackGroup[]>(
+    [],
+  );
+  const [duplicateOpen, setDuplicateOpen] = useState(false);
+  const [duplicateBusy, setDuplicateBusy] = useState(false);
+  const deleteTracks = useLibraryStore((state) => state.deleteTracks);
 
   const visible = visibleTracks(tracks);
   const hidden = tracks.filter((track) => track.hidden);
@@ -120,8 +176,48 @@ export function Settings() {
     }
   };
 
+  const checkDuplicates = () => {
+    const groups = findDuplicateGroups(tracks);
+    if (groups.length === 0) {
+      notify("Дубликаты не найдены", "success");
+      return;
+    }
+    setDuplicateGroups(groups);
+    setDuplicateOpen(true);
+  };
+
+  const removeDuplicates = async () => {
+    const ids = duplicateGroups.flatMap((group) =>
+      group.duplicates.map((track) => track.id),
+    );
+    if (ids.length === 0) return;
+    if (
+      usePlayerStore.getState().currentId !== null &&
+      ids.includes(usePlayerStore.getState().currentId as number)
+    ) {
+      usePlayerStore.getState().clearQueue();
+    }
+    setDuplicateBusy(true);
+    const result = await deleteTracks(ids, true);
+    setDuplicateBusy(false);
+    if (result) {
+      setDuplicateOpen(false);
+      setDuplicateGroups([]);
+    }
+  };
+
   const clearLyricsCache = async () => {
-    if (!window.confirm("Удалить все сохранённые тексты песен?")) return;
+    if (
+      !(await confirm({
+        title: "Очистить тексты?",
+        message:
+          "Удалить все сохранённые тексты песен? Файлы музыки не затрагиваются.",
+        confirmLabel: "Очистить",
+        tone: "danger",
+      }))
+    ) {
+      return;
+    }
     try {
       const removed = await api.clearLyrics();
       await refreshLyrics();
@@ -209,13 +305,14 @@ export function Settings() {
                   <button
                     className="icon-button"
                     onClick={() => {
-                      if (
-                        window.confirm(
-                          "Убрать папку из библиотеки? Файлы останутся на диске.",
-                        )
-                      ) {
-                        void removeFolder(folder.id);
-                      }
+                      void confirm({
+                        title: "Убрать папку?",
+                        message:
+                          "Убрать папку из библиотеки Nova? Файлы останутся на диске.",
+                        confirmLabel: "Убрать папку",
+                      }).then((confirmed) => {
+                        if (confirmed) void removeFolder(folder.id);
+                      });
                     }}
                     aria-label="Убрать папку"
                   >
@@ -327,6 +424,38 @@ export function Settings() {
             onChange={(event) => setBackgroundDim(Number(event.target.value))}
           />
           <span className="settings-value">{backgroundDim}%</span>
+        </div>
+        <div className="theme-section">
+          <div className="settings-row-main">
+            <strong>Тема оформления</strong>
+            <span>Выберите настроение интерфейса</span>
+          </div>
+          <div className="theme-grid">
+            {THEMES.map((option) => (
+              <button
+                key={option.id}
+                className={`theme-card${theme === option.id ? " is-active" : ""}`}
+                onClick={() => setTheme(option.id)}
+                style={
+                  {
+                    "--theme-card-bg": option.colors[0],
+                    "--theme-card-accent": option.colors[1],
+                    "--theme-card-ink": option.colors[2],
+                  } as CSSProperties
+                }
+              >
+                <span className="theme-preview">
+                  <i />
+                  <b />
+                  <em />
+                </span>
+                <span className="theme-card-text">
+                  <strong>{option.name}</strong>
+                  <small>{option.description}</small>
+                </span>
+              </button>
+            ))}
+          </div>
         </div>
       </section>
 
@@ -624,6 +753,28 @@ export function Settings() {
 
       <section className="settings-section">
         <div className="settings-section-head">
+          <h2 className="serif">Дубликаты треков</h2>
+          <button className="secondary-button" onClick={checkDuplicates}>
+            <Copy size={15} />
+            Проверить дубликаты
+          </button>
+        </div>
+        <p className="settings-hint">
+          Ручная проверка по исполнителю и названию. Nova покажет группы
+          дубликатов и сможет оставить по одной копии лучшего качества, удалив
+          остальные файлы из приложения и с диска.
+        </p>
+        <div className="settings-inline">
+          <Copy size={15} />
+          <span>
+            Проверка запускается только по кнопке. Обычное сканирование ничего
+            не удаляет.
+          </span>
+        </div>
+      </section>
+
+      <section className="settings-section">
+        <div className="settings-section-head">
           <h2 className="serif">Скрытые треки</h2>
           <span className="settings-badge">{hidden.length}</span>
         </div>
@@ -666,6 +817,14 @@ export function Settings() {
         </div>
         <Info size={18} className="about-info" />
       </section>
+
+      <DuplicateTracksModal
+        open={duplicateOpen}
+        groups={duplicateGroups}
+        busy={duplicateBusy}
+        onClose={() => setDuplicateOpen(false)}
+        onConfirm={() => void removeDuplicates()}
+      />
     </div>
   );
 }

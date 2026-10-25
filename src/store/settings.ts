@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import type { NotificationSound, RecognitionInput } from "../types";
+import type { NotificationSound, RecognitionInput, Theme } from "../types";
 
 export type ShazamProvider = "builtin" | "audd" | "acrcloud";
 
@@ -15,6 +15,7 @@ interface SettingsState {
   recognitionSource: RecognitionInput;
   notificationSound: NotificationSound;
   notificationVolume: number;
+  theme: Theme;
   autoplayOnStart: boolean;
   autoScan: boolean;
   setAppBackground: (path: string | null) => void;
@@ -27,6 +28,7 @@ interface SettingsState {
   setRecognitionSource: (value: RecognitionInput) => void;
   setNotificationSound: (value: NotificationSound) => void;
   setNotificationVolume: (value: number) => void;
+  setTheme: (value: Theme) => void;
   setAutoplayOnStart: (value: boolean) => void;
   setAutoScan: (value: boolean) => void;
 }
@@ -44,6 +46,7 @@ export const useSettingsStore = create<SettingsState>()(
       recognitionSource: "microphone",
       notificationSound: "soft",
       notificationVolume: 0.6,
+      theme: "nocturne",
       autoplayOnStart: false,
       autoScan: true,
       setAppBackground: (path) => set({ appBackground: path }),
@@ -58,6 +61,7 @@ export const useSettingsStore = create<SettingsState>()(
       setNotificationSound: (value) => set({ notificationSound: value }),
       setNotificationVolume: (value) =>
         set({ notificationVolume: Math.max(0, Math.min(1, value)) }),
+      setTheme: (value) => set({ theme: value }),
       setAutoplayOnStart: (value) => set({ autoplayOnStart: value }),
       setAutoScan: (value) => set({ autoScan: value }),
     }),

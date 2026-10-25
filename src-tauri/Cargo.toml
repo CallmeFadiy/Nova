@@ -1,7 +1,7 @@
 [package]
 name = "nova"
 version = "0.1.0"
-description = "Nova — local-first music player"
+description = "Nova – local-first music player"
 authors = ["Fadiy"]
 edition = "2021"
 default-run = "nova"
