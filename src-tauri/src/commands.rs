@@ -1,9 +1,12 @@
-use crate::models::{Folder, Playlist, ScanResult, Snapshot, Track};
-use crate::{scanner, AppState};
+use crate::models::{
+    DownloadResult, Folder, ImportPlaylist, MediaCandidate, Playlist, RecognitionResult, ScanResult,
+    Snapshot, Track,
+};
+use crate::{media, scanner, AppState};
 use rusqlite::{params, Connection, OptionalExtension};
 use std::fs;
 use std::path::PathBuf;
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Manager, State};
 
 pub fn snapshot(conn: &Connection) -> Result<Snapshot, String> {
     Ok(Snapshot {
@@ -126,7 +129,11 @@ pub fn scan_library(app: AppHandle, state: State<'_, AppState>) -> Result<ScanRe
 }
 
 #[tauri::command]
-pub fn add_folder(state: State<'_, AppState>, path: String) -> Result<Snapshot, String> {
+pub fn add_folder(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    path: String,
+) -> Result<Snapshot, String> {
     let source = PathBuf::from(path.trim());
     if !source.is_dir() {
         return Err("Папка не найдена".to_string());
@@ -141,6 +148,9 @@ pub fn add_folder(state: State<'_, AppState>, path: String) -> Result<Snapshot, 
         ],
     )
     .map_err(|e| e.to_string())?;
+    let _ = app
+        .asset_protocol_scope()
+        .allow_directory(&normalized, true);
     snapshot(&conn)
 }
 
@@ -427,4 +437,59 @@ pub fn clear_background(state: State<'_, AppState>, kind: String) -> Result<(), 
         }
     }
     Ok(())
+}
+
+#[tauri::command]
+pub async fn search_media(
+    query: String,
+    limit: Option<usize>,
+) -> Result<Vec<MediaCandidate>, String> {
+    media::search(&query, limit.unwrap_or(20)).await
+}
+
+#[tauri::command]
+pub async fn resolve_playlist(
+    app: AppHandle,
+    url: String,
+    ytdlp_path: Option<String>,
+) -> Result<ImportPlaylist, String> {
+    media::resolve_playlist(&app, &url, ytdlp_path).await
+}
+
+#[tauri::command]
+pub async fn download_media(
+    app: AppHandle,
+    id: String,
+    url: String,
+    query: Option<String>,
+    output_dir: String,
+    ytdlp_path: Option<String>,
+) -> Result<DownloadResult, String> {
+    media::download_media(&app, id, url, query, output_dir, ytdlp_path).await
+}
+
+#[tauri::command]
+pub async fn download_direct(
+    app: AppHandle,
+    id: String,
+    url: String,
+    output_dir: String,
+    file_name: Option<String>,
+) -> Result<DownloadResult, String> {
+    media::download_direct(&app, id, url, output_dir, file_name).await
+}
+
+#[tauri::command]
+pub async fn recognize_audd(api_token: String) -> Result<RecognitionResult, String> {
+    media::recognize_audd(api_token).await
+}
+
+#[tauri::command]
+pub async fn recognize_shazam() -> Result<RecognitionResult, String> {
+    media::recognize_shazam().await
+}
+
+#[tauri::command]
+pub async fn recognize_shazam_file(path: String) -> Result<RecognitionResult, String> {
+    media::recognize_shazam_file(path).await
 }

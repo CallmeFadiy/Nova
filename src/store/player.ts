@@ -87,14 +87,16 @@ export const usePlayerStore = create<PlayerState>()(
         }
 
         const state = get();
+        const alphabetical = [...tracks].sort((a, b) =>
+          a.title.localeCompare(b.title, "ru"),
+        );
         let currentId = state.currentId;
         if (currentId === null || !tracks.some((track) => track.id === currentId)) {
-          const sorted = [...tracks].sort((a, b) => b.addedAt - a.addedAt);
-          currentId = sorted[0]?.id ?? null;
+          currentId = alphabetical[0]?.id ?? null;
         }
 
         let queue = state.queue.filter((id) => tracks.some((track) => track.id === id));
-        if (queue.length === 0) queue = tracks.map((track) => track.id);
+        if (queue.length === 0) queue = alphabetical.map((track) => track.id);
 
         let order = state.order.filter((id) => queue.includes(id));
         if (order.length === 0) order = [...queue];

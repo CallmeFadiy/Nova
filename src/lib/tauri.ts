@@ -3,8 +3,13 @@ import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
 import { openUrl, revealItemInDir } from "@tauri-apps/plugin-opener";
 import type {
+  DownloadProgress,
+  DownloadResult,
   Folder,
+  ImportPlaylist,
+  MediaCandidate,
   Playlist,
+  RecognitionResult,
   ScanProgress,
   ScanResult,
   Snapshot,
@@ -313,6 +318,158 @@ export const api = {
     if (!isTauri) return;
     await call<void>("clear_background", { kind });
   },
+
+  async searchMedia(query: string, limit = 20): Promise<MediaCandidate[]> {
+    if (!isTauri) {
+      await delay(500);
+      const needle = query.trim().toLowerCase();
+      const source = needle
+        ? demo.tracks.filter(
+            (track) =>
+              track.title.toLowerCase().includes(needle) ||
+              track.artist.toLowerCase().includes(needle) ||
+              track.album.toLowerCase().includes(needle),
+          )
+        : demo.tracks;
+      return (source.length > 0 ? source : demo.tracks)
+        .slice(0, limit)
+        .map((track) => ({
+          id: `demo-${track.id}`,
+          title: track.title,
+          artist: track.artist,
+          album: track.album,
+          durationMs: track.durationMs,
+          artworkUrl: null,
+          source: "Демо",
+          webpageUrl: track.path,
+          previewUrl: null,
+          downloadUrl: null,
+          query: `${track.artist} ${track.title}`,
+        }));
+    }
+    return call<MediaCandidate[]>("search_media", { query, limit });
+  },
+
+  async resolvePlaylist(
+    url: string,
+    ytdlpPath?: string,
+  ): Promise<ImportPlaylist> {
+    if (!isTauri) {
+      await delay(900);
+      return {
+        title: "Демо-плейлист",
+        source: "Демо",
+        tracks: demo.tracks.slice(0, 3).map((track) => ({
+          title: track.title,
+          artist: track.artist,
+          album: track.album,
+          durationMs: track.durationMs,
+          sourceUrl: track.path,
+          previewUrl: null,
+          downloadUrl: null,
+          query: `${track.artist} ${track.title}`,
+        })),
+      };
+    }
+    return call<ImportPlaylist>("resolve_playlist", {
+      url,
+      ytdlpPath: ytdlpPath ?? null,
+    });
+  },
+
+  async downloadMedia(args: {
+    id: string;
+    url: string;
+    query?: string;
+    outputDir: string;
+    ytdlpPath?: string;
+  }): Promise<DownloadResult> {
+    if (!isTauri) {
+      await delay(1400);
+      return {
+        path: `${args.outputDir || "Downloads"}\\${args.query || "track"}.m4a`,
+        title: args.query || "Новый трек",
+        directory: args.outputDir || "Downloads",
+      };
+    }
+    return call<DownloadResult>("download_media", {
+      id: args.id,
+      url: args.url,
+      query: args.query ?? null,
+      outputDir: args.outputDir,
+      ytdlpPath: args.ytdlpPath ?? null,
+    });
+  },
+
+  async downloadDirect(args: {
+    id: string;
+    url: string;
+    outputDir: string;
+    fileName?: string;
+  }): Promise<DownloadResult> {
+    if (!isTauri) {
+      await delay(800);
+      return {
+        path: `${args.outputDir || "Downloads"}\\${args.fileName || "preview"}.m4a`,
+        title: args.fileName || "Превью",
+        directory: args.outputDir || "Downloads",
+      };
+    }
+    return call<DownloadResult>("download_direct", {
+      id: args.id,
+      url: args.url,
+      outputDir: args.outputDir,
+      fileName: args.fileName ?? null,
+    });
+  },
+
+  async recognizeAudd(apiToken: string): Promise<RecognitionResult> {
+    if (!isTauri) {
+      await delay(1600);
+      return {
+        title: "Ван Хельсинг",
+        artist: "Norma Tale",
+        album: "Ван Хельсинг",
+        artworkUrl: null,
+        sourceUrl: null,
+        query: "Norma Tale Ван Хельсинг",
+        provider: "Демо",
+      };
+    }
+    return call<RecognitionResult>("recognize_audd", { apiToken });
+  },
+
+  async recognizeShazam(): Promise<RecognitionResult> {
+    if (!isTauri) {
+      await delay(1600);
+      return {
+        title: "Ван Хельсинг",
+        artist: "Norma Tale",
+        album: "Ван Хельсинг",
+        artworkUrl: null,
+        sourceUrl: null,
+        query: "Norma Tale Ван Хельсинг",
+        provider: "Демо",
+      };
+    }
+    return call<RecognitionResult>("recognize_shazam");
+  },
+
+  async recognizeShazamFile(path: string): Promise<RecognitionResult> {
+    if (!isTauri) {
+      await delay(1600);
+      return {
+        title: "Ван Хельсинг",
+        artist: "Norma Tale",
+        album: "Ван Хельсинг",
+        artworkUrl: null,
+        sourceUrl: null,
+        query: "Norma Tale Ван Хельсинг",
+        provider: "Демо-файл",
+      };
+    }
+    return call<RecognitionResult>("recognize_shazam_file", { path });
+  },
 };
 
 export function coverUrl(track: Track | null | undefined): string | null {
@@ -362,6 +519,23 @@ export async function pickImage(): Promise<string | null> {
   return result;
 }
 
+export async function pickAudioFile(): Promise<string | null> {
+  if (!isTauri) return null;
+  const result = await open({
+    directory: false,
+    multiple: false,
+    title: "Выбрать аудиофайл для распознавания",
+    filters: [
+      {
+        name: "Аудио",
+        extensions: ["mp3", "m4a", "wav", "flac", "ogg", "opus", "aac", "webm"],
+      },
+    ],
+  });
+  if (Array.isArray(result)) return result[0] ?? null;
+  return result;
+}
+
 export async function revealInFolder(path: string): Promise<void> {
   if (!isTauri) return;
   await revealItemInDir(path);
@@ -382,4 +556,17 @@ export async function listenScanProgress(
   return listen<ScanProgress>("scan-progress", (event) => callback(event.payload));
 }
 
+export async function listenDownloadProgress(
+  callback: (progress: DownloadProgress) => void,
+): Promise<UnlistenFn> {
+  if (!isTauri) return () => undefined;
+  return listen<DownloadProgress>("download-progress", (event) =>
+    callback(event.payload),
+  );
+}
+
 export type { Folder, Playlist, Snapshot, Track };
+
+if (import.meta.env.DEV && typeof window !== "undefined") {
+  (window as unknown as { __novaApi: typeof api }).__novaApi = api;
+}

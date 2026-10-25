@@ -69,3 +69,71 @@ pub struct ScanProgress {
     pub total: usize,
     pub path: String,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MediaCandidate {
+    pub id: String,
+    pub title: String,
+    pub artist: String,
+    pub album: String,
+    pub duration_ms: i64,
+    pub artwork_url: Option<String>,
+    pub source: String,
+    pub webpage_url: String,
+    pub preview_url: Option<String>,
+    pub download_url: Option<String>,
+    pub query: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportTrack {
+    pub title: String,
+    pub artist: String,
+    pub album: String,
+    pub duration_ms: i64,
+    pub source_url: String,
+    pub preview_url: Option<String>,
+    pub download_url: Option<String>,
+    pub query: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportPlaylist {
+    pub title: String,
+    pub source: String,
+    pub tracks: Vec<ImportTrack>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DownloadProgress {
+    pub id: String,
+    pub percent: f64,
+    pub line: String,
+    pub status: String,
+    pub path: Option<String>,
+    pub error: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DownloadResult {
+    pub path: String,
+    pub title: String,
+    pub directory: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RecognitionResult {
+    pub title: String,
+    pub artist: String,
+    pub album: String,
+    pub artwork_url: Option<String>,
+    pub source_url: Option<String>,
+    pub query: String,
+    pub provider: String,
+}

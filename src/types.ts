@@ -65,3 +65,59 @@ export type SortMode =
   | "album"
   | "newest"
   | "duration";
+
+export interface MediaCandidate {
+  id: string;
+  title: string;
+  artist: string;
+  album: string;
+  durationMs: number;
+  artworkUrl: string | null;
+  source: string;
+  webpageUrl: string;
+  previewUrl: string | null;
+  downloadUrl: string | null;
+  query: string;
+}
+
+export interface ImportTrack {
+  title: string;
+  artist: string;
+  album: string;
+  durationMs: number;
+  sourceUrl: string;
+  previewUrl: string | null;
+  downloadUrl: string | null;
+  query: string;
+}
+
+export interface ImportPlaylist {
+  title: string;
+  source: string;
+  tracks: ImportTrack[];
+}
+
+export interface DownloadProgress {
+  id: string;
+  percent: number;
+  line: string;
+  status: "downloading" | "done" | "error" | "starting";
+  path: string | null;
+  error: string | null;
+}
+
+export interface DownloadResult {
+  path: string;
+  title: string;
+  directory: string;
+}
+
+export interface RecognitionResult {
+  title: string;
+  artist: string;
+  album: string;
+  artworkUrl: string | null;
+  sourceUrl: string | null;
+  query: string;
+  provider: string;
+}
