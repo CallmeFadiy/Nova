@@ -14,11 +14,13 @@ import {
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { formatDuration, pluralRu } from "../lib/format";
 import { api, openExternal, pickFolder } from "../lib/tauri";
+import { DuplicateDownloadModal } from "../components/DuplicateDownloadModal";
 import { useDownloadProgress } from "../hooks/useDownloadProgress";
-import { useLibraryStore } from "../store/library";
+import { findDuplicateTrack, useLibraryStore } from "../store/library";
+import { usePlayerStore } from "../store/player";
 import { useSettingsStore } from "../store/settings";
 import { useUiStore } from "../store/ui";
-import type { DownloadResult, MediaCandidate } from "../types";
+import type { DownloadResult, MediaCandidate, Track } from "../types";
 
 export function Downloads() {
   const downloadDir = useSettingsStore((state) => state.downloadDir);
@@ -26,6 +28,8 @@ export function Downloads() {
   const ytdlpPath = useSettingsStore((state) => state.ytdlpPath);
   const addFolder = useLibraryStore((state) => state.addFolder);
   const scan = useLibraryStore((state) => state.scan);
+  const tracks = useLibraryStore((state) => state.tracks);
+  const deleteTrack = useLibraryStore((state) => state.deleteTrack);
   const notify = useUiStore((state) => state.notify);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -39,6 +43,10 @@ export function Downloads() {
   const [startingLink, setStartingLink] = useState(false);
   const [previewAudio, setPreviewAudio] = useState<HTMLAudioElement | null>(null);
   const [previewing, setPreviewing] = useState<string | null>(null);
+  const [conflict, setConflict] = useState<{
+    candidate: MediaCandidate;
+    existing: Track;
+  } | null>(null);
 
   useEffect(() => {
     return () => {
@@ -115,7 +123,23 @@ export function Downloads() {
     notify("Папка загрузок обновлена", "success");
   };
 
-  const startCandidate = async (candidate: MediaCandidate) => {
+  const requestCandidate = (candidate: MediaCandidate) => {
+    const existing = findDuplicateTrack(
+      tracks,
+      candidate.artist,
+      candidate.title,
+    );
+    if (existing) {
+      setConflict({ candidate, existing });
+      return;
+    }
+    void startCandidate(candidate);
+  };
+
+  const startCandidate = async (
+    candidate: MediaCandidate,
+    replace?: Track | null,
+  ) => {
     const id = `${candidate.id}-${Date.now()}`;
     setProgress({
       id,
@@ -141,6 +165,12 @@ export function Downloads() {
             ytdlpPath,
           });
       await finishDownload(id, result);
+      if (replace) {
+        if (usePlayerStore.getState().currentId === replace.id) {
+          usePlayerStore.getState().clearQueue();
+        }
+        await deleteTrack(replace.id, true);
+      }
     } catch (error) {
       if (
         candidate.downloadUrl &&
@@ -383,7 +413,7 @@ export function Downloads() {
                   ) : null}
                   <button
                     className="secondary-button"
-                    onClick={() => void startCandidate(candidate)}
+                    onClick={() => requestCandidate(candidate)}
                   >
                     <Download size={14} />
                     Скачать
@@ -490,6 +520,30 @@ export function Downloads() {
           Остановить превью
         </button>
       ) : null}
+
+      <DuplicateDownloadModal
+        open={Boolean(conflict)}
+        title={
+          conflict
+            ? `${conflict.existing.artist} — ${conflict.existing.title}`
+            : ""
+        }
+        description="Эта песня уже есть в вашей библиотеке. Что сделать с новой загрузкой?"
+        onClose={() => setConflict(null)}
+        onSkip={() => setConflict(null)}
+        onReplace={() => {
+          if (!conflict) return;
+          const current = conflict;
+          setConflict(null);
+          void startCandidate(current.candidate, current.existing);
+        }}
+        onKeepBoth={() => {
+          if (!conflict) return;
+          const current = conflict;
+          setConflict(null);
+          void startCandidate(current.candidate);
+        }}
+      />
     </div>
   );
 }

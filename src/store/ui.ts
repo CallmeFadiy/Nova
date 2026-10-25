@@ -1,4 +1,6 @@
 import { create } from "zustand";
+import { playNotificationSound } from "../lib/notificationSound";
+import { useSettingsStore } from "./settings";
 
 export type ToastTone = "success" | "error" | "info";
 
@@ -12,6 +14,8 @@ interface UiState {
   toasts: Toast[];
   trackActionsTrackId: number | null;
   addToPlaylistTrackId: number | null;
+  editTrackId: number | null;
+  mergeAlbumSeed: { trackIds: number[]; name: string } | null;
   createPlaylistOpen: boolean;
   equalizerOpen: boolean;
   nowPlayingOpen: boolean;
@@ -22,6 +26,10 @@ interface UiState {
   dismissToast: (id: string) => void;
   openTrackActions: (trackId: number | null) => void;
   openAddToPlaylist: (trackId: number | null) => void;
+  openEditTrack: (trackId: number | null) => void;
+  openMergeAlbums: (
+    seed: { trackIds: number[]; name: string } | null,
+  ) => void;
   setCreatePlaylistOpen: (open: boolean) => void;
   setEqualizerOpen: (open: boolean) => void;
   setNowPlayingOpen: (open: boolean) => void;
@@ -36,6 +44,8 @@ export const useUiStore = create<UiState>((set) => ({
   toasts: [],
   trackActionsTrackId: null,
   addToPlaylistTrackId: null,
+  editTrackId: null,
+  mergeAlbumSeed: null,
   createPlaylistOpen: false,
   equalizerOpen: false,
   nowPlayingOpen: false,
@@ -49,6 +59,8 @@ export const useUiStore = create<UiState>((set) => ({
     set((state) => ({
       toasts: [...state.toasts, { id, message, tone }],
     }));
+    const settings = useSettingsStore.getState();
+    playNotificationSound(settings.notificationSound, settings.notificationVolume);
     window.setTimeout(() => {
       set((state) => ({
         toasts: state.toasts.filter((toast) => toast.id !== id),
@@ -63,6 +75,8 @@ export const useUiStore = create<UiState>((set) => ({
 
   openTrackActions: (trackId) => set({ trackActionsTrackId: trackId }),
   openAddToPlaylist: (trackId) => set({ addToPlaylistTrackId: trackId }),
+  openEditTrack: (trackId) => set({ editTrackId: trackId }),
+  openMergeAlbums: (seed) => set({ mergeAlbumSeed: seed }),
   setCreatePlaylistOpen: (open) => set({ createPlaylistOpen: open }),
   setEqualizerOpen: (open) => set({ equalizerOpen: open }),
   setNowPlayingOpen: (open) => set({ nowPlayingOpen: open }),
@@ -70,3 +84,8 @@ export const useUiStore = create<UiState>((set) => ({
   setQueueOpen: (open) => set({ queueOpen: open }),
   setMobileNavOpen: (open) => set({ mobileNavOpen: open }),
 }));
+
+if (import.meta.env.DEV && typeof window !== "undefined") {
+  (window as unknown as { __novaUi: typeof useUiStore }).__novaUi =
+    useUiStore;
+}

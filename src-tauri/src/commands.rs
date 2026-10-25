@@ -2,7 +2,7 @@ use crate::models::{
     DownloadResult, Folder, ImportPlaylist, LyricsFile, LyricsResult, MediaCandidate, Playlist,
     RecognitionResult, ScanResult, Snapshot, Track,
 };
-use crate::{lyrics, media, scanner, AppState};
+use crate::{lyrics, media, recognition, scanner, AppState};
 use rusqlite::{params, Connection, OptionalExtension};
 use std::fs;
 use std::path::PathBuf;
@@ -25,7 +25,9 @@ fn read_tracks(conn: &Connection) -> rusqlite::Result<Vec<Track>> {
             t.cover_path, t.custom_cover_path, t.format, t.size, t.added_at,
             (f.track_id IS NOT NULL) AS favorite,
             (h.track_id IS NOT NULL) AS hidden,
-            t.missing
+            t.missing,
+            t.group_key_override,
+            t.group_name_override
         FROM tracks t
         LEFT JOIN favorites f ON f.track_id = t.id
         LEFT JOIN hidden_tracks h ON h.track_id = t.id
@@ -55,6 +57,8 @@ fn read_tracks(conn: &Connection) -> rusqlite::Result<Vec<Track>> {
             favorite: row.get::<_, i64>(17)? != 0,
             hidden: row.get::<_, i64>(18)? != 0,
             missing: row.get::<_, i64>(19)? != 0,
+            group_key_override: row.get(20)?,
+            group_name_override: row.get(21)?,
         })
     })?;
 
@@ -391,6 +395,115 @@ pub fn clear_track_cover(
 }
 
 #[tauri::command]
+pub fn update_track_metadata(
+    state: State<'_, AppState>,
+    track_id: i64,
+    title: String,
+    artist: String,
+    album: Option<String>,
+    album_artist: Option<String>,
+) -> Result<Snapshot, String> {
+    let title = title.trim();
+    let artist = artist.trim();
+    if title.is_empty() {
+        return Err("Название трека не может быть пустым".to_string());
+    }
+    if artist.is_empty() {
+        return Err("Исполнитель не может быть пустым".to_string());
+    }
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    let current: Option<(String, String)> = conn
+        .query_row(
+            "SELECT album, album_artist FROM tracks WHERE id = ?1",
+            params![track_id],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .optional()
+        .map_err(|e| e.to_string())?;
+    let (old_album, old_album_artist) =
+        current.ok_or_else(|| "Трек не найден".to_string())?;
+    let album = album
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or(&old_album)
+        .to_string();
+    let album_artist = album_artist
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or(&old_album_artist)
+        .to_string();
+    conn.execute(
+        "UPDATE tracks SET title = ?1, artist = ?2, album = ?3, album_artist = ?4, updated_at = ?5 WHERE id = ?6",
+        params![title, artist, album, album_artist, crate::db::now_secs(), track_id],
+    )
+    .map_err(|e| e.to_string())?;
+    snapshot(&conn)
+}
+
+#[tauri::command]
+pub fn delete_track(
+    state: State<'_, AppState>,
+    track_id: i64,
+    delete_file: bool,
+) -> Result<Snapshot, String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    let path: Option<String> = conn
+        .query_row(
+            "SELECT path FROM tracks WHERE id = ?1",
+            params![track_id],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(|e| e.to_string())?;
+    let Some(path) = path else {
+        return Err("Трек не найден".to_string());
+    };
+    if delete_file {
+        let file = std::path::Path::new(&path);
+        if file.exists() {
+            fs::remove_file(file)
+                .map_err(|error| format!("Не удалось удалить файл: {error}"))?;
+        }
+    }
+    conn.execute("DELETE FROM tracks WHERE id = ?1", params![track_id])
+        .map_err(|e| e.to_string())?;
+    snapshot(&conn)
+}
+
+#[tauri::command]
+pub fn merge_albums(
+    state: State<'_, AppState>,
+    track_ids: Vec<i64>,
+    name: String,
+) -> Result<Snapshot, String> {
+    let name = name.trim();
+    if name.is_empty() {
+        return Err("Введите название нового альбома".to_string());
+    }
+    if track_ids.is_empty() {
+        return Err("Выберите хотя бы один альбом".to_string());
+    }
+    let key = format!(
+        "merged:{}:{}",
+        crate::db::now_millis(),
+        track_ids.first().copied().unwrap_or(0)
+    );
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
+    for track_id in &track_ids {
+        tx.execute(
+            "UPDATE tracks SET group_key_override = ?1, group_name_override = ?2, updated_at = ?3 WHERE id = ?4",
+            params![key, name, crate::db::now_secs(), track_id],
+        )
+        .map_err(|e| e.to_string())?;
+    }
+    tx.commit().map_err(|e| e.to_string())?;
+    snapshot(&conn)
+}
+
+#[tauri::command]
 pub fn set_background(
     state: State<'_, AppState>,
     kind: String,
@@ -480,18 +593,25 @@ pub async fn download_direct(
 }
 
 #[tauri::command]
-pub async fn recognize_audd(api_token: String) -> Result<RecognitionResult, String> {
-    media::recognize_audd(api_token).await
+pub async fn recognize_audd(
+    app: AppHandle,
+    api_token: String,
+    source: Option<String>,
+) -> Result<RecognitionResult, String> {
+    recognition::recognize_audd(app, api_token, source).await
 }
 
 #[tauri::command]
-pub async fn recognize_shazam() -> Result<RecognitionResult, String> {
-    media::recognize_shazam().await
+pub async fn recognize_shazam(
+    app: AppHandle,
+    source: Option<String>,
+) -> Result<RecognitionResult, String> {
+    recognition::recognize_shazam(app, source).await
 }
 
 #[tauri::command]
 pub async fn recognize_shazam_file(path: String) -> Result<RecognitionResult, String> {
-    media::recognize_shazam_file(path).await
+    recognition::recognize_shazam_file(path).await
 }
 
 #[tauri::command]

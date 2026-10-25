@@ -6,6 +6,7 @@ use regex::Regex;
 use serde_json::json;
 use std::collections::HashSet;
 use std::fs;
+use std::io::Write as _;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -1273,6 +1274,7 @@ fn youtube_playlist_from_json(
             let webpage = entry
                 .get("webpage_url")
                 .and_then(|value| value.as_str())
+                .or_else(|| entry.get("url").and_then(|value| value.as_str()))
                 .map(str::to_string)
                 .or_else(|| {
                     entry
@@ -1528,7 +1530,7 @@ pub async fn download_direct(
     if let Some(referer) = referer {
         request = request.header(reqwest::header::REFERER, referer);
     }
-    let response = request
+    let mut response = request
         .send()
         .await
         .map_err(|error| format!("Не удалось скачать файл: {error}"))?;
@@ -1543,10 +1545,7 @@ pub async fn download_direct(
         .and_then(|value| value.to_str().ok())
         .unwrap_or_default()
         .to_string();
-    let bytes = response
-        .bytes()
-        .await
-        .map_err(|error| format!("Ошибка чтения файла: {error}"))?;
+    let content_length = response.content_length();
 
     let extension = guess_extension(&target, &content_type);
     let base_name = file_name
@@ -1568,7 +1567,50 @@ pub async fn download_direct(
         counter += 1;
     }
 
-    fs::write(&path, &bytes).map_err(|error| format!("Не удалось записать файл: {error}"))?;
+    let mut file = fs::File::create(&path)
+        .map_err(|error| format!("Не удалось создать файл: {error}"))?;
+    let mut received = 0u64;
+    let mut last_percent = -1.0f64;
+    loop {
+        let chunk = match response.chunk().await {
+            Ok(Some(chunk)) => chunk,
+            Ok(None) => break,
+            Err(error) => {
+                drop(file);
+                let _ = fs::remove_file(&path);
+                return Err(format!("Ошибка чтения файла: {error}"));
+            }
+        };
+        if let Err(error) = file.write_all(&chunk) {
+            drop(file);
+            let _ = fs::remove_file(&path);
+            return Err(format!("Не удалось записать файл: {error}"));
+        }
+        received += chunk.len() as u64;
+        if let Some(total) = content_length.filter(|value| *value > 0) {
+            let percent = (received as f64 / total as f64 * 100.0).clamp(0.0, 100.0);
+            if percent - last_percent >= 2.0 || percent >= 99.9 {
+                last_percent = percent;
+                emit_progress(
+                    app,
+                    DownloadProgress {
+                        id: id.clone(),
+                        percent,
+                        line: format!("Скачивание… {}%", percent.round()),
+                        status: "downloading".to_string(),
+                        path: None,
+                        error: None,
+                    },
+                );
+            }
+        }
+    }
+    if let Err(error) = file.flush() {
+        drop(file);
+        let _ = fs::remove_file(&path);
+        return Err(format!("Не удалось завершить файл: {error}"));
+    }
+    drop(file);
     let path_string = path.to_string_lossy().to_string();
     emit_progress(
         app,
@@ -1725,319 +1767,6 @@ fn sanitize_filename(name: &str) -> String {
         value = "track".to_string();
     }
     value
-}
-
-pub async fn recognize_shazam() -> Result<crate::models::RecognitionResult, String> {
-    let (samples, sample_rate) =
-        tauri::async_runtime::spawn_blocking(record_pcm_8s)
-            .await
-            .map_err(|error| format!("Не удалось записать микрофон: {error}"))??;
-
-    let result = tauri::async_runtime::spawn_blocking(move || {
-        let songrec = songrec::SongRec::new(songrec::Config::default());
-        songrec.recognize_from_samples(&samples, sample_rate)
-    })
-    .await
-    .map_err(|error| format!("Ошибка распознавания: {error}"))?
-    .map_err(|error| error.to_string())?;
-
-    Ok(map_shazam_result(result))
-}
-
-pub async fn recognize_shazam_file(
-    path: String,
-) -> Result<crate::models::RecognitionResult, String> {
-    let result = tauri::async_runtime::spawn_blocking(move || {
-        let songrec = songrec::SongRec::new(songrec::Config::default());
-        songrec.recognize_from_file(&path)
-    })
-    .await
-    .map_err(|error| format!("Ошибка чтения файла: {error}"))?
-    .map_err(|error| error.to_string())?;
-
-    Ok(map_shazam_result(result))
-}
-
-fn map_shazam_result(
-    result: songrec::RecognitionResult,
-) -> crate::models::RecognitionResult {
-    let raw = result
-        .raw_response
-        .get("track")
-        .unwrap_or(&result.raw_response);
-    let artwork = raw
-        .get("images")
-        .and_then(|value| value.get("coverart"))
-        .and_then(|value| value.as_str())
-        .map(str::to_string);
-    let source_url = raw
-        .get("url")
-        .and_then(|value| value.as_str())
-        .map(str::to_string)
-        .or_else(|| {
-            raw.get("share")
-                .and_then(|value| value.get("href"))
-                .and_then(|value| value.as_str())
-                .map(str::to_string)
-        });
-
-    let query = format!("{} {}", result.artist_name, result.song_name);
-    crate::models::RecognitionResult {
-        title: result.song_name,
-        artist: result.artist_name,
-        album: result.album_name.unwrap_or_default(),
-        artwork_url: artwork,
-        source_url,
-        query,
-        provider: "Shazam".to_string(),
-    }
-}
-
-pub async fn recognize_audd(api_token: String) -> Result<crate::models::RecognitionResult, String> {
-    let token = api_token.trim().to_string();
-    if token.is_empty() {
-        return Err("Укажите API-ключ AudD в настройках".to_string());
-    }
-    let wav = tauri::async_runtime::spawn_blocking(record_wav_8s)
-        .await
-        .map_err(|error| format!("Не удалось записать микрофон: {error}"))??;
-
-    let client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(45))
-        .build()
-        .map_err(|error| error.to_string())?;
-    let part = reqwest::multipart::Part::bytes(wav)
-        .file_name("nova-sample.wav")
-        .mime_str("audio/wav")
-        .map_err(|error| error.to_string())?;
-    let form = reqwest::multipart::Form::new()
-        .text("api_token", token)
-        .text("return", "apple_music,spotify")
-        .part("audio", part);
-
-    let response = client
-        .post("https://api.audd.io/")
-        .multipart(form)
-        .send()
-        .await
-        .map_err(|error| format!("AudD недоступен: {error}"))?;
-    let json = response
-        .json::<serde_json::Value>()
-        .await
-        .map_err(|error| format!("AudD вернул ошибку: {error}"))?;
-
-    if json.get("status").and_then(|value| value.as_str()) != Some("success") {
-        let message = json
-            .get("error")
-            .and_then(|value| value.get("error_message"))
-            .and_then(|value| value.as_str())
-            .unwrap_or("AudD не смог обработать запрос");
-        return Err(message.to_string());
-    }
-
-    let result = json.get("result").unwrap_or(&serde_json::Value::Null);
-    if result.is_null() {
-        return Err("Не удалось распознать трек. Попробуйте громче или ближе к источнику.".to_string());
-    }
-
-    let title = result
-        .get("title")
-        .and_then(|value| value.as_str())
-        .unwrap_or("Неизвестный трек")
-        .to_string();
-    let artist = result
-        .get("artist")
-        .and_then(|value| value.as_str())
-        .unwrap_or("Неизвестный исполнитель")
-        .to_string();
-    let album = result
-        .get("album")
-        .and_then(|value| value.as_str())
-        .unwrap_or_default()
-        .to_string();
-
-    let artwork = result
-        .get("apple_music")
-        .and_then(|value| value.get("artwork"))
-        .and_then(|value| value.get("url"))
-        .and_then(|value| value.as_str())
-        .map(|value| value.replace("{w}", "600").replace("{h}", "600"))
-        .or_else(|| {
-            result
-                .get("spotify")
-                .and_then(|value| value.get("album"))
-                .and_then(|value| value.get("images"))
-                .and_then(|value| value.as_array())
-                .and_then(|images| images.first())
-                .and_then(|image| image.get("url"))
-                .and_then(|value| value.as_str())
-                .map(str::to_string)
-        });
-
-    let source_url = result
-        .get("song_link")
-        .and_then(|value| value.as_str())
-        .map(str::to_string)
-        .or_else(|| {
-            result
-                .get("spotify")
-                .and_then(|value| value.get("external_urls"))
-                .and_then(|value| value.get("spotify"))
-                .and_then(|value| value.as_str())
-                .map(str::to_string)
-        });
-
-    Ok(crate::models::RecognitionResult {
-        title: title.clone(),
-        artist: artist.clone(),
-        album,
-        artwork_url: artwork,
-        source_url,
-        query: format!("{artist} {title}"),
-        provider: "AudD".to_string(),
-    })
-}
-
-fn record_pcm_8s() -> Result<(Vec<i16>, u32), String> {
-    use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
-    use std::sync::{Arc, Mutex};
-
-    let host = cpal::default_host();
-    let device = host
-        .default_input_device()
-        .ok_or_else(|| "Микрофон не найден".to_string())?;
-    let supported = device
-        .default_input_config()
-        .map_err(|error| format!("Не удалось открыть микрофон: {error}"))?;
-    let sample_format = supported.sample_format();
-    let config: cpal::StreamConfig = supported.into();
-    let channels = config.channels as usize;
-    let sample_rate = config.sample_rate.0;
-
-    let samples = Arc::new(Mutex::new(Vec::<f32>::new()));
-    let error_slot = Arc::new(Mutex::new(None::<String>));
-
-    let stream = match sample_format {
-        cpal::SampleFormat::F32 => {
-            let samples = samples.clone();
-            let error_slot = error_slot.clone();
-            device.build_input_stream(
-                &config,
-                move |data: &[f32], _| {
-                    if let Ok(mut guard) = samples.lock() {
-                        guard.extend(data.iter().copied());
-                    }
-                },
-                move |error| {
-                    if let Ok(mut guard) = error_slot.lock() {
-                        *guard = Some(error.to_string());
-                    }
-                },
-                None,
-            )
-        }
-        cpal::SampleFormat::I16 => {
-            let samples = samples.clone();
-            let error_slot = error_slot.clone();
-            device.build_input_stream(
-                &config,
-                move |data: &[i16], _| {
-                    if let Ok(mut guard) = samples.lock() {
-                        guard.extend(data.iter().map(|value| *value as f32 / 32768.0));
-                    }
-                },
-                move |error| {
-                    if let Ok(mut guard) = error_slot.lock() {
-                        *guard = Some(error.to_string());
-                    }
-                },
-                None,
-            )
-        }
-        cpal::SampleFormat::U16 => {
-            let samples = samples.clone();
-            let error_slot = error_slot.clone();
-            device.build_input_stream(
-                &config,
-                move |data: &[u16], _| {
-                    if let Ok(mut guard) = samples.lock() {
-                        guard.extend(
-                            data.iter()
-                                .map(|value| (*value as f32 - 32768.0) / 32768.0),
-                        );
-                    }
-                },
-                move |error| {
-                    if let Ok(mut guard) = error_slot.lock() {
-                        *guard = Some(error.to_string());
-                    }
-                },
-                None,
-            )
-        }
-        other => {
-            return Err(format!(
-                "Формат микрофона {:?} не поддерживается",
-                other
-            ))
-        }
-    }
-    .map_err(|error| format!("Не удалось начать запись: {error}"))?;
-
-    stream
-        .play()
-        .map_err(|error| format!("Не удалось включить микрофон: {error}"))?;
-    std::thread::sleep(Duration::from_secs(8));
-    drop(stream);
-
-    if let Ok(guard) = error_slot.lock() {
-        if let Some(message) = guard.as_ref() {
-            return Err(format!("Ошибка микрофона: {message}"));
-        }
-    }
-
-    let collected = samples
-        .lock()
-        .map_err(|error| error.to_string())?
-        .clone();
-    if collected.is_empty() {
-        return Err("Микрофон не записал ни одного сэмпла".to_string());
-    }
-
-    let mono: Vec<f32> = collected
-        .chunks(channels.max(1))
-        .map(|frame| frame.iter().sum::<f32>() / frame.len() as f32)
-        .collect();
-
-    let pcm = mono
-        .into_iter()
-        .map(|sample| (sample.clamp(-1.0, 1.0) * i16::MAX as f32) as i16)
-        .collect();
-    Ok((pcm, sample_rate))
-}
-
-fn record_wav_8s() -> Result<Vec<u8>, String> {
-    let (samples, sample_rate) = record_pcm_8s()?;
-    let mut cursor = std::io::Cursor::new(Vec::new());
-    {
-        let spec = hound::WavSpec {
-            channels: 1,
-            sample_rate,
-            bits_per_sample: 16,
-            sample_format: hound::SampleFormat::Int,
-        };
-        let mut writer = hound::WavWriter::new(&mut cursor, spec)
-            .map_err(|error| format!("Не удалось создать WAV: {error}"))?;
-        for sample in samples {
-            writer
-                .write_sample(sample)
-                .map_err(|error| format!("Не удалось записать WAV: {error}"))?;
-        }
-        writer
-            .finalize()
-            .map_err(|error| format!("Не удалось завершить WAV: {error}"))?;
-    }
-    Ok(cursor.into_inner())
 }
 
 #[cfg(test)]

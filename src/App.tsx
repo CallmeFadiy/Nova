@@ -3,8 +3,10 @@ import { Menu } from "lucide-react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { AddToPlaylistModal } from "./components/AddToPlaylistModal";
 import { CreatePlaylistModal } from "./components/CreatePlaylistModal";
+import { EditTrackModal } from "./components/EditTrackModal";
 import { EqualizerPanel } from "./components/EqualizerPanel";
 import { LyricsModal } from "./components/LyricsModal";
+import { MergeAlbumsModal } from "./components/MergeAlbumsModal";
 import { NowPlaying } from "./components/NowPlaying";
 import { PlayerBar } from "./components/PlayerBar";
 import { QueuePanel } from "./components/QueuePanel";
@@ -220,6 +222,8 @@ export default function App() {
       <EqualizerPanel />
       <NowPlaying />
       <LyricsModal />
+      <EditTrackModal />
+      <MergeAlbumsModal />
       <Toasts />
       {!isTauri ? <div className="demo-badge">Демо-режим браузера</div> : null}
     </>

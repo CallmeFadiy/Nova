@@ -11,6 +11,8 @@ import type {
   LyricsResult,
   MediaCandidate,
   Playlist,
+  RecognitionInput,
+  RecognitionLevel,
   RecognitionResult,
   ScanProgress,
   ScanResult,
@@ -55,6 +57,8 @@ const demo: Snapshot = {
       favorite: true,
       hidden: false,
       missing: false,
+      groupKeyOverride: null,
+      groupNameOverride: null,
     },
     {
       id: 2,
@@ -77,6 +81,8 @@ const demo: Snapshot = {
       favorite: false,
       hidden: false,
       missing: false,
+      groupKeyOverride: null,
+      groupNameOverride: null,
     },
     {
       id: 3,
@@ -99,6 +105,8 @@ const demo: Snapshot = {
       favorite: true,
       hidden: false,
       missing: false,
+      groupKeyOverride: null,
+      groupNameOverride: null,
     },
     {
       id: 4,
@@ -121,6 +129,8 @@ const demo: Snapshot = {
       favorite: false,
       hidden: false,
       missing: false,
+      groupKeyOverride: null,
+      groupNameOverride: null,
     },
   ],
   playlists: [
@@ -311,6 +321,59 @@ export const api = {
     return call<Snapshot>("clear_track_cover", { trackId });
   },
 
+  async updateTrackMetadata(
+    trackId: number,
+    data: {
+      title: string;
+      artist: string;
+      album?: string;
+      albumArtist?: string;
+    },
+  ): Promise<Snapshot> {
+    if (!isTauri) {
+      const track = demo.tracks.find((item) => item.id === trackId);
+      if (track) {
+        track.title = data.title;
+        track.artist = data.artist;
+        track.album = data.album ?? track.album;
+        track.albumArtist = data.albumArtist ?? track.albumArtist;
+      }
+      return clone(demo);
+    }
+    return call<Snapshot>("update_track_metadata", {
+      trackId,
+      title: data.title,
+      artist: data.artist,
+      album: data.album ?? null,
+      albumArtist: data.albumArtist ?? null,
+    });
+  },
+
+  async deleteTrack(trackId: number, deleteFile: boolean): Promise<Snapshot> {
+    if (!isTauri) {
+      demo.tracks = demo.tracks.filter((track) => track.id !== trackId);
+      for (const playlist of demo.playlists) {
+        playlist.trackIds = playlist.trackIds.filter((id) => id !== trackId);
+      }
+      return clone(demo);
+    }
+    return call<Snapshot>("delete_track", { trackId, deleteFile });
+  },
+
+  async mergeAlbums(trackIds: number[], name: string): Promise<Snapshot> {
+    if (!isTauri) {
+      const key = `merged:${Date.now()}`;
+      for (const track of demo.tracks) {
+        if (trackIds.includes(track.id)) {
+          track.groupKeyOverride = key;
+          track.groupNameOverride = name;
+        }
+      }
+      return clone(demo);
+    }
+    return call<Snapshot>("merge_albums", { trackIds, name });
+  },
+
   async setBackground(kind: "app" | "now", sourcePath: string): Promise<string> {
     if (!isTauri) return sourcePath;
     return call<string>("set_background", { kind, sourcePath });
@@ -427,7 +490,10 @@ export const api = {
     });
   },
 
-  async recognizeAudd(apiToken: string): Promise<RecognitionResult> {
+  async recognizeAudd(
+    apiToken: string,
+    source: RecognitionInput = "microphone",
+  ): Promise<RecognitionResult> {
     if (!isTauri) {
       await delay(1600);
       return {
@@ -440,10 +506,12 @@ export const api = {
         provider: "Демо",
       };
     }
-    return call<RecognitionResult>("recognize_audd", { apiToken });
+    return call<RecognitionResult>("recognize_audd", { apiToken, source });
   },
 
-  async recognizeShazam(): Promise<RecognitionResult> {
+  async recognizeShazam(
+    source: RecognitionInput = "microphone",
+  ): Promise<RecognitionResult> {
     if (!isTauri) {
       await delay(1600);
       return {
@@ -456,7 +524,7 @@ export const api = {
         provider: "Демо",
       };
     }
-    return call<RecognitionResult>("recognize_shazam");
+    return call<RecognitionResult>("recognize_shazam", { source });
   },
 
   async recognizeShazamFile(path: string): Promise<RecognitionResult> {
@@ -600,6 +668,15 @@ export async function listenDownloadProgress(
 ): Promise<UnlistenFn> {
   if (!isTauri) return () => undefined;
   return listen<DownloadProgress>("download-progress", (event) =>
+    callback(event.payload),
+  );
+}
+
+export async function listenRecognitionLevel(
+  callback: (level: RecognitionLevel) => void,
+): Promise<UnlistenFn> {
+  if (!isTauri) return () => undefined;
+  return listen<RecognitionLevel>("recognition-level", (event) =>
     callback(event.payload),
   );
 }

@@ -13,11 +13,20 @@ import {
 } from "lucide-react";
 import { formatDuration, trackCountLabel } from "../lib/format";
 import { api, openExternal } from "../lib/tauri";
+import { DuplicateDownloadModal } from "../components/DuplicateDownloadModal";
 import { useDownloadProgress } from "../hooks/useDownloadProgress";
-import { useLibraryStore } from "../store/library";
+import { findDuplicateTrack, useLibraryStore } from "../store/library";
+import { usePlayerStore } from "../store/player";
 import { useSettingsStore } from "../store/settings";
 import { useUiStore } from "../store/ui";
-import type { ImportPlaylist, ImportTrack } from "../types";
+import type {
+  DownloadResult,
+  ImportPlaylist,
+  ImportTrack,
+  Track,
+} from "../types";
+
+type ConflictMode = "skip" | "replace" | "keep";
 
 const SOURCES = [
   "Deezer",
@@ -31,6 +40,8 @@ export function Import() {
   const ytdlpPath = useSettingsStore((state) => state.ytdlpPath);
   const addFolder = useLibraryStore((state) => state.addFolder);
   const scan = useLibraryStore((state) => state.scan);
+  const tracks = useLibraryStore((state) => state.tracks);
+  const deleteTrack = useLibraryStore((state) => state.deleteTrack);
   const notify = useUiStore((state) => state.notify);
   const { items, setProgress } = useDownloadProgress();
 
@@ -41,6 +52,8 @@ export function Import() {
   const [downloading, setDownloading] = useState(false);
   const [previewAudio, setPreviewAudio] = useState<HTMLAudioElement | null>(null);
   const [previewing, setPreviewing] = useState<number | null>(null);
+  const [conflictCount, setConflictCount] = useState(0);
+  const [conflictOpen, setConflictOpen] = useState(false);
 
   useEffect(() => {
     return () => {
@@ -96,6 +109,35 @@ export function Import() {
     setPreviewing(index);
   };
 
+  const downloadFromProviders = async (id: string, track: ImportTrack) => {
+    setProgress({
+      id,
+      percent: 0,
+      line: "Ищу на Zaycev, Muzofond и DriveMusic…",
+      status: "starting",
+      path: null,
+      error: null,
+    });
+    const found = await api.searchMedia(track.query, 5);
+    const candidate = found[0];
+    if (!candidate) return null;
+    const result = candidate.downloadUrl
+      ? await api.downloadDirect({
+          id,
+          url: candidate.downloadUrl,
+          outputDir: downloadDir,
+          fileName: `${track.artist} - ${track.title}`,
+        })
+      : await api.downloadMedia({
+          id,
+          url: candidate.webpageUrl,
+          query: candidate.query,
+          outputDir: downloadDir,
+          ytdlpPath,
+        });
+    return result;
+  };
+
   const downloadOne = async (index: number, track: ImportTrack) => {
     const id = `import-${index}-${Date.now()}`;
     setProgress({
@@ -107,14 +149,9 @@ export function Import() {
       error: null,
     });
     const isYoutube = playlist?.source === "YouTube";
-    try {
-      const result = await api.downloadMedia({
-        id,
-        url: track.downloadUrl || track.sourceUrl,
-        query: isYoutube ? undefined : track.query,
-        outputDir: downloadDir,
-        ytdlpPath,
-      });
+    const isYandex = playlist?.source === "Яндекс Музыка";
+
+    const markDone = (result: DownloadResult) => {
       setProgress({
         id,
         percent: 100,
@@ -124,7 +161,38 @@ export function Import() {
         error: null,
       });
       return result;
+    };
+
+    if (isYandex) {
+      try {
+        const result = await downloadFromProviders(id, track);
+        if (result) return markDone(result);
+      } catch {
+        // Fall back to yt-dlp search if the providers did not help.
+      }
+    }
+
+    try {
+      const result = await api.downloadMedia({
+        id,
+        url: track.downloadUrl || track.sourceUrl,
+        query: isYoutube ? undefined : track.query,
+        outputDir: downloadDir,
+        ytdlpPath,
+      });
+      return markDone(result);
     } catch (error) {
+      // If the original source cannot provide audio, search the same three
+      // providers as the Downloads screen and take the best match.
+      try {
+        if (!isYandex) {
+          const result = await downloadFromProviders(id, track);
+          if (result) return markDone(result);
+        }
+      } catch {
+        // Fall through to the original preview/error handling.
+      }
+
       if (track.previewUrl) {
         setProgress({
           id,
@@ -164,29 +232,77 @@ export function Import() {
     }
   };
 
-  const downloadSelected = async () => {
+  const duplicateMap = (): Map<number, Track> => {
+    const duplicates = new Map<number, Track>();
+    if (!playlist) return duplicates;
+    for (const index of selected) {
+      const track = playlist.tracks[index];
+      if (!track) continue;
+      const existing = findDuplicateTrack(tracks, track.artist, track.title);
+      if (existing) duplicates.set(index, existing);
+    }
+    return duplicates;
+  };
+
+  const requestDownloadSelected = () => {
+    if (!playlist || selected.size === 0) return;
+    const duplicates = duplicateMap();
+    if (duplicates.size > 0) {
+      setConflictCount(duplicates.size);
+      setConflictOpen(true);
+      return;
+    }
+    void runDownloadSelected("keep");
+  };
+
+  const runDownloadSelected = async (mode: ConflictMode) => {
     if (!playlist || selected.size === 0) return;
     setDownloading(true);
+    const duplicates = duplicateMap();
     let directory: string | null = null;
     let succeeded = 0;
+    let skipped = 0;
+    const replacedIds: number[] = [];
+
     for (const index of [...selected].sort((a, b) => a - b)) {
       const track = playlist.tracks[index];
       if (!track) continue;
+      if (mode === "skip" && duplicates.has(index)) {
+        skipped += 1;
+        continue;
+      }
       const result = await downloadOne(index, track);
       if (result) {
         succeeded += 1;
         directory = result.directory;
+        const existing = duplicates.get(index);
+        if (mode === "replace" && existing) {
+          replacedIds.push(existing.id);
+        }
       }
     }
+
     if (directory) {
       await addFolder(directory);
     } else {
       await scan();
     }
+
+    if (mode === "replace") {
+      for (const id of replacedIds) {
+        if (usePlayerStore.getState().currentId === id) {
+          usePlayerStore.getState().clearQueue();
+        }
+        await deleteTrack(id, true);
+      }
+    }
+
     setDownloading(false);
     notify(
       succeeded > 0
-        ? `Загружено ${succeeded} из ${selected.size}`
+        ? `Загружено ${succeeded} из ${selected.size}${
+            skipped > 0 ? `, пропущено ${skipped}` : ""
+          }`
         : "Ни один трек не удалось загрузить",
       succeeded > 0 ? "success" : "error",
     );
@@ -224,7 +340,7 @@ export function Import() {
             </button>
             <button
               className="primary-button"
-              onClick={() => void downloadSelected()}
+              onClick={requestDownloadSelected}
               disabled={downloading || selectedCount === 0}
             >
               {downloading ? (
@@ -321,9 +437,18 @@ export function Import() {
                     ) : progress.status === "error" ? (
                       <span className="status-error">Ошибка</span>
                     ) : (
-                      <span>
-                        <Loader2 size={12} className="spin" />
-                        {Math.round(progress.percent)}%
+                      <span className="import-progress-status">
+                        <span>
+                          <Loader2 size={12} className="spin" />
+                          {Math.round(progress.percent)}%
+                        </span>
+                        <span className="import-mini-bar">
+                          <i
+                            style={{
+                              width: `${Math.max(3, progress.percent)}%`,
+                            }}
+                          />
+                        </span>
                       </span>
                     )
                   ) : isSelected ? (
@@ -345,13 +470,32 @@ export function Import() {
           </span>
           <button
             className="primary-button"
-            onClick={() => void downloadSelected()}
+            onClick={requestDownloadSelected}
             disabled={downloading || selectedCount === 0}
           >
             <Download size={15} />
             Скачать выбранные ({selectedCount})
           </button>
         </div>
+
+        <DuplicateDownloadModal
+          open={conflictOpen}
+          title={`${conflictCount} ${trackCountLabel(conflictCount)} уже есть в библиотеке`}
+          description="Среди выбранных треков есть уже знакомые песни. Можно пропустить их, заменить старые версии или скачать всё равно."
+          onClose={() => setConflictOpen(false)}
+          onSkip={() => {
+            setConflictOpen(false);
+            void runDownloadSelected("skip");
+          }}
+          onReplace={() => {
+            setConflictOpen(false);
+            void runDownloadSelected("replace");
+          }}
+          onKeepBoth={() => {
+            setConflictOpen(false);
+            void runDownloadSelected("keep");
+          }}
+        />
       </div>
     );
   }

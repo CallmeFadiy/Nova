@@ -3,6 +3,7 @@ mod db;
 mod lyrics;
 mod media;
 mod models;
+mod recognition;
 mod scanner;
 
 use std::sync::Mutex;
@@ -55,6 +56,9 @@ pub fn run() {
             commands::restore_track,
             commands::set_track_cover,
             commands::clear_track_cover,
+            commands::update_track_metadata,
+            commands::delete_track,
+            commands::merge_albums,
             commands::set_background,
             commands::clear_background,
             commands::search_media,
