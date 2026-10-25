@@ -1,5 +1,6 @@
 mod commands;
 mod db;
+mod media;
 mod models;
 mod scanner;
 
@@ -20,10 +21,20 @@ pub fn run() {
         .setup(|app| {
             let app_dir = app.path().app_data_dir()?;
             let conn = db::init(&app_dir)?;
+            let folders: Vec<String> = {
+                let mut stmt = conn.prepare("SELECT path FROM folders")?;
+                let rows = stmt.query_map([], |row| row.get::<_, String>(0))?;
+                rows.collect::<Result<Vec<_>, _>>()?
+            };
             app.manage(AppState {
                 db: Mutex::new(conn),
-                app_dir,
+                app_dir: app_dir.clone(),
             });
+            let scope = app.asset_protocol_scope();
+            let _ = scope.allow_directory(&app_dir, true);
+            for folder in folders {
+                let _ = scope.allow_directory(folder, true);
+            }
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -45,6 +56,13 @@ pub fn run() {
             commands::clear_track_cover,
             commands::set_background,
             commands::clear_background,
+            commands::search_media,
+            commands::resolve_playlist,
+            commands::download_media,
+            commands::download_direct,
+            commands::recognize_audd,
+            commands::recognize_shazam,
+            commands::recognize_shazam_file,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

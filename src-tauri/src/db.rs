@@ -1,4 +1,6 @@
-use rusqlite::{params, Connection};
+use rusqlite::Connection;
+#[cfg(debug_assertions)]
+use rusqlite::params;
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 

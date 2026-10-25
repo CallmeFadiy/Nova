@@ -11,6 +11,7 @@ use walkdir::WalkDir;
 
 const AUDIO_EXTENSIONS: &[&str] = &[
     "mp3", "flac", "wav", "ogg", "opus", "m4a", "aac", "wma", "aiff", "aif",
+    "webm",
 ];
 
 const COVER_NAMES: &[&str] = &[

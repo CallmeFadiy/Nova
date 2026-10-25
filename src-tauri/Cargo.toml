@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "Nova — local-first music player"
 authors = ["Fadiy"]
 edition = "2021"
+default-run = "nova"
 rust-version = "1.77.2"
 
 [lib]
@@ -25,3 +26,7 @@ lofty = "0.25"
 walkdir = "2"
 sha1 = "0.10"
 dunce = "1"
+reqwest = { version = "0.13", features = ["json", "rustls", "multipart"] }
+cpal = "0.16"
+hound = "3.5"
+songrec-lib = "0.5.4"
