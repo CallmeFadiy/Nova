@@ -150,20 +150,60 @@ ivory = ivory_tile()
 fit_art(ivory, art, 820)
 ivory.save(OUT / "04-ivory-tile.png")
 
+
+def ghost_tile(size=1024):
+    tile = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    aura = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(aura)
+    draw.ellipse((150, 155, 875, 880), fill=(117, 171, 186, 18))
+    draw.ellipse((220, 210, 820, 820), fill=(230, 177, 94, 14))
+    draw.ellipse((330, 110, 700, 470), fill=(210, 230, 232, 12))
+    aura = aura.filter(ImageFilter.GaussianBlur(125))
+    tile.alpha_composite(aura)
+
+    # Soft spectral wisps around the silhouette.
+    wisps = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    wdraw = ImageDraw.Draw(wisps)
+    wdraw.arc((120, 120, 904, 904), 200, 335, fill=(174, 214, 218, 38), width=22)
+    wdraw.arc((205, 170, 820, 860), 15, 135, fill=(230, 177, 94, 30), width=14)
+    wdraw.arc((250, 240, 760, 790), 230, 315, fill=(220, 235, 235, 22), width=10)
+    wisps = wisps.filter(ImageFilter.GaussianBlur(26))
+    tile.alpha_composite(wisps)
+
+    fitted = art.copy()
+    fitted.thumbnail((820, 820), Image.LANCZOS)
+    tile.alpha_composite(
+        fitted,
+        ((size - fitted.width) // 2, (size - fitted.height) // 2),
+    )
+    return tile
+
+
+ghost = ghost_tile()
+ghost.save(OUT / "05-ghost.png")
+ghost_sizes = Image.new("RGB", (520, 180), (18, 18, 22))
+x = 20
+for size in [128, 64, 32, 16]:
+    small = ghost.resize((size, size), Image.LANCZOS)
+    ghost_sizes.paste(small, (x, 40), small)
+    x += size + 30
+ghost_sizes.save(OUT / "05-ghost-sizes.png")
+
 # A contact sheet for quick comparison.
-sheet = Image.new("RGBA", (1480, 1040), (10, 10, 12, 255))
+sheet = Image.new("RGBA", (1480, 1500), (10, 10, 12, 255))
 draw = ImageDraw.Draw(sheet)
 font_path = Path("C:/Windows/Fonts/segoeui.ttf")
 from PIL import ImageFont
 
 title_font = ImageFont.truetype(str(font_path), 28)
 label_font = ImageFont.truetype(str(font_path), 18)
-draw.text((40, 28), "Nova — варианты иконки", font=title_font, fill=(238, 232, 220, 255))
+draw.text((40, 28), "Nova – варианты иконки", font=title_font, fill=(238, 232, 220, 255))
 items = [
     ("01-transparent.png", "01 · Прозрачный фон"),
     ("02-dark-tile.png", "02 · Тёмная плитка"),
     ("03-amber-line.png", "03 · Золотой контур"),
     ("04-ivory-tile.png", "04 · Светлая плитка"),
+    ("05-ghost.png", "05 · Призрачный фон"),
 ]
 for index, (filename, label) in enumerate(items):
     row, col = divmod(index, 2)

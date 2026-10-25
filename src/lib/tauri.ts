@@ -3,6 +3,7 @@ import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
 import { openUrl, revealItemInDir } from "@tauri-apps/plugin-opener";
 import type {
+  DeleteTracksResult,
   DownloadProgress,
   DownloadResult,
   Folder,
@@ -358,6 +359,34 @@ export const api = {
       return clone(demo);
     }
     return call<Snapshot>("delete_track", { trackId, deleteFile });
+  },
+
+  async deleteTracks(
+    trackIds: number[],
+    deleteFiles: boolean,
+  ): Promise<DeleteTracksResult> {
+    if (!isTauri) {
+      const removed = demo.tracks.filter((track) =>
+        trackIds.includes(track.id),
+      ).length;
+      demo.tracks = demo.tracks.filter(
+        (track) => !trackIds.includes(track.id),
+      );
+      for (const playlist of demo.playlists) {
+        playlist.trackIds = playlist.trackIds.filter(
+          (id) => !trackIds.includes(id),
+        );
+      }
+      return {
+        deleted: removed,
+        failed: [],
+        snapshot: clone(demo),
+      };
+    }
+    return call<DeleteTracksResult>("delete_tracks", {
+      trackIds,
+      deleteFiles,
+    });
   },
 
   async mergeAlbums(trackIds: number[], name: string): Promise<Snapshot> {

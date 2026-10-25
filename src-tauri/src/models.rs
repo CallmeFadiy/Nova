@@ -57,6 +57,14 @@ pub struct Snapshot {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct DeleteTracksResult {
+    pub deleted: usize,
+    pub failed: Vec<String>,
+    pub snapshot: Snapshot,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ScanResult {
     pub added: usize,
     pub updated: usize,

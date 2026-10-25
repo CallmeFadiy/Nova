@@ -10,6 +10,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { pickImage, revealInFolder } from "../lib/tauri";
+import { useConfirmStore } from "../store/confirm";
 import { groupAlbums, useLibraryStore } from "../store/library";
 import { usePlayerStore } from "../store/player";
 import { useUiStore } from "../store/ui";
@@ -28,6 +29,7 @@ export function TrackActionsModal() {
   const setTrackCover = useLibraryStore((state) => state.setTrackCover);
   const clearTrackCover = useLibraryStore((state) => state.clearTrackCover);
   const deleteTrack = useLibraryStore((state) => state.deleteTrack);
+  const confirm = useConfirmStore((state) => state.confirm);
 
   const track = tracks.find((item) => item.id === trackId) ?? null;
   const albumGroup = track
@@ -165,18 +167,20 @@ export function TrackActionsModal() {
             <button
               className="action-row danger"
               onClick={() => {
-                if (
-                  !window.confirm(
-                    "Удалить трек из Nova и файл с диска? Это действие нельзя отменить.",
-                  )
-                ) {
-                  return;
-                }
-                if (usePlayerStore.getState().currentId === track.id) {
-                  usePlayerStore.getState().clearQueue();
-                }
-                void deleteTrack(track.id, true);
                 close();
+                void confirm({
+                  title: "Удалить трек?",
+                  message:
+                    "Удалить трек из Nova и файл с диска? Это действие нельзя отменить.",
+                  confirmLabel: "Удалить трек и файл",
+                  tone: "danger",
+                }).then((confirmed) => {
+                  if (!confirmed) return;
+                  if (usePlayerStore.getState().currentId === track.id) {
+                    usePlayerStore.getState().clearQueue();
+                  }
+                  void deleteTrack(track.id, true);
+                });
               }}
             >
               <Trash2 size={16} />

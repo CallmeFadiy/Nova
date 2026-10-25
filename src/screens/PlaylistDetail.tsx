@@ -11,6 +11,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { PlaylistMosaic } from "../components/PlaylistMosaic";
 import { TrackTable } from "../components/TrackTable";
 import { formatMinutes, trackCountLabel } from "../lib/format";
+import { useConfirmStore } from "../store/confirm";
 import { useLibraryStore } from "../store/library";
 import { usePlayerStore } from "../store/player";
 import { useUiStore } from "../store/ui";
@@ -28,6 +29,7 @@ export function PlaylistDetail() {
   const setContext = usePlayerStore((state) => state.setContext);
   const toggleShuffle = usePlayerStore((state) => state.toggleShuffle);
   const notify = useUiStore((state) => state.notify);
+  const confirm = useConfirmStore((state) => state.confirm);
   const navigate = useNavigate();
   const [renaming, setRenaming] = useState(false);
   const [name, setName] = useState("");
@@ -144,14 +146,17 @@ export function PlaylistDetail() {
             <button
               className="ghost-button danger"
               onClick={() => {
-                if (
-                  window.confirm(
-                    `Удалить плейлист «${playlist.name}»? Треки и файлы останутся.`,
-                  )
-                ) {
-                  void deletePlaylist(playlist.id);
-                  navigate("/playlists");
-                }
+                void confirm({
+                  title: "Удалить плейлист?",
+                  message: `Удалить плейлист «${playlist.name}»? Треки и файлы останутся.`,
+                  confirmLabel: "Удалить",
+                  tone: "danger",
+                }).then((confirmed) => {
+                  if (confirmed) {
+                    void deletePlaylist(playlist.id);
+                    navigate("/playlists");
+                  }
+                });
               }}
             >
               <Trash2 size={14} />
@@ -164,7 +169,7 @@ export function PlaylistDetail() {
       {playlistTracks.length === 0 ? (
         <div className="empty-block">
           <h3 className="serif">В плейлисте пока нет треков</h3>
-          <p>Добавьте треки из библиотеки — из любых папок.</p>
+          <p>Добавьте треки из библиотеки – из любых папок.</p>
           <button
             className="primary-button"
             onClick={() => navigate("/library")}

@@ -13,7 +13,7 @@ export interface Toast {
 interface UiState {
   toasts: Toast[];
   trackActionsTrackId: number | null;
-  addToPlaylistTrackId: number | null;
+  addToPlaylistTrackIds: number[] | null;
   editTrackId: number | null;
   mergeAlbumSeed: { trackIds: number[]; name: string } | null;
   createPlaylistOpen: boolean;
@@ -25,7 +25,7 @@ interface UiState {
   notify: (message: string, tone?: ToastTone) => void;
   dismissToast: (id: string) => void;
   openTrackActions: (trackId: number | null) => void;
-  openAddToPlaylist: (trackId: number | null) => void;
+  openAddToPlaylist: (trackIds: number | number[] | null) => void;
   openEditTrack: (trackId: number | null) => void;
   openMergeAlbums: (
     seed: { trackIds: number[]; name: string } | null,
@@ -43,7 +43,7 @@ let toastCounter = 0;
 export const useUiStore = create<UiState>((set) => ({
   toasts: [],
   trackActionsTrackId: null,
-  addToPlaylistTrackId: null,
+  addToPlaylistTrackIds: null,
   editTrackId: null,
   mergeAlbumSeed: null,
   createPlaylistOpen: false,
@@ -74,7 +74,15 @@ export const useUiStore = create<UiState>((set) => ({
     })),
 
   openTrackActions: (trackId) => set({ trackActionsTrackId: trackId }),
-  openAddToPlaylist: (trackId) => set({ addToPlaylistTrackId: trackId }),
+  openAddToPlaylist: (trackIds) =>
+    set({
+      addToPlaylistTrackIds:
+        trackIds === null
+          ? null
+          : Array.isArray(trackIds)
+            ? trackIds
+            : [trackIds],
+    }),
   openEditTrack: (trackId) => set({ editTrackId: trackId }),
   openMergeAlbums: (seed) => set({ mergeAlbumSeed: seed }),
   setCreatePlaylistOpen: (open) => set({ createPlaylistOpen: open }),

@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { Menu } from "lucide-react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { AddToPlaylistModal } from "./components/AddToPlaylistModal";
+import { ConfirmDialog } from "./components/ConfirmDialog";
 import { CreatePlaylistModal } from "./components/CreatePlaylistModal";
 import { EditTrackModal } from "./components/EditTrackModal";
 import { EqualizerPanel } from "./components/EqualizerPanel";
@@ -41,11 +42,16 @@ export default function App() {
   const setMobileNavOpen = useUiStore((state) => state.setMobileNavOpen);
   const appBackground = useSettingsStore((state) => state.appBackground);
   const backgroundDim = useSettingsStore((state) => state.backgroundDim);
+  const theme = useSettingsStore((state) => state.theme);
   const autoScan = useSettingsStore((state) => state.autoScan);
   const autoplayOnStart = useSettingsStore((state) => state.autoplayOnStart);
 
   const hydrated = useRef(false);
   const autoScanStarted = useRef(false);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+  }, [theme]);
 
   useEffect(() => {
     void load();
@@ -224,6 +230,7 @@ export default function App() {
       <LyricsModal />
       <EditTrackModal />
       <MergeAlbumsModal />
+      <ConfirmDialog />
       <Toasts />
       {!isTauri ? <div className="demo-badge">Демо-режим браузера</div> : null}
     </>

@@ -6,7 +6,7 @@ import { useUiStore } from "../store/ui";
 import { Modal } from "./Modal";
 
 export function AddToPlaylistModal() {
-  const trackId = useUiStore((state) => state.addToPlaylistTrackId);
+  const trackIds = useUiStore((state) => state.addToPlaylistTrackIds);
   const openAddToPlaylist = useUiStore((state) => state.openAddToPlaylist);
   const playlists = useLibraryStore((state) => state.playlists);
   const addToPlaylist = useLibraryStore((state) => state.addToPlaylist);
@@ -19,20 +19,24 @@ export function AddToPlaylistModal() {
   };
 
   const createAndAdd = async () => {
-    if (!trackId) return;
+    if (!trackIds || trackIds.length === 0) return;
     const playlist = await createPlaylist(name || "Новый плейлист");
     if (playlist) {
-      await addToPlaylist(playlist.id, [trackId]);
+      await addToPlaylist(playlist.id, trackIds);
     }
     close();
   };
 
   return (
     <Modal
-      open={trackId !== null}
+      open={Boolean(trackIds && trackIds.length > 0)}
       onClose={close}
       title="В плейлист"
-      subtitle="Выберите существующий или создайте новый"
+      subtitle={
+        trackIds && trackIds.length > 1
+          ? `Добавить ${trackCountLabel(trackIds.length)}`
+          : "Выберите существующий или создайте новый"
+      }
       size="sm"
     >
       <div className="playlist-picker">
@@ -41,8 +45,8 @@ export function AddToPlaylistModal() {
             key={playlist.id}
             className="playlist-pick-row"
             onClick={async () => {
-              if (!trackId) return;
-              await addToPlaylist(playlist.id, [trackId]);
+              if (!trackIds || trackIds.length === 0) return;
+              await addToPlaylist(playlist.id, trackIds);
               close();
             }}
           >

@@ -74,7 +74,7 @@ export function Shazam() {
   const recognize = async () => {
     if (provider === "acrcloud") {
       notify(
-        "ACRCloud требует host, access key и secret. Пока подключён AudD — выберите его в настройках.",
+        "ACRCloud требует host, access key и secret. Пока подключён AudD – выберите его в настройках.",
         "info",
       );
       return;
@@ -91,7 +91,7 @@ export function Shazam() {
           ? await api.recognizeShazam(recognitionSource)
           : await api.recognizeAudd(shazamKey, recognitionSource);
       setResult(recognized);
-      notify(`Распознано: ${recognized.artist} — ${recognized.title}`, "success");
+      notify(`Распознано: ${recognized.artist} – ${recognized.title}`, "success");
     } catch (error) {
       notify(
         error instanceof Error
@@ -120,7 +120,7 @@ export function Shazam() {
     try {
       const recognized = await api.recognizeShazamFile(path);
       setResult(recognized);
-      notify(`Распознано: ${recognized.artist} — ${recognized.title}`, "success");
+      notify(`Распознано: ${recognized.artist} – ${recognized.title}`, "success");
     } catch (error) {
       notify(
         error instanceof Error
@@ -140,7 +140,7 @@ export function Shazam() {
           <p className="page-date">Что это играет?</p>
           <h1 className="serif">Распознать трек</h1>
           <p className="page-sub">
-            Нажмите — Nova запишет 12 секунд и предложит найти песню
+            Нажмите – Nova запишет 12 секунд и предложит найти песню
           </p>
         </div>
         <button
@@ -229,7 +229,7 @@ export function Shazam() {
               ? "ACRCloud требует три параметра. Используйте AudD или ручной поиск."
               : shazamKey
                 ? `Запись через ${sourceLabel.toLowerCase()} не сохраняется.`
-                : "Добавьте ключ AudD в настройках — и распознавание заработает."}
+                : "Добавьте ключ AudD в настройках – и распознавание заработает."}
         </p>
         <div className="shazam-providers">
           <span>Провайдер: {providerLabel}</span>
@@ -299,12 +299,12 @@ export function Shazam() {
       <div className="shazam-manual">
         <div>
           <h2 className="serif">Или найти вручную</h2>
-          <p>Введите исполнителя и название — Nova откроет поиск и загрузку.</p>
+          <p>Введите исполнителя и название – Nova откроет поиск и загрузку.</p>
         </div>
         <div className="download-search-row">
           <Search size={16} />
           <input
-            placeholder="Например, Sacrothorn — Инкуб"
+            placeholder="Например, Sacrothorn – Инкуб"
             value={manual}
             onChange={(event) => setManual(event.target.value)}
             onKeyDown={(event) => {

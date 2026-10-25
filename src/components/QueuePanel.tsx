@@ -62,7 +62,7 @@ export function QueuePanel() {
       {items.length === 0 ? (
         <div className="queue-empty">
           <p>Очередь пуста.</p>
-          <span>Включите трек в библиотеке — он появится здесь.</span>
+          <span>Включите трек в библиотеке – он появится здесь.</span>
         </div>
       ) : (
         <div className="queue-list">

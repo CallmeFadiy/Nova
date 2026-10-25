@@ -46,6 +46,7 @@ export function Downloads() {
   const [conflict, setConflict] = useState<{
     candidate: MediaCandidate;
     existing: Track;
+    anchor: { x: number; y: number } | null;
   } | null>(null);
 
   useEffect(() => {
@@ -123,14 +124,17 @@ export function Downloads() {
     notify("Папка загрузок обновлена", "success");
   };
 
-  const requestCandidate = (candidate: MediaCandidate) => {
+  const requestCandidate = (
+    candidate: MediaCandidate,
+    anchor: { x: number; y: number } | null = null,
+  ) => {
     const existing = findDuplicateTrack(
       tracks,
       candidate.artist,
       candidate.title,
     );
     if (existing) {
-      setConflict({ candidate, existing });
+      setConflict({ candidate, existing, anchor });
       return;
     }
     void startCandidate(candidate);
@@ -144,7 +148,7 @@ export function Downloads() {
     setProgress({
       id,
       percent: 0,
-      line: `Подготовка: ${candidate.artist} — ${candidate.title} (${candidate.quality})`,
+      line: `Подготовка: ${candidate.artist} – ${candidate.title} (${candidate.quality})`,
       status: "starting",
       path: null,
       error: null,
@@ -181,7 +185,7 @@ export function Downloads() {
           setProgress({
             id,
             percent: 0,
-            line: "Прямая ссылка не сработала — пробую yt-dlp…",
+            line: "Прямая ссылка не сработала – пробую yt-dlp…",
             status: "starting",
             path: null,
             error: null,
@@ -267,11 +271,11 @@ export function Downloads() {
     }
   };
 
-  const downloads = Object.values(items).sort((a, b) => {
-    if (a.status === "done" && b.status !== "done") return 1;
-    if (a.status !== "done" && b.status === "done") return -1;
-    return 0;
-  });
+  const downloads = Object.values(items)
+    .filter(
+      (item) => item.status === "starting" || item.status === "downloading",
+    )
+    .sort((a, b) => a.id.localeCompare(b.id));
 
   return (
     <div className="page">
@@ -349,7 +353,7 @@ export function Downloads() {
         <div className="download-search-row">
           <Search size={16} />
           <input
-            placeholder="Например, Norma Tale — Ван Хельсинг"
+            placeholder="Например, Norma Tale – Ван Хельсинг"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             onKeyDown={(event) => {
@@ -413,7 +417,12 @@ export function Downloads() {
                   ) : null}
                   <button
                     className="secondary-button"
-                    onClick={() => requestCandidate(candidate)}
+                    onClick={(event) =>
+                      requestCandidate(candidate, {
+                        x: event.clientX,
+                        y: event.clientY,
+                      })
+                    }
                   >
                     <Download size={14} />
                     Скачать
@@ -435,7 +444,7 @@ export function Downloads() {
 
       <section className="downloads-list-section">
         <div className="section-head">
-          <h3 className="serif">История загрузок</h3>
+          <h3 className="serif">Текущие загрузки</h3>
           <span className="section-link">
             {downloads.length > 0
               ? `${downloads.length} ${pluralRu(downloads.length, [
@@ -443,13 +452,13 @@ export function Downloads() {
                   "задачи",
                   "задач",
                 ])}`
-              : "пусто"}
+              : "нет активных"}
           </span>
         </div>
         {downloads.length === 0 ? (
           <div className="downloads-empty small">
             <Download size={20} />
-            <p>Скачанные треки появятся здесь и в библиотеке.</p>
+            <p>Сейчас ничего не скачивается.</p>
           </div>
         ) : (
           <div className="download-list">
@@ -525,10 +534,11 @@ export function Downloads() {
         open={Boolean(conflict)}
         title={
           conflict
-            ? `${conflict.existing.artist} — ${conflict.existing.title}`
+            ? `${conflict.existing.artist} – ${conflict.existing.title}`
             : ""
         }
         description="Эта песня уже есть в вашей библиотеке. Что сделать с новой загрузкой?"
+        anchor={conflict?.anchor ?? null}
         onClose={() => setConflict(null)}
         onSkip={() => setConflict(null)}
         onReplace={() => {
