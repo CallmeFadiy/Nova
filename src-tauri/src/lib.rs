@@ -21,7 +21,9 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_shell::init())
         .setup(|app| {
-            let app_dir = app.path().app_data_dir()?;
+            let app_dir = std::env::var_os("NOVA_DATA_DIR")
+                .map(std::path::PathBuf::from)
+                .unwrap_or(app.path().app_data_dir()?);
             let conn = db::init(&app_dir)?;
             let folders: Vec<String> = {
                 let mut stmt = conn.prepare("SELECT path FROM folders")?;
@@ -59,6 +61,7 @@ pub fn run() {
             commands::update_track_metadata,
             commands::delete_track,
             commands::delete_tracks,
+            commands::hash_tracks,
             commands::merge_albums,
             commands::set_background,
             commands::clear_background,

@@ -12,6 +12,7 @@ import {
   Volume2,
 } from "lucide-react";
 import { formatDuration, trackCountLabel } from "../lib/format";
+import { pickBestCandidate } from "../lib/match";
 import { api, openExternal } from "../lib/tauri";
 import { DuplicateDownloadModal } from "../components/DuplicateDownloadModal";
 import { useDownloadProgress } from "../hooks/useDownloadProgress";
@@ -122,8 +123,15 @@ export function Import() {
       path: null,
       error: null,
     });
-    const found = await api.searchMedia(track.query, 5);
-    const candidate = found[0];
+    const found = await api.searchMedia(track.query, 8);
+    const candidate = pickBestCandidate(
+      {
+        artist: track.artist,
+        title: track.title,
+        durationMs: track.durationMs,
+      },
+      found,
+    );
     if (!candidate) return null;
     const result = candidate.downloadUrl
       ? await api.downloadDirect({
@@ -131,6 +139,8 @@ export function Import() {
           url: candidate.downloadUrl,
           outputDir: downloadDir,
           fileName: `${track.artist} - ${track.title}`,
+          expectedArtist: track.artist,
+          expectedTitle: track.title,
         })
       : await api.downloadMedia({
           id,
@@ -138,6 +148,8 @@ export function Import() {
           query: candidate.query,
           outputDir: downloadDir,
           ytdlpPath,
+          expectedArtist: track.artist,
+          expectedTitle: track.title,
         });
     return result;
   };
@@ -183,6 +195,8 @@ export function Import() {
         query: isYoutube ? undefined : track.query,
         outputDir: downloadDir,
         ytdlpPath,
+        expectedArtist: track.artist,
+        expectedTitle: track.title,
       });
       return markDone(result);
     } catch (error) {
@@ -211,6 +225,8 @@ export function Import() {
           url: track.previewUrl,
           outputDir: downloadDir,
           fileName: `${track.artist} - ${track.title} (preview)`,
+          expectedArtist: track.artist,
+          expectedTitle: track.title,
         });
         setProgress({
           id,

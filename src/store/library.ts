@@ -318,10 +318,40 @@ export interface DuplicateTrackGroup {
   keep: Track;
   duplicates: Track[];
   tracks: Track[];
+  contentHash: string;
+  verified: boolean;
 }
 
-export function findDuplicateGroups(tracks: Track[]): DuplicateTrackGroup[] {
-  const groups = new Map<string, Track[]>();
+function buildDuplicateGroup(
+  key: string,
+  items: Track[],
+  contentHash: string,
+  verified: boolean,
+): DuplicateTrackGroup {
+  const ordered = [...items].sort(
+    (a, b) =>
+      b.size - a.size ||
+      b.addedAt - a.addedAt ||
+      a.path.localeCompare(b.path),
+  );
+  const keep = ordered[0];
+  return {
+    key,
+    title: cleanTitle(keep.title),
+    artist: cleanArtistName(keep.artist),
+    keep,
+    duplicates: ordered.slice(1),
+    tracks: ordered,
+    contentHash,
+    verified,
+  };
+}
+
+export function findDuplicateGroups(
+  tracks: Track[],
+  hashes?: Map<number, string>,
+): DuplicateTrackGroup[] {
+  const candidates = new Map<string, Track[]>();
   for (const track of tracks) {
     const artist = cleanArtistName(track.artist);
     const title = cleanTitle(track.title);
@@ -330,35 +360,41 @@ export function findDuplicateGroups(tracks: Track[]): DuplicateTrackGroup[] {
       track.title,
       track.artist,
     )}`;
-    const existing = groups.get(key);
+    const existing = candidates.get(key);
     if (existing) existing.push(track);
-    else groups.set(key, [track]);
+    else candidates.set(key, [track]);
   }
 
-  return [...groups.entries()]
-    .filter(([, items]) => items.length > 1)
-    .map(([key, items]) => {
-      const ordered = [...items].sort(
-        (a, b) =>
-          b.size - a.size ||
-          b.addedAt - a.addedAt ||
-          a.path.localeCompare(b.path),
-      );
-      const keep = ordered[0];
-      return {
-        key,
-        title: cleanTitle(keep.title),
-        artist: cleanArtistName(keep.artist),
-        keep,
-        duplicates: ordered.slice(1),
-        tracks: ordered,
-      };
-    })
-    .sort(
-      (a, b) =>
-        a.artist.localeCompare(b.artist, "ru") ||
-        a.title.localeCompare(b.title, "ru"),
-    );
+  const groups: DuplicateTrackGroup[] = [];
+  for (const [key, items] of candidates) {
+    if (items.length < 2) continue;
+    if (!hashes) {
+      groups.push(buildDuplicateGroup(key, items, "", false));
+      continue;
+    }
+
+    // A shared artist/title is only a hint. Split the candidate group by
+    // file content so two different recordings with the same tags are never
+    // offered for deletion as duplicates.
+    const buckets = new Map<string, Track[]>();
+    for (const track of items) {
+      const hash = hashes.get(track.id) ?? `unreadable:${track.id}`;
+      const existing = buckets.get(hash);
+      if (existing) existing.push(track);
+      else buckets.set(hash, [track]);
+    }
+    for (const [hash, bucket] of buckets) {
+      if (bucket.length < 2) continue;
+      const verified = !hash.startsWith("unreadable:");
+      groups.push(buildDuplicateGroup(`${key}::${hash}`, bucket, hash, verified));
+    }
+  }
+
+  return groups.sort(
+    (a, b) =>
+      a.artist.localeCompare(b.artist, "ru") ||
+      a.title.localeCompare(b.title, "ru"),
+  );
 }
 
 export interface AlbumGroup {

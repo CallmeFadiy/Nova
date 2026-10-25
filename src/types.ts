@@ -134,6 +134,11 @@ export interface DeleteTracksResult {
   snapshot: Snapshot;
 }
 
+export interface TrackHash {
+  trackId: number;
+  hash: string;
+}
+
 export interface RecognitionResult {
   title: string;
   artist: string;

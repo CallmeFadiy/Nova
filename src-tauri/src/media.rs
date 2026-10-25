@@ -2,6 +2,7 @@ use crate::models::{
     DownloadProgress, DownloadResult, ImportPlaylist, ImportTrack, MediaCandidate,
 };
 use base64::Engine as _;
+use lofty::prelude::*;
 use regex::Regex;
 use serde_json::json;
 use std::collections::HashSet;
@@ -1395,6 +1396,118 @@ fn is_single_youtube(url: &str) -> bool {
         || lower.contains("youtube.com/live/")
 }
 
+fn normalize_match(value: &str) -> String {
+    value
+        .to_lowercase()
+        .replace('ё', "е")
+        .split(|character: char| !character.is_alphanumeric())
+        .filter(|token| !token.is_empty())
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+fn match_tokens(value: &str) -> HashSet<String> {
+    normalize_match(value)
+        .split(' ')
+        .filter(|token| {
+            token.chars().count() > 1
+                && !matches!(
+                    *token,
+                    "the"
+                        | "a"
+                        | "an"
+                        | "and"
+                        | "amp"
+                        | "feat"
+                        | "ft"
+                        | "prod"
+                        | "by"
+                        | "remix"
+                        | "version"
+                        | "edit"
+                        | "official"
+                        | "video"
+                        | "audio"
+                        | "lyrics"
+                        | "topic"
+                        | "music"
+                        | "me"
+                        | "of"
+                        | "to"
+                        | "in"
+                        | "on"
+                        | "for"
+                        | "with"
+                )
+        })
+        .map(str::to_string)
+        .collect()
+}
+
+fn text_match_score(expected: &str, actual: &str) -> f64 {
+    let left = normalize_match(expected);
+    let right = normalize_match(actual);
+    if left.is_empty() || right.is_empty() {
+        return 0.0;
+    }
+    if left == right || left.contains(&right) || right.contains(&left) {
+        return 1.0;
+    }
+
+    let left_tokens = match_tokens(&left);
+    let right_tokens = match_tokens(&right);
+    if left_tokens.is_empty() || right_tokens.is_empty() {
+        return 0.0;
+    }
+    let common = left_tokens.intersection(&right_tokens).count();
+    common as f64 / left_tokens.len().min(right_tokens.len()) as f64
+}
+
+fn verify_download(
+    path: &Path,
+    expected_artist: Option<&str>,
+    expected_title: Option<&str>,
+) -> Result<(), String> {
+    let Some(expected_title) = expected_title.map(str::trim).filter(|value| !value.is_empty())
+    else {
+        return Ok(());
+    };
+    let Ok(tagged) = lofty::read_from_path(path) else {
+        return Ok(());
+    };
+    let Some(tag) = tagged.primary_tag().or_else(|| tagged.first_tag()) else {
+        return Ok(());
+    };
+    let actual_title = tag
+        .title()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+    let Some(actual_title) = actual_title else {
+        return Ok(());
+    };
+    let actual_artist = tag
+        .artist()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+
+    let title_score = text_match_score(expected_title, &actual_title);
+    let artist_score = expected_artist
+        .map(|artist| text_match_score(artist, actual_artist.as_deref().unwrap_or_default()))
+        .unwrap_or(0.0);
+    if title_score >= 0.55 || (artist_score >= 0.8 && title_score >= 0.3) {
+        return Ok(());
+    }
+
+    let found = match actual_artist {
+        Some(artist) => format!("{artist} – {actual_title}"),
+        None => actual_title,
+    };
+    let _ = fs::remove_file(path);
+    Err(format!(
+        "Источник вернул другой трек: {found}. Файл не сохранён."
+    ))
+}
+
 pub async fn download_media(
     app: &AppHandle,
     id: String,
@@ -1402,6 +1515,8 @@ pub async fn download_media(
     query: Option<String>,
     output_dir: String,
     ytdlp_path: Option<String>,
+    expected_artist: Option<String>,
+    expected_title: Option<String>,
 ) -> Result<DownloadResult, String> {
     let preferred_name = query
         .as_deref()
@@ -1414,7 +1529,16 @@ pub async fn download_media(
         || url.contains(".drivemusic.me/")
         || is_audio_url(&url)
     {
-        return download_direct(app, id, url, output_dir, preferred_name).await;
+        return download_direct(
+            app,
+            id,
+            url,
+            output_dir,
+            preferred_name,
+            expected_artist,
+            expected_title,
+        )
+        .await;
     }
 
     let directory = resolve_output_dir(app, &output_dir)?;
@@ -1458,6 +1582,24 @@ pub async fn download_media(
                 .map(str::to_string)
                 .or_else(|| newest_file(&directory, started_at))
                 .ok_or_else(|| "Файл скачан, но не найден в папке загрузок".to_string())?;
+            if let Err(error) = verify_download(
+                Path::new(&path),
+                expected_artist.as_deref(),
+                expected_title.as_deref(),
+            ) {
+                emit_progress(
+                    app,
+                    DownloadProgress {
+                        id: id.clone(),
+                        percent: 0.0,
+                        line: error.clone(),
+                        status: "error".to_string(),
+                        path: None,
+                        error: Some(error.clone()),
+                    },
+                );
+                return Err(error);
+            }
             let title = Path::new(&path)
                 .file_stem()
                 .map(|value| value.to_string_lossy().to_string())
@@ -1502,6 +1644,8 @@ pub async fn download_direct(
     url: String,
     output_dir: String,
     file_name: Option<String>,
+    expected_artist: Option<String>,
+    expected_title: Option<String>,
 ) -> Result<DownloadResult, String> {
     if !url.starts_with("http://") && !url.starts_with("https://") {
         return Err("Ссылка должна начинаться с http:// или https://".to_string());
@@ -1611,6 +1755,24 @@ pub async fn download_direct(
         return Err(format!("Не удалось завершить файл: {error}"));
     }
     drop(file);
+    if let Err(error) = verify_download(
+        &path,
+        expected_artist.as_deref(),
+        expected_title.as_deref(),
+    ) {
+        emit_progress(
+            app,
+            DownloadProgress {
+                id,
+                percent: 0.0,
+                line: error.clone(),
+                status: "error".to_string(),
+                path: None,
+                error: Some(error.clone()),
+            },
+        );
+        return Err(error);
+    }
     let path_string = path.to_string_lossy().to_string();
     emit_progress(
         app,
@@ -1798,5 +1960,14 @@ mod tests {
     fn parses_clock_duration() {
         assert_eq!(parse_clock_ms("03:42"), 222_000);
         assert_eq!(parse_clock_ms("1:02:03"), 3_723_000);
+    }
+
+    #[test]
+    fn recognizes_matching_download_metadata() {
+        assert!(text_match_score("Stream", "NLO - Stream") > 0.9);
+        assert!(text_match_score("Leave It All Behind", "Leave It All Behind (Remix)") > 0.9);
+        assert!(text_match_score("MiyaGi & Andy Panda", "MiyaGi") > 0.9);
+        assert!(text_match_score("Stream", "Leave It All Behind") < 0.2);
+        assert!(text_match_score("NLO", "EBEN") < 0.2);
     }
 }
