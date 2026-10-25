@@ -5,7 +5,6 @@ import {
   FolderPlus,
   Play,
   Plus,
-  ScanLine,
   Search,
   Shuffle,
   Trash2,
@@ -73,8 +72,6 @@ export function Library({ initialTab = "tracks" }: { initialTab?: Tab }) {
   const tracks = useLibraryStore((state) => state.tracks);
   const playlists = useLibraryStore((state) => state.playlists);
   const folders = useLibraryStore((state) => state.folders);
-  const scanning = useLibraryStore((state) => state.scanning);
-  const scan = useLibraryStore((state) => state.scan);
   const addFolder = useLibraryStore((state) => state.addFolder);
   const removeFolder = useLibraryStore((state) => state.removeFolder);
   const setContext = usePlayerStore((state) => state.setContext);
@@ -211,14 +208,6 @@ export function Library({ initialTab = "tracks" }: { initialTab?: Tab }) {
           </p>
         </div>
         <div className="head-actions">
-          <button
-            className="secondary-button"
-            onClick={() => void scan()}
-            disabled={scanning}
-          >
-            <ScanLine size={15} className={scanning ? "spin" : ""} />
-            {scanning ? "Сканирование…" : "Сканировать"}
-          </button>
           <button className="primary-button" onClick={() => void handleAddFolder()}>
             <FolderPlus size={15} />
             Добавить папку
@@ -343,14 +332,6 @@ export function Library({ initialTab = "tracks" }: { initialTab?: Tab }) {
                   </span>
                 </div>
                 <div className="folder-actions">
-                  <button
-                    className="ghost-button"
-                    onClick={() => void scan()}
-                    disabled={scanning}
-                  >
-                    <ScanLine size={14} />
-                    Сканировать
-                  </button>
                   <button
                     className="icon-button"
                     onClick={() => {

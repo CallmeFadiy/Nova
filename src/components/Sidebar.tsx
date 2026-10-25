@@ -8,7 +8,6 @@ import {
   Link2,
   ListMusic,
   Mic,
-  ScanLine,
   Settings,
 } from "lucide-react";
 import { NavLink } from "react-router-dom";
@@ -37,9 +36,6 @@ const NAV_TOOLS = [
 export function Sidebar() {
   const tracks = useLibraryStore((state) => state.tracks);
   const playlists = useLibraryStore((state) => state.playlists);
-  const scanning = useLibraryStore((state) => state.scanning);
-  const scanProgress = useLibraryStore((state) => state.scanProgress);
-  const scan = useLibraryStore((state) => state.scan);
   const setMobileNavOpen = useUiStore((state) => state.setMobileNavOpen);
 
   const visible = visibleTracks(tracks);
@@ -118,21 +114,6 @@ export function Sidebar() {
       </nav>
 
       <div className="sidebar-foot">
-        <button
-          className="scan-button"
-          onClick={() => void scan()}
-          disabled={scanning}
-        >
-          <ScanLine size={15} className={scanning ? "spin" : ""} />
-          <span>
-            {scanning
-              ? scanProgress
-                ? `Сканирование ${scanProgress.current}/${scanProgress.total}`
-                : "Сканирование…"
-              : "Сканировать папки"}
-          </span>
-        </button>
-
         <NavLink
           to="/settings"
           className={({ isActive }) =>

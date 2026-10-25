@@ -43,3 +43,6 @@ dev-data/
 *.sqlite-journal
 *.sqlite-wal
 *.sqlite-shm
+
+# local release artifacts
+release/

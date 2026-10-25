@@ -6,7 +6,6 @@ import {
   Info,
   Mic,
   RotateCcw,
-  ScanLine,
   SlidersHorizontal,
   Trash2,
   Undo2,
@@ -20,8 +19,6 @@ import { useUiStore } from "../store/ui";
 export function Settings() {
   const tracks = useLibraryStore((state) => state.tracks);
   const folders = useLibraryStore((state) => state.folders);
-  const scanning = useLibraryStore((state) => state.scanning);
-  const scan = useLibraryStore((state) => state.scan);
   const addFolder = useLibraryStore((state) => state.addFolder);
   const removeFolder = useLibraryStore((state) => state.removeFolder);
   const restoreTrack = useLibraryStore((state) => state.restoreTrack);
@@ -86,14 +83,6 @@ export function Settings() {
           <h1 className="serif">Настройки</h1>
           <p className="page-sub">Папки, оформление, звук и источники</p>
         </div>
-        <button
-          className="secondary-button"
-          onClick={() => void scan()}
-          disabled={scanning}
-        >
-          <ScanLine size={15} className={scanning ? "spin" : ""} />
-          {scanning ? "Сканирование…" : "Сканировать"}
-        </button>
       </header>
 
       <section className="settings-section">
@@ -128,13 +117,6 @@ export function Settings() {
                   </span>
                 </div>
                 <div className="settings-row-actions">
-                  <button
-                    className="icon-button"
-                    onClick={() => void scan()}
-                    aria-label="Сканировать"
-                  >
-                    <ScanLine size={15} />
-                  </button>
                   <button
                     className="icon-button"
                     onClick={() => {

@@ -6,7 +6,7 @@
 
 ## Что работает
 
-- Сканирование локальных папок при запуске и вручную, инкрементально по `mtime + size`.
+- Сканирование локальных папок при запуске и одна кнопка ручного сканирования в верхней части окна.
 - Метаданные и обложки через `lofty`; фолбэк на имя файла и обложки папки.
 - Библиотека, альбомы, папки, поиск, сортировка A–Z / по исполнителю / по альбому / по дате.
 - Плеер: play/pause, next/prev, seek, громкость, mute, повтор одного трека и очереди.
@@ -36,8 +36,12 @@ npm.cmd run tauri build
 
 Готовые установщики:
 
-- `src-tauri/target/release/bundle/msi/Nova_0.1.0_x64_en-US.msi` (~25 МБ)
-- `src-tauri/target/release/bundle/nsis/Nova_0.1.0_x64-setup.exe` (~23 МБ)
+- `release/Windows/Nova-0.1.0-setup.exe` — установщик NSIS
+- `release/Windows/Nova-0.1.0.msi` — MSI
+- `release/Windows/Nova.exe` — портативный exe
+- `release/Windows/yt-dlp-x86_64-pc-windows-msvc.exe` — sidecar для загрузок
+
+Подробнее: `docs/RELEASE.md`.
 
 Для сборки нужны Rust MSVC, Visual Studio Build Tools с C++ и Windows SDK. `yt-dlp` лежит в `src-tauri/binaries/` и входит в установщик.
 
@@ -54,6 +58,7 @@ npm.cmd run tauri build
 - `docs/specs/2026-10-25-nova-design.md` — дизайн и архитектура.
 - `docs/DECISIONS.md` — правила проекта и платформ.
 - `docs/THIRD_PARTY.md` — лицензии, включая GPL-3.0 у `songrec-lib`.
+- `docs/ideas/artist-albums.md` — предложение по группировке альбомов по исполнителю (не реализовано).
 - `docs/design/mockups/b-nocturne.html` — выбранный макет.
 - `docs/design/screens/` — снимки готового интерфейса.
 - `Icon_exmp/` — исходные изображения иконки от пользователя; `icon-design/nova-app-icon.png` — очищенный мастер 1024 × 1024.
