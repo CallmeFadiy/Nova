@@ -78,6 +78,7 @@ export function Library({ initialTab = "tracks" }: { initialTab?: Tab }) {
   const setContext = usePlayerStore((state) => state.setContext);
   const toggleShuffle = usePlayerStore((state) => state.toggleShuffle);
   const openCreatePlaylist = useUiStore((state) => state.setCreatePlaylistOpen);
+  const openMergeAlbums = useUiStore((state) => state.openMergeAlbums);
   const notify = useUiStore((state) => state.notify);
   const navigate = useNavigate();
 
@@ -292,6 +293,14 @@ export function Library({ initialTab = "tracks" }: { initialTab?: Tab }) {
               className="album-card"
               key={album.key}
               onClick={() => setAlbumKey(album.key)}
+              onContextMenu={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                openMergeAlbums({
+                  trackIds: album.tracks.map((track) => track.id),
+                  name: album.name,
+                });
+              }}
             >
               <span className="album-card-art">
                 <Cover

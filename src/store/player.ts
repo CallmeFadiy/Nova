@@ -308,7 +308,7 @@ export const usePlayerStore = create<PlayerState>()(
       },
 
       clearQueue: () => {
-        audioEngine.pause();
+        audioEngine.unload();
         set({
           queue: [],
           order: [],

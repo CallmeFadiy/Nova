@@ -149,6 +149,16 @@ class AudioEngine {
     this.audio.pause();
   }
 
+  unload(): void {
+    this.stopDemo();
+    this.audio.pause();
+    this.audio.removeAttribute("src");
+    this.audio.load();
+    this.demoPosition = 0;
+    this.demoDuration = 0;
+    this.onPlayState?.(false);
+  }
+
   seek(ms: number): void {
     if (!isTauri || !this.audio.src) {
       this.demoPosition = Math.max(0, Math.min(ms, this.demoDuration));

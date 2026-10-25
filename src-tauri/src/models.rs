@@ -23,6 +23,8 @@ pub struct Track {
     pub favorite: bool,
     pub hidden: bool,
     pub missing: bool,
+    pub group_key_override: Option<String>,
+    pub group_name_override: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -43,6 +43,10 @@ export function TrackRow({
       role="button"
       tabIndex={0}
       onClick={onPlay}
+      onContextMenu={(event) => {
+        event.preventDefault();
+        onMenu();
+      }}
       onKeyDown={(event) => {
         if (event.key === "Enter" || event.key === " ") {
           event.preventDefault();

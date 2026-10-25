@@ -11,6 +11,13 @@ pub fn now_secs() -> i64 {
         .unwrap_or(0)
 }
 
+pub fn now_millis() -> i64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_millis() as i64)
+        .unwrap_or(0)
+}
+
 const SCHEMA: &str = r#"
 PRAGMA foreign_keys = ON;
 
@@ -90,11 +97,30 @@ pub fn init(app_dir: &Path) -> Result<Connection, Box<dyn std::error::Error>> {
     let conn = Connection::open(app_dir.join("nova.db"))?;
     conn.execute_batch("PRAGMA journal_mode = WAL;")?;
     conn.execute_batch(SCHEMA)?;
+    ensure_track_columns(&conn)?;
 
     #[cfg(debug_assertions)]
     seed_dev_folder(&conn)?;
 
     Ok(conn)
+}
+
+fn ensure_track_columns(conn: &Connection) -> rusqlite::Result<()> {
+    let mut stmt = conn.prepare("PRAGMA table_info(tracks)")?;
+    let columns = stmt
+        .query_map([], |row| row.get::<_, String>(1))?
+        .collect::<Result<Vec<_>, _>>()?;
+
+    if !columns.iter().any(|column| column == "group_key_override") {
+        conn.execute("ALTER TABLE tracks ADD COLUMN group_key_override TEXT", [])?;
+    }
+    if !columns.iter().any(|column| column == "group_name_override") {
+        conn.execute(
+            "ALTER TABLE tracks ADD COLUMN group_name_override TEXT",
+            [],
+        )?;
+    }
+    Ok(())
 }
 
 #[cfg(debug_assertions)]

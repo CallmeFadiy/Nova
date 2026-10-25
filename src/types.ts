@@ -19,6 +19,8 @@ export interface Track {
   favorite: boolean;
   hidden: boolean;
   missing: boolean;
+  groupKeyOverride: string | null;
+  groupNameOverride: string | null;
 }
 
 export interface Playlist {
@@ -54,6 +56,16 @@ export interface ScanProgress {
   current: number;
   total: number;
   path: string;
+}
+
+export type RecognitionInput = "microphone" | "system";
+
+export type NotificationSound = "off" | "soft" | "glass" | "low" | "pop";
+
+export interface RecognitionLevel {
+  level: number;
+  peak: number;
+  source: string;
 }
 
 export type RepeatMode = "off" | "one" | "all";

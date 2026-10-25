@@ -28,6 +28,17 @@ interface LibraryState {
   restoreTrack: (trackId: number) => Promise<void>;
   setTrackCover: (trackId: number, sourcePath: string) => Promise<void>;
   clearTrackCover: (trackId: number) => Promise<void>;
+  updateTrackMetadata: (
+    trackId: number,
+    data: {
+      title: string;
+      artist: string;
+      album?: string;
+      albumArtist?: string;
+    },
+  ) => Promise<void>;
+  deleteTrack: (trackId: number, deleteFile: boolean) => Promise<void>;
+  mergeAlbums: (trackIds: number[], name: string) => Promise<void>;
   clearError: () => void;
 }
 
@@ -227,6 +238,44 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
     }
   },
 
+  updateTrackMetadata: async (trackId, data) => {
+    try {
+      const snapshot = await api.updateTrackMetadata(trackId, data);
+      set(applySnapshot(snapshot));
+      useUiStore.getState().notify("Название и автор обновлены", "success");
+    } catch (error) {
+      set({ error: error instanceof Error ? error.message : String(error) });
+      useUiStore.getState().notify("Не удалось изменить трек", "error");
+    }
+  },
+
+  deleteTrack: async (trackId, deleteFile) => {
+    try {
+      const snapshot = await api.deleteTrack(trackId, deleteFile);
+      set(applySnapshot(snapshot));
+      useUiStore.getState().notify(
+        deleteFile
+          ? "Трек удалён из Nova и с диска"
+          : "Трек удалён из библиотеки Nova",
+        "success",
+      );
+    } catch (error) {
+      set({ error: error instanceof Error ? error.message : String(error) });
+      useUiStore.getState().notify("Не удалось удалить трек", "error");
+    }
+  },
+
+  mergeAlbums: async (trackIds, name) => {
+    try {
+      const snapshot = await api.mergeAlbums(trackIds, name);
+      set(applySnapshot(snapshot));
+      useUiStore.getState().notify("Альбомы объединены", "success");
+    } catch (error) {
+      set({ error: error instanceof Error ? error.message : String(error) });
+      useUiStore.getState().notify("Не удалось объединить альбомы", "error");
+    }
+  },
+
   clearError: () => set({ error: null }),
 }));
 
@@ -320,6 +369,50 @@ export function cleanArtistName(raw: string): string {
   return value.replace(/\s+/g, " ").trim();
 }
 
+export function cleanTitle(raw: string): string {
+  let value = (raw || "")
+    .normalize("NFKC")
+    .replace(/_/g, " ")
+    .replace(/[\u2013\u2014]/g, "-")
+    .replace(/\s+/g, " ")
+    .trim();
+  for (let index = 0; index < 3; index += 1) {
+    const next = value.replace(SOURCE_SUFFIX, " ").replace(/\s+/g, " ").trim();
+    if (next === value) break;
+    value = next;
+  }
+  return value.replace(TRAILING_NUMBER, "").replace(/\s+/g, " ").trim();
+}
+
+function titleIdentity(title: string, artist: string): string {
+  let value = cleanTitle(title);
+  const artistPrefix = `${cleanArtistName(artist).toLowerCase()} - `;
+  if (value.toLowerCase().startsWith(artistPrefix)) {
+    value = value.slice(artistPrefix.length);
+  }
+  value = value.replace(/\s*\(\d{4}\)\s*$/, "");
+  return normalizeArtistKey(value);
+}
+
+export function findDuplicateTrack(
+  tracks: Track[],
+  artist: string,
+  title: string,
+): Track | null {
+  const desiredArtist = normalizeArtistKey(cleanArtistName(artist));
+  const desiredTitle = titleIdentity(title, artist);
+  if (!desiredArtist || !desiredTitle) return null;
+  return (
+    tracks.find((track) => {
+      if (track.missing) return false;
+      return (
+        normalizeArtistKey(cleanArtistName(track.artist)) === desiredArtist &&
+        titleIdentity(track.title, track.artist) === desiredTitle
+      );
+    }) ?? null
+  );
+}
+
 function looksLikeCollaboration(name: string): boolean {
   const padded = ` ${name.toLowerCase()} `;
   return (
@@ -366,10 +459,14 @@ export function groupAlbums(tracks: Track[]): AlbumGroup[] {
   for (const track of visibleTracks(tracks)) {
     const rawArtist =
       track.artist || track.albumArtist || "Неизвестный исполнитель";
-    const artist = cleanArtistName(rawArtist) || "Неизвестный исполнитель";
-    const collaboration = looksLikeCollaboration(artist);
-    const normalized = normalizeArtistKey(artist) || "unknown";
-    const key = `${collaboration ? "collab" : "artist"}:${normalized}`;
+    const cleanedArtist = cleanArtistName(rawArtist) || "Неизвестный исполнитель";
+    const overrideKey = track.groupKeyOverride?.trim() || "";
+    const overrideName = track.groupNameOverride?.trim() || "";
+    const artist = overrideName || cleanedArtist;
+    const collaboration = overrideKey ? false : looksLikeCollaboration(cleanedArtist);
+    const normalized = normalizeArtistKey(cleanedArtist) || "unknown";
+    const key =
+      overrideKey || `${collaboration ? "collab" : "artist"}:${normalized}`;
     const existing = groups.get(key);
 
     if (existing) {

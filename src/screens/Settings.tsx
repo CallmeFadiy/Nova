@@ -2,12 +2,16 @@ import { useEffect, useState } from "react";
 import {
   Download,
   EyeOff,
+  Bell,
+  BellRing,
   FileText,
   FolderOpen,
   FolderPlus,
+  Headphones,
   Image,
   Info,
   Mic,
+  Play,
   RotateCcw,
   SlidersHorizontal,
   Trash2,
@@ -15,6 +19,10 @@ import {
 } from "lucide-react";
 import { ScanButton } from "../components/ScanButton";
 import { api, backgroundUrl, pickFolder, pickImage } from "../lib/tauri";
+import {
+  NOTIFICATION_SOUND_OPTIONS,
+  playNotificationSound,
+} from "../lib/notificationSound";
 import { formatBytes, formatDate, trackCountLabel } from "../lib/format";
 import { useLibraryStore, visibleTracks } from "../store/library";
 import { useSettingsStore } from "../store/settings";
@@ -44,10 +52,28 @@ export function Settings() {
   const setShazamProvider = useSettingsStore((state) => state.setShazamProvider);
   const shazamKey = useSettingsStore((state) => state.shazamKey);
   const setShazamKey = useSettingsStore((state) => state.setShazamKey);
+  const recognitionSource = useSettingsStore(
+    (state) => state.recognitionSource,
+  );
+  const setRecognitionSource = useSettingsStore(
+    (state) => state.setRecognitionSource,
+  );
   const autoplayOnStart = useSettingsStore((state) => state.autoplayOnStart);
   const setAutoplayOnStart = useSettingsStore((state) => state.setAutoplayOnStart);
   const autoScan = useSettingsStore((state) => state.autoScan);
   const setAutoScan = useSettingsStore((state) => state.setAutoScan);
+  const notificationSound = useSettingsStore(
+    (state) => state.notificationSound,
+  );
+  const setNotificationSound = useSettingsStore(
+    (state) => state.setNotificationSound,
+  );
+  const notificationVolume = useSettingsStore(
+    (state) => state.notificationVolume,
+  );
+  const setNotificationVolume = useSettingsStore(
+    (state) => state.setNotificationVolume,
+  );
 
   const [lyricsFiles, setLyricsFiles] = useState<LyricsFile[]>([]);
   const [lyricsLoading, setLyricsLoading] = useState(true);
@@ -306,6 +332,82 @@ export function Settings() {
 
       <section className="settings-section">
         <div className="settings-section-head">
+          <h2 className="serif">Уведомления</h2>
+          <span className="settings-badge">
+            <BellRing size={12} /> в приложении
+          </span>
+        </div>
+        <p className="settings-hint">
+          Уведомления появляются внутри Nova, в стиле приложения, а не как
+          системные окна Windows. Выберите звук и послушайте каждый вариант.
+        </p>
+        <div className="notification-sounds">
+          {NOTIFICATION_SOUND_OPTIONS.map((option) => (
+            <div
+              className={`notification-sound${
+                notificationSound === option.id ? " is-selected" : ""
+              }`}
+              key={option.id}
+            >
+              <button
+                className="notification-sound-main"
+                onClick={() => setNotificationSound(option.id)}
+              >
+                <Bell size={15} />
+                <span>
+                  <strong>{option.name}</strong>
+                  <small>{option.description}</small>
+                </span>
+              </button>
+              <button
+                className="icon-button"
+                onClick={() =>
+                  playNotificationSound(option.id, notificationVolume)
+                }
+                disabled={option.id === "off"}
+                title="Послушать"
+                aria-label="Послушать звук"
+              >
+                <Play size={14} />
+              </button>
+            </div>
+          ))}
+        </div>
+        <div className="settings-row slider-row">
+          <div className="settings-row-main">
+            <strong>Громкость звука</strong>
+            <span>Не влияет на громкость музыки</span>
+          </div>
+          <input
+            className="range settings-range"
+            type="range"
+            min={0}
+            max={1}
+            step={0.01}
+            value={notificationVolume}
+            onChange={(event) =>
+              setNotificationVolume(Number(event.target.value))
+            }
+          />
+          <span className="settings-value">
+            {Math.round(notificationVolume * 100)}%
+          </span>
+        </div>
+        <div className="settings-inline">
+          <BellRing size={15} />
+          <button
+            className="ghost-button"
+            onClick={() =>
+              notify("Nova: так выглядит уведомление в теме приложения", "success")
+            }
+          >
+            Проверить уведомление
+          </button>
+        </div>
+      </section>
+
+      <section className="settings-section">
+        <div className="settings-section-head">
           <h2 className="serif">Воспроизведение</h2>
         </div>
         <div className="settings-row">
@@ -491,11 +593,31 @@ export function Settings() {
             />
           </div>
         ) : null}
+        <div className="settings-field">
+          <label>Как Nova должна слышать</label>
+          <div className="recognition-source-switch settings-source-switch">
+            <button
+              className={recognitionSource === "microphone" ? "active" : ""}
+              onClick={() => setRecognitionSource("microphone")}
+            >
+              <Mic size={14} />
+              Микрофон
+            </button>
+            <button
+              className={recognitionSource === "system" ? "active" : ""}
+              onClick={() => setRecognitionSource("system")}
+            >
+              <Headphones size={14} />
+              Системные динамики
+            </button>
+          </div>
+        </div>
         <div className="settings-inline">
           <Mic size={15} />
           <span>
-            Микрофон запрашивается только при нажатии «Распознать». Запись
-            длится 8 секунд и не сохраняется.
+            {recognitionSource === "system"
+              ? "Nova захватывает звук текущего устройства вывода Windows через WASAPI loopback. Запись длится 12 секунд и не сохраняется."
+              : "Микрофон запрашивается только при нажатии «Распознать». Запись длится 12 секунд и не сохраняется."}
           </span>
         </div>
       </section>

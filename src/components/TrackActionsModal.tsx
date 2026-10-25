@@ -3,12 +3,14 @@ import {
   Heart,
   Image,
   ListPlus,
+  Merge,
+  Pencil,
   Play,
   ScrollText,
   Trash2,
 } from "lucide-react";
 import { pickImage, revealInFolder } from "../lib/tauri";
-import { useLibraryStore } from "../store/library";
+import { groupAlbums, useLibraryStore } from "../store/library";
 import { usePlayerStore } from "../store/player";
 import { useUiStore } from "../store/ui";
 import { Modal } from "./Modal";
@@ -18,13 +20,21 @@ export function TrackActionsModal() {
   const openTrackActions = useUiStore((state) => state.openTrackActions);
   const openAddToPlaylist = useUiStore((state) => state.openAddToPlaylist);
   const openLyrics = useUiStore((state) => state.openLyrics);
+  const openEditTrack = useUiStore((state) => state.openEditTrack);
+  const openMergeAlbums = useUiStore((state) => state.openMergeAlbums);
   const tracks = useLibraryStore((state) => state.tracks);
   const toggleFavorite = useLibraryStore((state) => state.toggleFavorite);
   const hideTrack = useLibraryStore((state) => state.hideTrack);
   const setTrackCover = useLibraryStore((state) => state.setTrackCover);
   const clearTrackCover = useLibraryStore((state) => state.clearTrackCover);
+  const deleteTrack = useLibraryStore((state) => state.deleteTrack);
 
   const track = tracks.find((item) => item.id === trackId) ?? null;
+  const albumGroup = track
+    ? groupAlbums(tracks).find((group) =>
+        group.tracks.some((item) => item.id === track.id),
+      ) ?? null
+    : null;
 
   const close = () => openTrackActions(null);
 
@@ -71,6 +81,31 @@ export function TrackActionsModal() {
               <ScrollText size={16} />
               Текст песни
             </button>
+            <button
+              className="action-row"
+              onClick={() => {
+                openEditTrack(track.id);
+                openTrackActions(null);
+              }}
+            >
+              <Pencil size={16} />
+              Изменить название и автора
+            </button>
+            {albumGroup ? (
+              <button
+                className="action-row"
+                onClick={() => {
+                  openMergeAlbums({
+                    trackIds: albumGroup.tracks.map((item) => item.id),
+                    name: albumGroup.name,
+                  });
+                  openTrackActions(null);
+                }}
+              >
+                <Merge size={16} />
+                Объединить альбомы
+              </button>
+            ) : null}
             <button
               className="action-row"
               onClick={() => {
@@ -126,6 +161,26 @@ export function TrackActionsModal() {
             >
               <Trash2 size={16} />
               Скрыть из альбома
+            </button>
+            <button
+              className="action-row danger"
+              onClick={() => {
+                if (
+                  !window.confirm(
+                    "Удалить трек из Nova и файл с диска? Это действие нельзя отменить.",
+                  )
+                ) {
+                  return;
+                }
+                if (usePlayerStore.getState().currentId === track.id) {
+                  usePlayerStore.getState().clearQueue();
+                }
+                void deleteTrack(track.id, true);
+                close();
+              }}
+            >
+              <Trash2 size={16} />
+              Удалить трек и файл
             </button>
           </div>
           <p className="modal-note">
