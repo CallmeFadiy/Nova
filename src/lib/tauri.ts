@@ -18,6 +18,8 @@ import type {
   ScanProgress,
   ScanResult,
   Snapshot,
+  TagEncodingIssue,
+  TagEncodingResult,
   Track,
   TrackHash,
 } from "../types";
@@ -390,6 +392,38 @@ export const api = {
     });
   },
 
+  async deleteMissingTracks(): Promise<DeleteTracksResult> {
+    if (!isTauri) {
+      const removedIds = demo.tracks
+        .filter((track) => track.missing)
+        .map((track) => track.id);
+      demo.tracks = demo.tracks.filter((track) => !track.missing);
+      for (const playlist of demo.playlists) {
+        playlist.trackIds = playlist.trackIds.filter(
+          (id) => !removedIds.includes(id),
+        );
+      }
+      return {
+        deleted: removedIds.length,
+        failed: [],
+        snapshot: clone(demo),
+      };
+    }
+    return call<DeleteTracksResult>("delete_missing_tracks");
+  },
+
+  async previewTagEncoding(): Promise<TagEncodingIssue[]> {
+    if (!isTauri) return [];
+    return call<TagEncodingIssue[]>("preview_tag_encoding");
+  },
+
+  async applyTagEncoding(): Promise<TagEncodingResult> {
+    if (!isTauri) {
+      return { fixed: 0, snapshot: clone(demo) };
+    }
+    return call<TagEncodingResult>("apply_tag_encoding");
+  },
+
   async hashTracks(trackIds: number[]): Promise<Map<number, string>> {
     if (!isTauri) {
       await delay(250);
@@ -603,19 +637,30 @@ export const api = {
   async getLyrics(trackId: number): Promise<LyricsResult> {
     if (!isTauri) {
       await delay(500);
+      const fileName = "Norma Tale - Ван Хельсинг.txt";
+      const saved = window.localStorage.getItem(`nova.demo.lyrics.${fileName}`);
       return {
         trackId,
         title: "Ван Хельсинг",
         artist: "Norma Tale",
-        fileName: "Norma Tale - Ван Хельсинг.txt",
-        path: "demo/lyrics/Norma Tale - Ван Хельсинг.txt",
+        fileName,
+        path: `demo/lyrics/${fileName}`,
         text:
+          saved ??
           "Это демонстрационный текст.\n\nВ приложении Nova текст загружается с Genius и сохраняется в файл с именем трека в папке данных приложения.",
         sourceUrl: "https://genius.com/",
-        cached: false,
+        cached: Boolean(saved),
       };
     }
     return call<LyricsResult>("get_lyrics", { trackId });
+  },
+
+  async saveLyrics(fileName: string, text: string): Promise<void> {
+    if (!isTauri) {
+      window.localStorage.setItem(`nova.demo.lyrics.${fileName}`, text);
+      return;
+    }
+    await call<string>("save_lyrics", { fileName, text });
   },
 
   async listLyrics(): Promise<LyricsFile[]> {

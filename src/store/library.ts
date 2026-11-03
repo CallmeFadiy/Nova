@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { api } from "../lib/tauri";
 import type { Folder, Playlist, ScanProgress, ScanResult, Snapshot, Track } from "../types";
+import { usePlayerStore } from "./player";
 import { useUiStore } from "./ui";
 
 interface LibraryState {
@@ -42,6 +43,8 @@ interface LibraryState {
     trackIds: number[],
     deleteFiles: boolean,
   ) => Promise<{ deleted: number; failed: string[] } | null>;
+  deleteMissingTracks: () => Promise<number | null>;
+  applyTagEncoding: () => Promise<number | null>;
   mergeAlbums: (trackIds: number[], name: string) => Promise<void>;
   clearError: () => void;
 }
@@ -257,6 +260,9 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
     try {
       const snapshot = await api.deleteTrack(trackId, deleteFile);
       set(applySnapshot(snapshot));
+      if (!snapshot.tracks.some((track) => track.id === trackId)) {
+        usePlayerStore.getState().removeTracks([trackId]);
+      }
       useUiStore.getState().notify(
         deleteFile
           ? "Трек удалён из Nova и с диска"
@@ -273,6 +279,13 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
     try {
       const result = await api.deleteTracks(trackIds, deleteFiles);
       set(applySnapshot(result.snapshot));
+      const remaining = new Set(
+        result.snapshot.tracks.map((track) => track.id),
+      );
+      const removedIds = trackIds.filter((id) => !remaining.has(id));
+      if (removedIds.length > 0) {
+        usePlayerStore.getState().removeTracks(removedIds);
+      }
       useUiStore.getState().notify(
         result.failed.length > 0
           ? `Удалено ${result.deleted}, не удалось ${result.failed.length}`
@@ -283,6 +296,53 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
     } catch (error) {
       set({ error: error instanceof Error ? error.message : String(error) });
       useUiStore.getState().notify("Не удалось удалить треки", "error");
+      return null;
+    }
+  },
+
+  deleteMissingTracks: async () => {
+    try {
+      const previousIds = new Set(get().tracks.map((track) => track.id));
+      const result = await api.deleteMissingTracks();
+      set(applySnapshot(result.snapshot));
+      const remaining = new Set(
+        result.snapshot.tracks.map((track) => track.id),
+      );
+      const removedIds = [...previousIds].filter((id) => !remaining.has(id));
+      if (removedIds.length > 0) {
+        usePlayerStore.getState().removeTracks(removedIds);
+      }
+      useUiStore.getState().notify(
+        result.deleted > 0
+          ? `Удалено отсутствующих записей: ${result.deleted}`
+          : "Отсутствующих записей нет",
+        "success",
+      );
+      return result.deleted;
+    } catch (error) {
+      set({ error: error instanceof Error ? error.message : String(error) });
+      useUiStore.getState().notify(
+        "Не удалось очистить отсутствующие записи",
+        "error",
+      );
+      return null;
+    }
+  },
+
+  applyTagEncoding: async () => {
+    try {
+      const result = await api.applyTagEncoding();
+      set(applySnapshot(result.snapshot));
+      useUiStore.getState().notify(
+        result.fixed > 0
+          ? `Исправлено полей: ${result.fixed}`
+          : "Проблем с кодировкой не найдено",
+        "success",
+      );
+      return result.fixed;
+    } catch (error) {
+      set({ error: error instanceof Error ? error.message : String(error) });
+      useUiStore.getState().notify("Не удалось исправить кодировку", "error");
       return null;
     }
   },
@@ -320,6 +380,25 @@ export interface DuplicateTrackGroup {
   tracks: Track[];
   contentHash: string;
   verified: boolean;
+  recommendation: string;
+}
+
+function losslessTrack(track: Track): boolean {
+  return /^(flac|wav|aiff?|alac)$/i.test(track.format);
+}
+
+function trackBitrate(track: Track): number {
+  return track.durationMs > 0 ? (track.size * 8) / track.durationMs : 0;
+}
+
+function recommendationFor(track: Track): string {
+  const bitrate = trackBitrate(track);
+  if (losslessTrack(track)) {
+    return `${track.format.toUpperCase()} · без потерь`;
+  }
+  return bitrate > 0
+    ? `${track.format.toUpperCase()} · ${Math.round(bitrate)} кбит/с`
+    : track.format.toUpperCase();
 }
 
 function buildDuplicateGroup(
@@ -330,6 +409,8 @@ function buildDuplicateGroup(
 ): DuplicateTrackGroup {
   const ordered = [...items].sort(
     (a, b) =>
+      Number(losslessTrack(b)) - Number(losslessTrack(a)) ||
+      trackBitrate(b) - trackBitrate(a) ||
       b.size - a.size ||
       b.addedAt - a.addedAt ||
       a.path.localeCompare(b.path),
@@ -344,6 +425,7 @@ function buildDuplicateGroup(
     tracks: ordered,
     contentHash,
     verified,
+    recommendation: recommendationFor(keep),
   };
 }
 

@@ -67,11 +67,14 @@ fn sanitize_file_stem(value: &str) -> String {
 }
 
 fn lyrics_dir(app: &AppHandle) -> Result<PathBuf, String> {
-    let directory = app
-        .path()
-        .app_data_dir()
-        .map_err(|error| error.to_string())?
-        .join("lyrics");
+    let base = std::env::var_os("NOVA_DATA_DIR")
+        .map(PathBuf::from)
+        .unwrap_or(
+            app.path()
+                .app_data_dir()
+                .map_err(|error| error.to_string())?,
+        );
+    let directory = base.join("lyrics");
     fs::create_dir_all(&directory).map_err(|error| error.to_string())?;
     Ok(directory)
 }
@@ -497,6 +500,25 @@ pub fn list(app: &AppHandle) -> Result<Vec<LyricsFile>, String> {
     }
     files.sort_by(|a, b| b.modified.cmp(&a.modified));
     Ok(files)
+}
+
+pub fn save(app: &AppHandle, file_name: &str, text: &str) -> Result<String, String> {
+    let Some(name) = Path::new(file_name).file_name() else {
+        return Err("Некорректное имя файла".to_string());
+    };
+    if Path::new(file_name).components().count() != 1 {
+        return Err("Некорректное имя файла".to_string());
+    }
+    if !name
+        .to_string_lossy()
+        .to_lowercase()
+        .ends_with(".txt")
+    {
+        return Err("Текст песни должен храниться в файле .txt".to_string());
+    }
+    let path = lyrics_dir(app)?.join(name);
+    fs::write(&path, text).map_err(|error| format!("Не удалось сохранить текст: {error}"))?;
+    Ok(path.to_string_lossy().to_string())
 }
 
 pub fn delete(app: &AppHandle, file_name: &str) -> Result<(), String> {

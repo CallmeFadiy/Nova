@@ -60,6 +60,7 @@ interface PlayerState {
   reshuffle: () => void;
   cycleRepeat: () => void;
   playFromOrder: (index: number) => void;
+  removeTracks: (trackIds: number[]) => void;
   clearQueue: () => void;
   handleEnded: () => void;
 }
@@ -305,6 +306,63 @@ export const usePlayerStore = create<PlayerState>()(
       playFromOrder: (index) => {
         const id = get().order[index];
         if (id !== undefined) get().playTrackById(id, true, 0);
+      },
+
+      removeTracks: (trackIds) => {
+        const removed = new Set(trackIds);
+        const state = get();
+        if (!state.queue.some((id) => removed.has(id))) return;
+
+        const queue = state.queue.filter((id) => !removed.has(id));
+        if (queue.length === 0) {
+          get().clearQueue();
+          return;
+        }
+
+        const filteredOrder = state.order.filter((id) => queue.includes(id));
+        const order = filteredOrder.length > 0 ? filteredOrder : [...queue];
+        const currentRemoved =
+          state.currentId !== null && removed.has(state.currentId);
+
+        if (currentRemoved) {
+          const currentIndex =
+            state.currentId !== null
+              ? state.order.indexOf(state.currentId)
+              : -1;
+          const nextId =
+            state.order
+              .slice(Math.max(0, currentIndex + 1))
+              .find((id) => queue.includes(id)) ??
+            order[0] ??
+            queue[0] ??
+            null;
+          const nextTrack = findTrack(nextId);
+          if (nextId === null || !nextTrack) {
+            get().clearQueue();
+            return;
+          }
+
+          set({
+            queue,
+            order,
+            currentId: nextId,
+            positionMs: 0,
+            durationMs: nextTrack.durationMs,
+            isPlaying: state.isPlaying,
+          });
+          persistPosition(0);
+          audioEngine.setVolume(state.volume);
+          audioEngine.setMuted(state.muted);
+          void audioEngine.load(
+            audioUrl(nextTrack),
+            state.isPlaying,
+            0,
+            nextTrack.durationMs,
+          );
+          return;
+        }
+
+        set({ queue, order });
       },
 
       clearQueue: () => {

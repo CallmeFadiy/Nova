@@ -176,9 +176,6 @@ export function TrackActionsModal() {
                   tone: "danger",
                 }).then((confirmed) => {
                   if (!confirmed) return;
-                  if (usePlayerStore.getState().currentId === track.id) {
-                    usePlayerStore.getState().clearQueue();
-                  }
                   void deleteTrack(track.id, true);
                 });
               }}

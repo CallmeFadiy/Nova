@@ -5,6 +5,7 @@ mod media;
 mod models;
 mod recognition;
 mod scanner;
+mod text_encoding;
 
 use std::sync::Mutex;
 use tauri::Manager;
@@ -61,6 +62,9 @@ pub fn run() {
             commands::update_track_metadata,
             commands::delete_track,
             commands::delete_tracks,
+            commands::delete_missing_tracks,
+            commands::preview_tag_encoding,
+            commands::apply_tag_encoding,
             commands::hash_tracks,
             commands::merge_albums,
             commands::set_background,
@@ -73,6 +77,7 @@ pub fn run() {
             commands::recognize_shazam,
             commands::recognize_shazam_file,
             commands::get_lyrics,
+            commands::save_lyrics,
             commands::list_lyrics,
             commands::delete_lyrics,
             commands::clear_lyrics,

@@ -6,7 +6,9 @@ import {
   BellRing,
   Copy,
   FileText,
+  FileWarning,
   FolderOpen,
+  Languages,
   FolderPlus,
   Headphones,
   Image,
@@ -26,6 +28,7 @@ import {
 } from "../lib/notificationSound";
 import { formatBytes, formatDate, trackCountLabel } from "../lib/format";
 import { DuplicateTracksModal } from "../components/DuplicateTracksModal";
+import { EncodingFixModal } from "../components/EncodingFixModal";
 import { useConfirmStore } from "../store/confirm";
 import {
   findDuplicateGroups,
@@ -33,10 +36,9 @@ import {
   visibleTracks,
   type DuplicateTrackGroup,
 } from "../store/library";
-import { usePlayerStore } from "../store/player";
 import { useSettingsStore } from "../store/settings";
 import { useUiStore } from "../store/ui";
-import type { LyricsFile, Theme } from "../types";
+import type { LyricsFile, TagEncodingIssue, Theme } from "../types";
 
 const THEMES: Array<{
   id: Theme;
@@ -133,10 +135,22 @@ export function Settings() {
   const [duplicateOpen, setDuplicateOpen] = useState(false);
   const [duplicateBusy, setDuplicateBusy] = useState(false);
   const [duplicateScanning, setDuplicateScanning] = useState(false);
+  const [missingBusy, setMissingBusy] = useState(false);
+  const [encodingIssues, setEncodingIssues] = useState<TagEncodingIssue[]>([]);
+  const [encodingOpen, setEncodingOpen] = useState(false);
+  const [encodingBusy, setEncodingBusy] = useState(false);
+  const [encodingScanning, setEncodingScanning] = useState(false);
   const deleteTracks = useLibraryStore((state) => state.deleteTracks);
+  const deleteMissingTracks = useLibraryStore(
+    (state) => state.deleteMissingTracks,
+  );
+  const applyTagEncoding = useLibraryStore(
+    (state) => state.applyTagEncoding,
+  );
 
   const visible = visibleTracks(tracks);
   const hidden = tracks.filter((track) => track.hidden);
+  const missing = tracks.filter((track) => track.missing);
   const totalSize = visible.reduce((sum, track) => sum + track.size, 0);
 
   const refreshLyrics = async () => {
@@ -214,18 +228,57 @@ export function Settings() {
 
   const removeDuplicates = async (ids: number[]) => {
     if (ids.length === 0) return;
-    if (
-      usePlayerStore.getState().currentId !== null &&
-      ids.includes(usePlayerStore.getState().currentId as number)
-    ) {
-      usePlayerStore.getState().clearQueue();
-    }
     setDuplicateBusy(true);
     const result = await deleteTracks(ids, true);
     setDuplicateBusy(false);
     if (result) {
       setDuplicateOpen(false);
       setDuplicateGroups([]);
+    }
+  };
+
+  const clearMissingTracks = async () => {
+    if (missing.length === 0) return;
+    const confirmed = await confirm({
+      title: "Удалить отсутствующие записи?",
+      message: `Удалить ${missing.length} записей, файлы которых не найдены? Это очистит только базу Nova и не затронет диск.`,
+      confirmLabel: "Удалить записи",
+      tone: "danger",
+    });
+    if (!confirmed) return;
+    setMissingBusy(true);
+    await deleteMissingTracks();
+    setMissingBusy(false);
+  };
+
+  const checkTagEncoding = async () => {
+    if (encodingScanning) return;
+    setEncodingScanning(true);
+    try {
+      const issues = await api.previewTagEncoding();
+      if (issues.length === 0) {
+        notify("Проблем с кодировкой не найдено", "success");
+        return;
+      }
+      setEncodingIssues(issues);
+      setEncodingOpen(true);
+    } catch (error) {
+      notify(
+        error instanceof Error ? error.message : "Не удалось проверить кодировку",
+        "error",
+      );
+    } finally {
+      setEncodingScanning(false);
+    }
+  };
+
+  const applyEncoding = async () => {
+    setEncodingBusy(true);
+    const fixed = await applyTagEncoding();
+    setEncodingBusy(false);
+    if (fixed !== null) {
+      setEncodingOpen(false);
+      setEncodingIssues([]);
     }
   };
 
@@ -803,6 +856,62 @@ export function Settings() {
 
       <section className="settings-section">
         <div className="settings-section-head">
+          <h2 className="serif">Отсутствующие файлы</h2>
+          <span className="settings-badge">{missing.length}</span>
+        </div>
+        <p className="settings-hint">
+          Записи, файлы которых больше не найдены на диске. Они уже скрыты из
+          библиотеки, но остаются в базе. Очистка удаляет только эти записи и не
+          трогает музыку на диске.
+        </p>
+        <div className="settings-row">
+          <div className="settings-row-main">
+            <strong>Очистить базу</strong>
+            <span>
+              {missing.length > 0
+                ? `Будет удалено записей: ${missing.length}`
+                : "Отсутствующих записей нет"}
+            </span>
+          </div>
+          <button
+            className="secondary-button"
+            onClick={() => void clearMissingTracks()}
+            disabled={missingBusy || missing.length === 0}
+          >
+            <FileWarning size={15} />
+            {missingBusy ? "Удаляю…" : "Удалить отсутствующие"}
+          </button>
+        </div>
+      </section>
+
+      <section className="settings-section">
+        <div className="settings-section-head">
+          <h2 className="serif">Кодировка тегов</h2>
+          <button
+            className="secondary-button"
+            onClick={() => void checkTagEncoding()}
+            disabled={encodingScanning}
+          >
+            <Languages size={15} />
+            {encodingScanning ? "Проверяю…" : "Проверить кодировку"}
+          </button>
+        </div>
+        <p className="settings-hint">
+          Исправляет названия, которые были прочитаны как cp1251 или Latin-1
+          вместо UTF-8. Сначала показывается предпросмотр, применение – только
+          после подтверждения.
+        </p>
+        <div className="settings-inline">
+          <Languages size={15} />
+          <span>
+            Файлы на диске не перезаписываются. При следующих сканированиях Nova
+            применяет то же исправление к метаданным.
+          </span>
+        </div>
+      </section>
+
+      <section className="settings-section">
+        <div className="settings-section-head">
           <h2 className="serif">Скрытые треки</h2>
           <span className="settings-badge">{hidden.length}</span>
         </div>
@@ -852,6 +961,14 @@ export function Settings() {
         busy={duplicateBusy}
         onClose={() => setDuplicateOpen(false)}
         onConfirm={(ids) => void removeDuplicates(ids)}
+      />
+
+      <EncodingFixModal
+        open={encodingOpen}
+        issues={encodingIssues}
+        busy={encodingBusy}
+        onClose={() => setEncodingOpen(false)}
+        onConfirm={() => void applyEncoding()}
       />
     </div>
   );

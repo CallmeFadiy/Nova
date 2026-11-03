@@ -108,9 +108,6 @@ export function TrackTable({
     });
     if (!confirmed) return;
     const ids = [...selected];
-    if (currentId !== null && ids.includes(currentId)) {
-      usePlayerStore.getState().clearQueue();
-    }
     await deleteTracks(ids, true);
     setSelected(new Set());
     setAnchorIndex(null);

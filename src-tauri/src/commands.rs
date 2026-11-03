@@ -1,7 +1,9 @@
 use crate::models::{
     DeleteTracksResult, DownloadResult, Folder, ImportPlaylist, LyricsFile, LyricsResult,
-    MediaCandidate, Playlist, RecognitionResult, ScanResult, Snapshot, Track, TrackHash,
+    MediaCandidate, Playlist, RecognitionResult, ScanResult, Snapshot, TagEncodingIssue,
+    TagEncodingResult, Track, TrackHash,
 };
+use crate::text_encoding::repair_mojibake;
 use crate::{lyrics, media, recognition, scanner, AppState};
 use rusqlite::{params, Connection, OptionalExtension};
 use sha1::{Digest, Sha1};
@@ -530,6 +532,89 @@ fn sha1_file(path: &std::path::Path) -> std::io::Result<String> {
 }
 
 #[tauri::command]
+pub fn delete_missing_tracks(
+    state: State<'_, AppState>,
+) -> Result<DeleteTracksResult, String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    let deleted = conn
+        .execute("DELETE FROM tracks WHERE missing = 1", [])
+        .map_err(|e| e.to_string())?;
+    Ok(DeleteTracksResult {
+        deleted,
+        failed: Vec::new(),
+        snapshot: snapshot(&conn)?,
+    })
+}
+
+const TAG_FIELDS: [&str; 4] = ["title", "artist", "album", "album_artist"];
+
+fn tag_encoding_issues(conn: &Connection) -> Result<Vec<TagEncodingIssue>, String> {
+    let mut stmt = conn
+        .prepare("SELECT id, path, title, artist, album, album_artist FROM tracks")
+        .map_err(|e| e.to_string())?;
+    let rows = stmt
+        .query_map([], |row| {
+            Ok((
+                row.get::<_, i64>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+                row.get::<_, String>(3)?,
+                row.get::<_, String>(4)?,
+                row.get::<_, String>(5)?,
+            ))
+        })
+        .map_err(|e| e.to_string())?;
+
+    let mut issues = Vec::new();
+    for row in rows {
+        let (track_id, path, title, artist, album, album_artist) =
+            row.map_err(|e| e.to_string())?;
+        let values = [title, artist, album, album_artist];
+        for (field, value) in TAG_FIELDS.iter().zip(values.iter()) {
+            if let Some(after) = repair_mojibake(value) {
+                issues.push(TagEncodingIssue {
+                    track_id,
+                    path: path.clone(),
+                    field: (*field).to_string(),
+                    before: value.clone(),
+                    after,
+                });
+            }
+        }
+    }
+    Ok(issues)
+}
+
+#[tauri::command]
+pub fn preview_tag_encoding(
+    state: State<'_, AppState>,
+) -> Result<Vec<TagEncodingIssue>, String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    tag_encoding_issues(&conn)
+}
+
+#[tauri::command]
+pub fn apply_tag_encoding(
+    state: State<'_, AppState>,
+) -> Result<TagEncodingResult, String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    let issues = tag_encoding_issues(&conn)?;
+    let now = crate::db::now_secs();
+    for issue in &issues {
+        let sql = format!(
+            "UPDATE tracks SET {} = ?1, updated_at = ?2 WHERE id = ?3",
+            issue.field
+        );
+        conn.execute(&sql, params![issue.after, now, issue.track_id])
+            .map_err(|e| e.to_string())?;
+    }
+    Ok(TagEncodingResult {
+        fixed: issues.len(),
+        snapshot: snapshot(&conn)?,
+    })
+}
+
+#[tauri::command]
 pub async fn hash_tracks(
     state: State<'_, AppState>,
     track_ids: Vec<i64>,
@@ -745,6 +830,15 @@ pub async fn get_lyrics(
 #[tauri::command]
 pub fn list_lyrics(app: AppHandle) -> Result<Vec<LyricsFile>, String> {
     lyrics::list(&app)
+}
+
+#[tauri::command]
+pub fn save_lyrics(
+    app: AppHandle,
+    file_name: String,
+    text: String,
+) -> Result<String, String> {
+    lyrics::save(&app, &file_name, &text)
 }
 
 #[tauri::command]

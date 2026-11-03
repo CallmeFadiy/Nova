@@ -72,6 +72,23 @@ pub struct TrackHash {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct TagEncodingIssue {
+    pub track_id: i64,
+    pub path: String,
+    pub field: String,
+    pub before: String,
+    pub after: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TagEncodingResult {
+    pub fixed: usize,
+    pub snapshot: Snapshot,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ScanResult {
     pub added: usize,
     pub updated: usize,

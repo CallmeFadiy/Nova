@@ -1,4 +1,5 @@
 use crate::models::{ScanProgress, ScanResult};
+use crate::text_encoding::repair_mojibake;
 use lofty::prelude::*;
 use lofty::tag::ItemKey;
 use rusqlite::{params, Connection, OptionalExtension};
@@ -256,7 +257,18 @@ fn parse_track(path: &Path, app_dir: &Path) -> ParsedTrack {
         parsed.cover_path = folder_cover(path, app_dir);
     }
 
+    repair_in_place(&mut parsed.title);
+    repair_in_place(&mut parsed.artist);
+    repair_in_place(&mut parsed.album);
+    repair_in_place(&mut parsed.album_artist);
+
     parsed
+}
+
+fn repair_in_place(value: &mut String) {
+    if let Some(repaired) = repair_mojibake(value) {
+        *value = repaired;
+    }
 }
 
 fn split_file_name(stem: &str) -> (String, String) {

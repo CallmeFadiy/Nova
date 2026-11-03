@@ -74,11 +74,9 @@ export function DuplicateTracksModal({
         "группа",
         "группы",
         "групп",
-      ])} · ${deleteCount} ${pluralRu(deleteCount, [
-        "файл отмечен",
-        "файла отмечено",
-        "файлов отмечено",
-      ])}`}
+      ])} · ${
+        allVerified ? "содержимое сверено по SHA-1" : "совпадения по тегам"
+      }`}
       size="lg"
     >
       <div className="duplicate-tracks-modal">
@@ -109,6 +107,12 @@ export function DuplicateTracksModal({
                     <span>{group.artist}</span>
                   </div>
                   <div className="duplicate-group-actions">
+                    <span
+                      className="duplicate-recommendation"
+                      title="Рекомендуемый файл по битрейту и формату"
+                    >
+                      Рекомендуется: {group.recommendation}
+                    </span>
                     {group.verified ? (
                       <span className="duplicate-verified">
                         <ShieldCheck size={11} />

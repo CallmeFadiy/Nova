@@ -1,23 +1,33 @@
 import { useEffect, useState } from "react";
 import {
+  ChevronDown,
+  ChevronUp,
+  Clock3,
   Download,
   ExternalLink,
   FolderOpen,
+  History,
   Loader2,
   Music2,
   Pause,
   Play,
+  RefreshCw,
   Search,
   Settings2,
   Volume2,
+  X,
 } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { formatDuration, pluralRu } from "../lib/format";
-import { api, openExternal, pickFolder } from "../lib/tauri";
+import { formatDuration } from "../lib/format";
+import {
+  api,
+  openExternal,
+  pickFolder,
+  revealInFolder,
+} from "../lib/tauri";
 import { DuplicateDownloadModal } from "../components/DuplicateDownloadModal";
 import { useDownloadProgress } from "../hooks/useDownloadProgress";
 import { findDuplicateTrack, useLibraryStore } from "../store/library";
-import { usePlayerStore } from "../store/player";
 import { useSettingsStore } from "../store/settings";
 import { useUiStore } from "../store/ui";
 import type { DownloadResult, MediaCandidate, Track } from "../types";
@@ -34,13 +44,25 @@ export function Downloads() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const seedQuery = searchParams.get("q") ?? "";
-  const { items, setProgress } = useDownloadProgress();
+  const {
+    items,
+    pending,
+    paused,
+    history,
+    setProgress,
+    pauseQueue,
+    resumeQueue,
+    cancelQueued,
+    moveQueued,
+    clearHistory,
+  } = useDownloadProgress();
 
   const [query, setQuery] = useState(seedQuery);
   const [searching, setSearching] = useState(false);
   const [results, setResults] = useState<MediaCandidate[]>([]);
   const [link, setLink] = useState("");
   const [startingLink, setStartingLink] = useState(false);
+  const [tab, setTab] = useState<"active" | "history">("active");
   const [previewAudio, setPreviewAudio] = useState<HTMLAudioElement | null>(null);
   const [previewing, setPreviewing] = useState<string | null>(null);
   const [conflict, setConflict] = useState<{
@@ -152,6 +174,8 @@ export function Downloads() {
       status: "starting",
       path: null,
       error: null,
+      order: Date.now(),
+      title: `${candidate.artist} – ${candidate.title}`,
     });
     try {
       const result = candidate.downloadUrl
@@ -174,9 +198,6 @@ export function Downloads() {
           });
       await finishDownload(id, result);
       if (replace) {
-        if (usePlayerStore.getState().currentId === replace.id) {
-          usePlayerStore.getState().clearQueue();
-        }
         await deleteTrack(replace.id, true);
       }
     } catch (error) {
@@ -218,13 +239,18 @@ export function Downloads() {
         status: "error",
         path: null,
         error: message,
+        title: `${candidate.artist} – ${candidate.title}`,
+        retry: () => {
+          void startCandidate(candidate, replace);
+        },
       });
       notify(message, "error");
     }
   };
 
   const downloadLink = async () => {
-    if (!link.trim()) return;
+    const target = link.trim();
+    if (!target) return;
     setStartingLink(true);
     const id = `link-${Date.now()}`;
     setProgress({
@@ -234,27 +260,29 @@ export function Downloads() {
       status: "starting",
       path: null,
       error: null,
+      order: Date.now(),
+      title: target,
     });
     try {
       const isDirectAudio = /\.(mp3|m4a|aac|ogg|opus|wav|flac|webm)(\?|$)/i.test(
-        link.trim(),
+        target,
       );
       const isZaycevPage = /zaycev\.net\/pages\/[^/]+\/\d+\.shtml/i.test(
-        link.trim(),
+        target,
       );
       const result =
         isDirectAudio || isZaycevPage
           ? await api.downloadDirect({
               id,
-              url: link.trim(),
+              url: target,
               outputDir: downloadDir,
               fileName: isZaycevPage
                 ? undefined
-                : (link.split("/").pop()?.split("?")[0] ?? "track"),
+                : (target.split("/").pop()?.split("?")[0] ?? "track"),
             })
           : await api.downloadMedia({
               id,
-              url: link.trim(),
+              url: target,
               outputDir: downloadDir,
               ytdlpPath,
             });
@@ -270,6 +298,10 @@ export function Downloads() {
         status: "error",
         path: null,
         error: message,
+        title: target,
+        retry: () => {
+          void downloadLink();
+        },
       });
       notify(message, "error");
     } finally {
@@ -277,11 +309,26 @@ export function Downloads() {
     }
   };
 
+  const statusRank: Record<string, number> = {
+    downloading: 0,
+    starting: 1,
+    queued: 2,
+    error: 3,
+    done: 4,
+  };
   const downloads = Object.values(items)
     .filter(
-      (item) => item.status === "starting" || item.status === "downloading",
+      (item) =>
+        item.status === "queued" ||
+        item.status === "starting" ||
+        item.status === "downloading",
     )
-    .sort((a, b) => a.id.localeCompare(b.id));
+    .sort(
+      (a, b) =>
+        (statusRank[a.status] ?? 9) - (statusRank[b.status] ?? 9) ||
+        (a.order ?? 0) - (b.order ?? 0) ||
+        a.id.localeCompare(b.id),
+    );
 
   return (
     <div className="page">
@@ -449,50 +496,176 @@ export function Downloads() {
       </section>
 
       <section className="downloads-list-section">
-        <div className="section-head">
-          <h3 className="serif">Текущие загрузки</h3>
-          <span className="section-link">
-            {downloads.length > 0
-              ? `${downloads.length} ${pluralRu(downloads.length, [
-                  "задача",
-                  "задачи",
-                  "задач",
-                ])}`
-              : "нет активных"}
-          </span>
+        <div className="section-head downloads-section-head">
+          <div className="downloads-tabs">
+            <button
+              className={tab === "active" ? "is-active" : ""}
+              onClick={() => setTab("active")}
+            >
+              <Download size={13} />
+              Текущие
+              <span>{downloads.length}</span>
+            </button>
+            <button
+              className={tab === "history" ? "is-active" : ""}
+              onClick={() => setTab("history")}
+            >
+              <History size={13} />
+              История
+              <span>{history.length}</span>
+            </button>
+          </div>
+          <div className="downloads-head-actions">
+            {tab === "active" && pending.length > 0 ? (
+              <button
+                className="ghost-button"
+                onClick={paused ? resumeQueue : pauseQueue}
+                title={
+                  paused
+                    ? "Продолжить очередь"
+                    : "Приостановить очередь после текущей загрузки"
+                }
+              >
+                {paused ? <Play size={13} /> : <Pause size={13} />}
+                {paused ? "Продолжить" : "Пауза очереди"}
+              </button>
+            ) : null}
+            {tab === "history" && history.length > 0 ? (
+              <button className="text-button" onClick={clearHistory}>
+                Очистить
+              </button>
+            ) : null}
+          </div>
         </div>
-        {downloads.length === 0 ? (
+
+        {tab === "active" ? (
+          downloads.length === 0 ? (
+            <div className="downloads-empty small">
+              <Download size={20} />
+              <p>Сейчас ничего не скачивается.</p>
+            </div>
+          ) : (
+            <div className="download-list">
+              {downloads.map((item) => {
+                const pendingIndex = pending.indexOf(item.id);
+                return (
+                  <div className="download-row" key={item.id}>
+                    <div
+                      className={`download-status download-status-${item.status}`}
+                    >
+                      {item.status === "queued" ? (
+                        <Clock3 size={14} />
+                      ) : (
+                        <Loader2 size={14} className="spin" />
+                      )}
+                    </div>
+                    <div className="download-info">
+                      <strong>{item.line || "Загрузка"}</strong>
+                      <div className="download-bar">
+                        <span
+                          style={{
+                            width: `${
+                              item.status === "queued"
+                                ? 0
+                                : Math.max(2, item.percent)
+                            }%`,
+                          }}
+                        />
+                      </div>
+                      <small>
+                        {item.status === "queued"
+                          ? "ждёт очереди"
+                          : item.status === "starting"
+                            ? "поиск источника"
+                            : `${Math.round(item.percent)}%`}
+                      </small>
+                    </div>
+                    {item.status === "queued" && pendingIndex >= 0 ? (
+                      <div className="download-row-actions">
+                        <button
+                          className="icon-button tiny"
+                          onClick={() => moveQueued(item.id, -1)}
+                          disabled={pendingIndex === 0}
+                          title="Выше"
+                          aria-label="Выше"
+                        >
+                          <ChevronUp size={13} />
+                        </button>
+                        <button
+                          className="icon-button tiny"
+                          onClick={() => moveQueued(item.id, 1)}
+                          disabled={pendingIndex === pending.length - 1}
+                          title="Ниже"
+                          aria-label="Ниже"
+                        >
+                          <ChevronDown size={13} />
+                        </button>
+                        <button
+                          className="icon-button tiny danger"
+                          onClick={() => cancelQueued(item.id)}
+                          title="Отменить"
+                          aria-label="Отменить"
+                        >
+                          <X size={13} />
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
+                );
+              })}
+            </div>
+          )
+        ) : history.length === 0 ? (
           <div className="downloads-empty small">
-            <Download size={20} />
-            <p>Сейчас ничего не скачивается.</p>
+            <History size={20} />
+            <p>История загрузок пуста.</p>
           </div>
         ) : (
           <div className="download-list">
-            {downloads.map((item) => (
-              <div className="download-row" key={item.id}>
+            {history.map((entry) => (
+              <div className="download-row" key={entry.id}>
                 <div
-                  className={`download-status download-status-${item.status}`}
+                  className={`download-status download-status-${entry.status}`}
                 >
-                  {item.status === "done" ? (
+                  {entry.status === "done" ? (
                     <Download size={14} />
-                  ) : item.status === "error" ? (
-                    <Pause size={14} />
                   ) : (
-                    <Loader2 size={14} className="spin" />
+                    <Pause size={14} />
                   )}
                 </div>
                 <div className="download-info">
-                  <strong>{item.line || "Загрузка"}</strong>
-                  <div className="download-bar">
-                    <span style={{ width: `${Math.max(2, item.percent)}%` }} />
+                  <strong>{entry.title}</strong>
+                  <small>{entry.status === "done" ? entry.path : entry.error}</small>
+                  <div className="download-history-meta">
+                    <span>
+                      {new Date(entry.finishedAt).toLocaleString("ru-RU", {
+                        day: "2-digit",
+                        month: "2-digit",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </span>
+                    <div className="download-row-actions">
+                      {entry.path ? (
+                        <button
+                          className="text-button"
+                          onClick={() => void revealInFolder(entry.path ?? "")}
+                        >
+                          <FolderOpen size={12} />
+                          Открыть папку
+                        </button>
+                      ) : null}
+                      {entry.retry ? (
+                        <button
+                          className="text-button"
+                          onClick={() => entry.retry?.()}
+                        >
+                          <RefreshCw size={12} />
+                          Повторить
+                        </button>
+                      ) : null}
+                    </div>
                   </div>
-                  <small>
-                    {item.status === "done"
-                      ? item.path
-                      : item.status === "error"
-                        ? item.error
-                        : `${Math.round(item.percent)}%`}
-                  </small>
                 </div>
               </div>
             ))}

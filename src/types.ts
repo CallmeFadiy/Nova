@@ -117,9 +117,23 @@ export interface DownloadProgress {
   id: string;
   percent: number;
   line: string;
-  status: "downloading" | "done" | "error" | "starting";
+  status: "queued" | "downloading" | "done" | "error" | "starting";
   path: string | null;
   error: string | null;
+  order?: number;
+  title?: string;
+  retry?: () => void;
+}
+
+export interface DownloadHistoryItem {
+  id: string;
+  title: string;
+  line: string;
+  status: "done" | "error";
+  path: string | null;
+  error: string | null;
+  finishedAt: number;
+  retry?: () => void;
 }
 
 export interface DownloadResult {
@@ -137,6 +151,19 @@ export interface DeleteTracksResult {
 export interface TrackHash {
   trackId: number;
   hash: string;
+}
+
+export interface TagEncodingIssue {
+  trackId: number;
+  path: string;
+  field: "title" | "artist" | "album" | "album_artist";
+  before: string;
+  after: string;
+}
+
+export interface TagEncodingResult {
+  fixed: number;
+  snapshot: Snapshot;
 }
 
 export interface RecognitionResult {

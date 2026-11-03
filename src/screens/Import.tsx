@@ -17,7 +17,6 @@ import { api, openExternal } from "../lib/tauri";
 import { DuplicateDownloadModal } from "../components/DuplicateDownloadModal";
 import { useDownloadProgress } from "../hooks/useDownloadProgress";
 import { findDuplicateTrack, useLibraryStore } from "../store/library";
-import { usePlayerStore } from "../store/player";
 import { useSettingsStore } from "../store/settings";
 import { useUiStore } from "../store/ui";
 import type {
@@ -44,7 +43,8 @@ export function Import() {
   const tracks = useLibraryStore((state) => state.tracks);
   const deleteTrack = useLibraryStore((state) => state.deleteTrack);
   const notify = useUiStore((state) => state.notify);
-  const { items, setProgress } = useDownloadProgress();
+  const { items, setProgress, enqueue, nextQueued, resumeQueue } =
+    useDownloadProgress();
 
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);
@@ -154,8 +154,7 @@ export function Import() {
     return result;
   };
 
-  const downloadOne = async (index: number, track: ImportTrack) => {
-    const id = `import-${index}-${Date.now()}`;
+  const downloadOne = async (id: string, track: ImportTrack) => {
     setProgress({
       id,
       percent: 0,
@@ -247,8 +246,19 @@ export function Import() {
         status: "error",
         path: null,
         error: message,
+        retry: () => {
+          void retryImportDownload(id, track);
+        },
       });
       return null;
+    }
+  };
+
+  const retryImportDownload = async (id: string, track: ImportTrack) => {
+    const result = await downloadOne(id, track);
+    if (result) {
+      if (result.directory) await addFolder(result.directory);
+      else await scan();
     }
   };
 
@@ -282,10 +292,14 @@ export function Import() {
     if (!playlist || selected.size === 0) return;
     setDownloading(true);
     const duplicates = duplicateMap();
-    let directory: string | null = null;
-    let succeeded = 0;
+    const orderBase = Date.now();
+    const pending: Array<{
+      id: string;
+      index: number;
+      track: ImportTrack;
+      order: number;
+    }> = [];
     let skipped = 0;
-    const replacedIds: number[] = [];
 
     for (const index of [...selected].sort((a, b) => a - b)) {
       const track = playlist.tracks[index];
@@ -294,16 +308,71 @@ export function Import() {
         skipped += 1;
         continue;
       }
-      const result = await downloadOne(index, track);
-      if (result) {
-        succeeded += 1;
-        directory = result.directory;
-        const existing = duplicates.get(index);
-        if (mode === "replace" && existing) {
-          replacedIds.push(existing.id);
+      const position = pending.length;
+      pending.push({
+        id: `import-${index}-${orderBase}-${position}`,
+        index,
+        track,
+        order: orderBase + position,
+      });
+    }
+
+    // Register every selected track before the first network request so the
+    // Current downloads section shows both the active item and the queue.
+    for (const item of pending) {
+      setProgress({
+        id: item.id,
+        percent: 0,
+        line: `В очереди: ${item.track.artist} – ${item.track.title}`,
+        status: "queued",
+        path: null,
+        error: null,
+        order: item.order,
+        title: `${item.track.artist} – ${item.track.title}`,
+      });
+    }
+
+    let directory: string | null = null;
+    let succeeded = 0;
+    const replacedIds: number[] = [];
+    const pendingById = new Map(pending.map((item) => [item.id, item]));
+    enqueue(pending.map((item) => item.id));
+
+    for (;;) {
+      const id = await nextQueued();
+      if (!id) break;
+      const item = pendingById.get(id);
+      if (!item) continue;
+      try {
+        const result = await downloadOne(item.id, item.track);
+        if (result) {
+          succeeded += 1;
+          directory = result.directory;
+          const existing = duplicates.get(item.index);
+          if (mode === "replace" && existing) {
+            replacedIds.push(existing.id);
+          }
         }
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : "Ошибка загрузки";
+        setProgress({
+          id: item.id,
+          percent: 0,
+          line: message,
+          status: "error",
+          path: null,
+          error: message,
+          order: item.order,
+          title: `${item.track.artist} – ${item.track.title}`,
+          retry: () => {
+            void retryImportDownload(item.id, item.track);
+          },
+        });
       }
     }
+
+    resumeQueue();
 
     if (directory) {
       await addFolder(directory);
@@ -313,9 +382,6 @@ export function Import() {
 
     if (mode === "replace") {
       for (const id of replacedIds) {
-        if (usePlayerStore.getState().currentId === id) {
-          usePlayerStore.getState().clearQueue();
-        }
         await deleteTrack(id, true);
       }
     }
@@ -464,6 +530,10 @@ export function Import() {
                       <span className="status-done">Готово</span>
                     ) : progress.status === "error" ? (
                       <span className="status-error">Ошибка</span>
+                    ) : progress.status === "queued" ? (
+                      <span className="status-queued">В очереди</span>
+                    ) : progress.status === "starting" ? (
+                      <span className="status-queued">Подготовка</span>
                     ) : (
                       <span className="import-progress-status">
                         <span>
