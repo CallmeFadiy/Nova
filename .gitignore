@@ -46,3 +46,7 @@ dev-data/
 
 # local release artifacts
 release/
+
+# personal media and captured app screenshots
+Music/
+docs/design/screens/

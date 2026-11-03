@@ -1,5 +1,6 @@
 mod commands;
 mod db;
+mod legacy_migration;
 mod lyrics;
 mod media;
 mod models;
@@ -25,6 +26,9 @@ pub fn run() {
             let app_dir = std::env::var_os("NOVA_DATA_DIR")
                 .map(std::path::PathBuf::from)
                 .unwrap_or(app.path().app_data_dir()?);
+            if let Err(error) = legacy_migration::migrate_if_needed(&app_dir) {
+                eprintln!("Legacy data migration skipped: {error}");
+            }
             let conn = db::init(&app_dir)?;
             let folders: Vec<String> = {
                 let mut stmt = conn.prepare("SELECT path FROM folders")?;

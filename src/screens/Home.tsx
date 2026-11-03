@@ -1,6 +1,7 @@
 import {
   ArrowRight,
   FolderPlus,
+  ListMusic,
   Pause,
   Play,
   Shuffle,
@@ -76,6 +77,20 @@ export function Home() {
       visible.map((track) => track.id),
       hero.id,
       "Библиотека",
+    );
+  };
+
+  const playLibrary = () => {
+    if (visible.length === 0) return;
+    const startId =
+      current && visible.some((track) => track.id === current.id)
+        ? current.id
+        : (hero?.id ?? visible[0].id);
+    setContext(
+      visible.map((track) => track.id),
+      startId,
+      "Вся библиотека",
+      true,
     );
   };
 
@@ -250,8 +265,12 @@ export function Home() {
                 <Shuffle size={14} />
                 Перемешать
               </button>
+              <button className="ghost-button" onClick={playLibrary}>
+                <ListMusic size={14} />
+                Играть всю библиотеку
+              </button>
               <Link to="/library" className="ghost-button">
-                Вся библиотека
+                Открыть
                 <ArrowRight size={14} />
               </Link>
             </div>
