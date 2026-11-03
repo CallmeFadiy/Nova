@@ -5837,3 +5837,197 @@ body {
 .queue-item.is-active {
   box-shadow: inset 2px 0 0 var(--accent);
 }
+
+/* =========================================================
+   Polaroid album cards
+   ========================================================= */
+
+.album-grid,
+.library-album-grid {
+  padding-top: 10px;
+}
+
+.album-card {
+  --polaroid-paper: #e7e0d1;
+  --polaroid-ink: #211d17;
+  --polaroid-edge: #c9bea8;
+  --polaroid-tape: rgba(217, 164, 65, 0.62);
+  --polaroid-accent: #8a641e;
+  --polaroid-badge: rgba(255, 255, 255, 0.62);
+  --polaroid-texture: repeating-linear-gradient(
+    115deg,
+    transparent 0 12px,
+    rgba(120, 98, 54, 0.08) 12px 13px
+  );
+  --polaroid-texture-size: auto;
+  position: relative;
+  padding: 9px 9px 11px;
+  border: 1px solid var(--polaroid-edge);
+  background-color: var(--polaroid-paper);
+  background-image: var(--polaroid-texture);
+  background-size: var(--polaroid-texture-size);
+  color: var(--polaroid-ink);
+  box-shadow:
+    0 16px 32px rgba(0, 0, 0, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  transform-origin: 50% 82%;
+  transition:
+    transform 180ms cubic-bezier(0.23, 1, 0.32, 1),
+    box-shadow 180ms ease;
+}
+
+.album-card::before {
+  content: "";
+  position: absolute;
+  top: -8px;
+  left: 50%;
+  z-index: 6;
+  width: 38px;
+  height: 13px;
+  background: var(--polaroid-tape);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
+  transform: translateX(-50%) rotate(-2deg);
+  opacity: 0.78;
+  pointer-events: none;
+}
+
+.album-card:nth-child(4n + 1) {
+  transform: rotate(-0.45deg);
+}
+
+.album-card:nth-child(4n + 2) {
+  transform: rotate(0.35deg);
+}
+
+.album-card:nth-child(4n + 3) {
+  transform: rotate(0.5deg);
+}
+
+.album-card:nth-child(4n + 4) {
+  transform: rotate(-0.3deg);
+}
+
+.album-card:hover {
+  z-index: 2;
+  transform: rotate(0deg) translateY(-4px);
+  box-shadow:
+    0 24px 44px rgba(0, 0, 0, 0.34),
+    inset 0 1px 0 rgba(255, 255, 255, 0.36);
+}
+
+.album-card-art {
+  border-color: color-mix(in srgb, var(--polaroid-ink) 22%, transparent);
+  box-shadow: none;
+}
+
+.album-card-art::after {
+  inset: 6px;
+  border-color: color-mix(in srgb, var(--polaroid-ink) 16%, transparent);
+  opacity: 0.55;
+}
+
+.album-card strong,
+.album-card-copy strong {
+  color: var(--polaroid-ink);
+}
+
+.album-card > span,
+.album-card-copy span,
+.album-card-copy small {
+  color: color-mix(in srgb, var(--polaroid-ink) 64%, transparent);
+}
+
+.album-card-copy small {
+  color: color-mix(in srgb, var(--polaroid-ink) 48%, transparent);
+  font-family: "Playfair Display", serif;
+  font-style: italic;
+}
+
+.album-card-index,
+.album-card-format {
+  border-color: color-mix(in srgb, var(--polaroid-ink) 20%, transparent);
+  background: var(--polaroid-badge);
+  color: var(--polaroid-ink);
+}
+
+.album-card-index {
+  color: var(--polaroid-accent);
+}
+
+.album-play {
+  background: rgba(12, 12, 14, 0.82);
+  color: #fff;
+}
+
+:root[data-theme="ice"] .album-card {
+  --polaroid-paper: #dcecf3;
+  --polaroid-ink: #10212a;
+  --polaroid-edge: #aecbd5;
+  --polaroid-tape: rgba(102, 217, 255, 0.46);
+  --polaroid-accent: #116d87;
+  --polaroid-badge: rgba(255, 255, 255, 0.66);
+  --polaroid-texture: repeating-linear-gradient(
+    135deg,
+    rgba(38, 125, 156, 0.08) 0 1px,
+    transparent 1px 11px
+  );
+}
+
+:root[data-theme="fire"] .album-card {
+  --polaroid-paper: #e5cdbd;
+  --polaroid-ink: #2b130c;
+  --polaroid-edge: #b98d74;
+  --polaroid-tape: rgba(255, 122, 61, 0.58);
+  --polaroid-accent: #a63d1d;
+  --polaroid-badge: rgba(255, 248, 241, 0.55);
+  --polaroid-texture:
+    radial-gradient(circle at 50% 110%, rgba(166, 61, 29, 0.16), transparent 58%),
+    repeating-linear-gradient(
+      0deg,
+      transparent 0 8px,
+      rgba(166, 61, 29, 0.055) 8px 9px
+    );
+  --polaroid-texture-size: auto, auto;
+}
+
+:root[data-theme="ash"] .album-card {
+  --polaroid-paper: #d8d3c8;
+  --polaroid-ink: #23221f;
+  --polaroid-edge: #b4aea0;
+  --polaroid-tape: rgba(201, 163, 123, 0.52);
+  --polaroid-accent: #6f5438;
+  --polaroid-badge: rgba(255, 255, 255, 0.5);
+  --polaroid-texture: radial-gradient(
+    rgba(50, 47, 42, 0.12) 0.55px,
+    transparent 0.8px
+  );
+  --polaroid-texture-size: 5px 5px;
+}
+
+:root[data-theme="cyberpunk"] .album-card {
+  --polaroid-paper: #140a21;
+  --polaroid-ink: #f6eaff;
+  --polaroid-edge: rgba(255, 79, 216, 0.52);
+  --polaroid-tape: rgba(84, 204, 255, 0.48);
+  --polaroid-accent: #54ccff;
+  --polaroid-badge: rgba(20, 10, 33, 0.82);
+  --polaroid-texture:
+    linear-gradient(rgba(255, 79, 216, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(84, 204, 255, 0.07) 1px, transparent 1px);
+  --polaroid-texture-size: 14px 14px, 14px 14px;
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%);
+  box-shadow:
+    0 0 0 1px rgba(84, 204, 255, 0.08),
+    0 18px 38px rgba(0, 0, 0, 0.42);
+}
+
+:root[data-theme="cyberpunk"] .album-card::before {
+  background: linear-gradient(90deg, rgba(255, 79, 216, 0.55), rgba(84, 204, 255, 0.55));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .album-card,
+  .album-card:hover {
+    transform: none;
+  }
+}
