@@ -520,7 +520,10 @@ export function Settings() {
                   } as CSSProperties
                 }
               >
-                <span className="theme-preview">
+                <span
+                  className="theme-preview"
+                  data-theme-preview={option.id}
+                >
                   <i />
                   <b />
                   <em />

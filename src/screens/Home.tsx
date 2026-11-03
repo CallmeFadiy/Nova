@@ -5,6 +5,7 @@ import {
   Play,
   Shuffle,
 } from "lucide-react";
+import type { CSSProperties } from "react";
 import { Link } from "react-router-dom";
 import { Cover } from "../components/Cover";
 import { ScanButton } from "../components/ScanButton";
@@ -37,6 +38,8 @@ export function Home() {
   const shuffle = usePlayerStore((state) => state.shuffle);
   const isPlaying = usePlayerStore((state) => state.isPlaying);
   const positionMs = usePlayerStore((state) => state.positionMs);
+  const durationMs = usePlayerStore((state) => state.durationMs);
+  const seek = usePlayerStore((state) => state.seek);
   const current = useCurrentTrack();
   const notify = useUiStore((state) => state.notify);
 
@@ -47,6 +50,11 @@ export function Home() {
     .slice(0, 4);
   const hero = current ?? recent[0] ?? null;
   const heroIsCurrent = Boolean(current && hero && current.id === hero.id);
+  const heroDuration = heroIsCurrent
+    ? durationMs || hero?.durationMs || 0
+    : hero?.durationMs || 0;
+  const heroProgress =
+    heroDuration > 0 ? (positionMs / heroDuration) * 100 : 0;
 
   const playHero = () => {
     if (!hero) return;
@@ -183,27 +191,44 @@ export function Home() {
                 "Недавно добавлено"
               )}
             </span>
+            <span className="hero-catalog">
+              NOVA / {String(hero.id).padStart(4, "0")}
+            </span>
             <h2 className="serif">{hero.title}</h2>
             <p className="hero-artist">{hero.artist}</p>
-            <p className="hero-album">
-              {hero.album}
-              {hero.year ? ` · ${hero.year}` : ""} ·{" "}
-              {formatDuration(hero.durationMs)} · {hero.format || "audio"}
-            </p>
+            <div className="hero-meta">
+              <span className="hero-meta-album">
+                {hero.album || "Без альбома"}
+              </span>
+              <span className="hero-meta-divider" />
+              {hero.year ? (
+                <span className="hero-chip">{hero.year}</span>
+              ) : null}
+              <span className="hero-chip">{formatDuration(hero.durationMs)}</span>
+              <span className="hero-chip">{hero.format || "AUDIO"}</span>
+            </div>
 
             {heroIsCurrent ? (
-              <div className="hero-progress">
+              <div className="hero-progress hero-seek">
                 <span>{formatDuration(positionMs)}</span>
-                <div className="progress-track">
-                  <span
-                    style={{
-                      width: `${
-                        (positionMs / Math.max(1, hero.durationMs)) * 100
-                      }%`,
-                    }}
-                  />
-                </div>
-                <span>{formatDuration(hero.durationMs)}</span>
+                <input
+                  className="range seek-range hero-seek-range"
+                  type="range"
+                  min={0}
+                  max={Math.max(1, heroDuration)}
+                  value={Math.min(positionMs, Math.max(1, heroDuration))}
+                  onChange={(event) => seek(Number(event.target.value))}
+                  onInput={(event) =>
+                    seek(Number(event.currentTarget.value))
+                  }
+                  aria-label="Перемотка трека на главной"
+                  style={
+                    {
+                      "--range-progress": `${heroProgress}%`,
+                    } as CSSProperties
+                  }
+                />
+                <span>{formatDuration(heroDuration)}</span>
               </div>
             ) : null}
 
@@ -242,16 +267,25 @@ export function Home() {
           </Link>
         </div>
         <div className="album-grid">
-          {recent.map((track) => (
+          {recent.map((track, index) => (
             <article className="album-card" key={track.id}>
               <button className="album-card-art" onClick={() => playTrack(track)}>
                 <Cover track={track} className="album-card-cover" />
+                <span className="album-card-index">
+                  {String(index + 1).padStart(2, "0")}
+                </span>
+                <span className="album-card-format">
+                  {track.format || "AUDIO"}
+                </span>
                 <span className="album-play">
                   <Play size={14} fill="currentColor" />
                 </span>
               </button>
-              <strong>{track.title}</strong>
-              <span>{track.artist}</span>
+              <div className="album-card-copy">
+                <strong>{track.title}</strong>
+                <span>{track.artist}</span>
+                <small>{track.album}</small>
+              </div>
             </article>
           ))}
         </div>
