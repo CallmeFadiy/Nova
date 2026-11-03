@@ -34,6 +34,7 @@ export function TrackTable({
   const currentId = usePlayerStore((state) => state.currentId);
   const isPlaying = usePlayerStore((state) => state.isPlaying);
   const setContext = usePlayerStore((state) => state.setContext);
+  const togglePlay = usePlayerStore((state) => state.togglePlay);
   const toggleFavorite = useLibraryStore((state) => state.toggleFavorite);
   const deleteTracks = useLibraryStore((state) => state.deleteTracks);
   const openTrackActions = useUiStore((state) => state.openTrackActions);
@@ -87,6 +88,10 @@ export function TrackTable({
     }
     setSelected(new Set([track.id]));
     setAnchorIndex(index);
+    if (track.id === currentId) {
+      togglePlay();
+      return;
+    }
     setContext(
       tracks.map((item) => item.id),
       track.id,

@@ -3,6 +3,7 @@ import {
   ChevronLeft,
   Disc3,
   FolderPlus,
+  Pause,
   Play,
   Plus,
   Search,
@@ -78,6 +79,9 @@ export function Library({ initialTab = "tracks" }: { initialTab?: Tab }) {
   const removeFolder = useLibraryStore((state) => state.removeFolder);
   const setContext = usePlayerStore((state) => state.setContext);
   const toggleShuffle = usePlayerStore((state) => state.toggleShuffle);
+  const togglePlay = usePlayerStore((state) => state.togglePlay);
+  const currentId = usePlayerStore((state) => state.currentId);
+  const isPlaying = usePlayerStore((state) => state.isPlaying);
   const openCreatePlaylist = useUiStore((state) => state.setCreatePlaylistOpen);
   const openMergeAlbums = useUiStore((state) => state.openMergeAlbums);
   const notify = useUiStore((state) => state.notify);
@@ -106,6 +110,12 @@ export function Library({ initialTab = "tracks" }: { initialTab?: Tab }) {
   }, [visible, search, sort]);
 
   const selectedAlbum = albums.find((album) => album.key === albumKey) ?? null;
+  const albumIsCurrent = Boolean(
+    selectedAlbum &&
+      currentId !== null &&
+      selectedAlbum.tracks.some((track) => track.id === currentId),
+  );
+  const albumPlaying = albumIsCurrent && isPlaying;
 
   const handleAddFolder = async () => {
     const path = await pickFolder();
@@ -157,15 +167,23 @@ export function Library({ initialTab = "tracks" }: { initialTab?: Tab }) {
             <div className="hero-actions">
               <button
                 className="primary-button"
-                onClick={() =>
+                onClick={() => {
+                  if (albumIsCurrent) {
+                    togglePlay();
+                    return;
+                  }
                   playAlbum(
                     selectedAlbum.tracks,
                     `Альбом «${selectedAlbum.name}»`,
-                  )
-                }
+                  );
+                }}
               >
-                <Play size={15} fill="currentColor" />
-                Играть
+                {albumPlaying ? (
+                  <Pause size={15} fill="currentColor" />
+                ) : (
+                  <Play size={15} fill="currentColor" />
+                )}
+                {albumPlaying ? "Пауза" : "Играть"}
               </button>
               <button
                 className="secondary-button"
