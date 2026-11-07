@@ -145,7 +145,18 @@ class NovaMobilePlugin(private val activity: Activity) : Plugin(activity) {
             type = "audio/*"
             putExtra(
                 Intent.EXTRA_MIME_TYPES,
-                arrayOf("audio/mpeg", "audio/flac", "audio/wav", "audio/ogg", "audio/mp4"),
+                arrayOf(
+                    "audio/mpeg",
+                    "audio/flac",
+                    "audio/x-flac",
+                    "audio/wav",
+                    "audio/x-wav",
+                    "audio/ogg",
+                    "audio/opus",
+                    "audio/mp4",
+                    "audio/aac",
+                    "audio/webm",
+                ),
             )
         }
         launchPicker(invoke, intent, "pickAudioResult")

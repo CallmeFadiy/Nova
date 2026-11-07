@@ -27,4 +27,14 @@ class NovaStorageTest {
     fun malformed() {
         assertNull(treeDocumentIdToPath("primary", "/storage/emulated/0"))
     }
+
+    @Test
+    fun traversal() {
+        assertNull(treeDocumentIdToPath("primary:../data", "/storage/emulated/0"))
+    }
+
+    @Test
+    fun traversalDeep() {
+        assertNull(treeDocumentIdToPath("primary:Music/../..", "/storage/emulated/0"))
+    }
 }

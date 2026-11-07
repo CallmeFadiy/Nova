@@ -17,12 +17,16 @@ private val ILLEGAL_FILENAME_CHARS = Regex("[\\\\/:*?\"<>|]")
  * `primary:Music` maps onto [primaryRoot], other volumes (`1234-ABCD:Music`) onto
  * `/storage/<volume>/<relative>`. Paths are joined with `/` instead of
  * [File] so the function stays host independent and can be unit tested on the JVM.
+ * Ids whose volume contains `/` or whose relative part contains `.` or `..`
+ * segments are rejected.
  */
 internal fun treeDocumentIdToPath(documentId: String, primaryRoot: String): String? {
     val separator = documentId.indexOf(':')
     if (separator <= 0) return null
     val volume = documentId.substring(0, separator)
+    if (volume.contains('/')) return null
     val relative = documentId.substring(separator + 1).trim('/')
+    if (relative.split('/').any { it == "." || it == ".." }) return null
     val root = if (volume == "primary") primaryRoot.trimEnd('/') else "/storage/$volume"
     if (root.isEmpty()) return null
     return if (relative.isEmpty()) root else "$root/$relative"
