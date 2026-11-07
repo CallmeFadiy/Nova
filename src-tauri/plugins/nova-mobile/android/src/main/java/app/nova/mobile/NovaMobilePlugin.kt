@@ -16,6 +16,60 @@ import app.tauri.plugin.Plugin
 
 @TauriPlugin
 class NovaMobilePlugin(private val activity: Activity) : Plugin(activity) {
+    private var audioController: NovaAudioController? = null
+
+    private fun audio(): NovaAudioController =
+        audioController ?: NovaAudioController(activity.applicationContext).also {
+            audioController = it
+        }
+
+    @Command
+    fun audioSetQueue(invoke: Invoke) {
+        audio().setQueue(invoke.parseArgs(AudioQueueArgs::class.java))
+        invoke.resolve()
+    }
+
+    @Command
+    fun audioPlay(invoke: Invoke) {
+        audio().play()
+        invoke.resolve()
+    }
+
+    @Command
+    fun audioPause(invoke: Invoke) {
+        audio().pause()
+        invoke.resolve()
+    }
+
+    @Command
+    fun audioSeek(invoke: Invoke) {
+        audio().seek(invoke.parseArgs(AudioSeekArgs::class.java).positionMs)
+        invoke.resolve()
+    }
+
+    @Command
+    fun audioSetVolume(invoke: Invoke) {
+        audio().setVolume(invoke.parseArgs(AudioVolumeArgs::class.java).value)
+        invoke.resolve()
+    }
+
+    @Command
+    fun audioSetMuted(invoke: Invoke) {
+        audio().setMuted(invoke.parseArgs(AudioMutedArgs::class.java).muted)
+        invoke.resolve()
+    }
+
+    @Command
+    fun audioSetRepeat(invoke: Invoke) {
+        audio().setRepeat(invoke.parseArgs(AudioRepeatArgs::class.java).mode)
+        invoke.resolve()
+    }
+
+    @Command
+    fun audioState(invoke: Invoke) {
+        invoke.resolve(audio().state())
+    }
+
     @Command
     fun hasAllFilesAccess(invoke: Invoke) {
         val granted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {

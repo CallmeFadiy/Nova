@@ -194,3 +194,22 @@ export interface LyricsFile {
   size: number;
   modified: number;
 }
+
+export interface NativeAudioItem {
+  id: number;
+  uri: string;
+  title: string;
+  artist: string;
+  album: string;
+  artworkPath: string | null;
+  durationMs: number;
+}
+
+export interface NativeAudioState {
+  currentIndex: number;
+  positionMs: number;
+  durationMs: number;
+  isPlaying: boolean;
+  ended: boolean;
+  repeat?: string;
+}

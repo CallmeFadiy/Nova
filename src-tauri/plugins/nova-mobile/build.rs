@@ -2,6 +2,14 @@ const COMMANDS: &[&str] = &[
     "hasAllFilesAccess",
     "openAllFilesSettings",
     "requestNotifications",
+    "audioSetQueue",
+    "audioPlay",
+    "audioPause",
+    "audioSeek",
+    "audioSetVolume",
+    "audioSetMuted",
+    "audioSetRepeat",
+    "audioState",
 ];
 
 fn main() {

@@ -11,6 +11,8 @@ import type {
   LyricsFile,
   LyricsResult,
   MediaCandidate,
+  NativeAudioItem,
+  NativeAudioState,
   Playlist,
   RecognitionInput,
   RecognitionLevel,
@@ -186,6 +188,50 @@ export const api = {
 
   androidRequestNotifications(): Promise<void> {
     return call<void>("android_request_notifications");
+  },
+
+  androidAudioSetQueue(
+    items: NativeAudioItem[],
+    startIndex: number,
+    positionMs: number,
+    autoplay: boolean,
+    repeat: string,
+  ): Promise<void> {
+    return call<void>("android_audio_set_queue", {
+      items,
+      startIndex,
+      positionMs,
+      autoplay,
+      repeat,
+    });
+  },
+
+  androidAudioPlay(): Promise<void> {
+    return call<void>("android_audio_play");
+  },
+
+  androidAudioPause(): Promise<void> {
+    return call<void>("android_audio_pause");
+  },
+
+  androidAudioSeek(positionMs: number): Promise<void> {
+    return call<void>("android_audio_seek", { positionMs });
+  },
+
+  androidAudioSetVolume(value: number): Promise<void> {
+    return call<void>("android_audio_set_volume", { value });
+  },
+
+  androidAudioSetMuted(muted: boolean): Promise<void> {
+    return call<void>("android_audio_set_muted", { muted });
+  },
+
+  androidAudioSetRepeat(mode: string): Promise<void> {
+    return call<void>("android_audio_set_repeat", { mode });
+  },
+
+  androidAudioState(): Promise<NativeAudioState> {
+    return call<NativeAudioState>("android_audio_state");
   },
 
   async getSnapshot(): Promise<Snapshot> {

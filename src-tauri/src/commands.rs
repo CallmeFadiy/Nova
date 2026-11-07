@@ -6,6 +6,7 @@ use crate::models::{
 use crate::text_encoding::repair_mojibake;
 use crate::{lyrics, media, recognition, scanner, AppState};
 use rusqlite::{params, Connection, OptionalExtension};
+use serde::{Deserialize, Serialize};
 use sha1::{Digest, Sha1};
 use std::fs;
 use std::io::Read;
@@ -131,14 +132,15 @@ pub fn get_snapshot(state: State<'_, AppState>) -> Result<Snapshot, String> {
 }
 
 #[cfg(target_os = "android")]
-fn run_mobile_command<T: serde::de::DeserializeOwned>(
-    app: &AppHandle,
-    command: &str,
-) -> Result<T, String> {
+fn run_mobile_command<T, P>(app: &AppHandle, command: &str, payload: P) -> Result<T, String>
+where
+    T: serde::de::DeserializeOwned,
+    P: Serialize,
+{
     let state = app.state::<tauri_plugin_nova_mobile::NovaMobile<tauri::Wry>>();
     state
         .0
-        .run_mobile_plugin(command, ())
+        .run_mobile_plugin(command, payload)
         .map_err(|e| e.to_string())
 }
 
@@ -146,7 +148,7 @@ fn run_mobile_command<T: serde::de::DeserializeOwned>(
 pub fn android_permission_state(app: AppHandle) -> Result<String, String> {
     #[cfg(target_os = "android")]
     {
-        let value: serde_json::Value = run_mobile_command(&app, "hasAllFilesAccess")?;
+        let value: serde_json::Value = run_mobile_command(&app, "hasAllFilesAccess", ())?;
         return Ok(
             if value
                 .get("granted")
@@ -170,7 +172,7 @@ pub fn android_permission_state(app: AppHandle) -> Result<String, String> {
 pub fn android_open_all_files_settings(app: AppHandle) -> Result<(), String> {
     #[cfg(target_os = "android")]
     {
-        let _: serde_json::Value = run_mobile_command(&app, "openAllFilesSettings")?;
+        let _: serde_json::Value = run_mobile_command(&app, "openAllFilesSettings", ())?;
     }
     #[cfg(not(target_os = "android"))]
     {
@@ -183,13 +185,180 @@ pub fn android_open_all_files_settings(app: AppHandle) -> Result<(), String> {
 pub fn android_request_notifications(app: AppHandle) -> Result<(), String> {
     #[cfg(target_os = "android")]
     {
-        let _: serde_json::Value = run_mobile_command(&app, "requestNotifications")?;
+        let _: serde_json::Value = run_mobile_command(&app, "requestNotifications", ())?;
     }
     #[cfg(not(target_os = "android"))]
     {
         let _ = app;
     }
     Ok(())
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NativeAudioItem {
+    pub id: i64,
+    pub uri: String,
+    pub title: String,
+    pub artist: String,
+    pub album: String,
+    pub artwork_path: Option<String>,
+    pub duration_ms: i64,
+}
+
+#[cfg(target_os = "android")]
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct AudioQueuePayload {
+    items: Vec<NativeAudioItem>,
+    start_index: usize,
+    position_ms: i64,
+    autoplay: bool,
+    repeat: String,
+}
+
+#[tauri::command]
+pub fn android_audio_set_queue(
+    app: AppHandle,
+    items: Vec<NativeAudioItem>,
+    start_index: usize,
+    position_ms: i64,
+    autoplay: bool,
+    repeat: String,
+) -> Result<(), String> {
+    #[cfg(target_os = "android")]
+    {
+        let _: serde_json::Value = run_mobile_command(
+            &app,
+            "audioSetQueue",
+            AudioQueuePayload {
+                items,
+                start_index,
+                position_ms,
+                autoplay,
+                repeat,
+            },
+        )?;
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        let _ = (app, items, start_index, position_ms, autoplay, repeat);
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn android_audio_play(app: AppHandle) -> Result<(), String> {
+    #[cfg(target_os = "android")]
+    {
+        let _: serde_json::Value = run_mobile_command(&app, "audioPlay", ())?;
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        let _ = app;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn android_audio_pause(app: AppHandle) -> Result<(), String> {
+    #[cfg(target_os = "android")]
+    {
+        let _: serde_json::Value = run_mobile_command(&app, "audioPause", ())?;
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        let _ = app;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn android_audio_seek(app: AppHandle, position_ms: i64) -> Result<(), String> {
+    #[cfg(target_os = "android")]
+    {
+        #[derive(Serialize)]
+        #[serde(rename_all = "camelCase")]
+        struct Payload {
+            position_ms: i64,
+        }
+        let _: serde_json::Value = run_mobile_command(&app, "audioSeek", Payload { position_ms })?;
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        let _ = (app, position_ms);
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn android_audio_set_volume(app: AppHandle, value: f64) -> Result<(), String> {
+    #[cfg(target_os = "android")]
+    {
+        #[derive(Serialize)]
+        struct Payload {
+            value: f64,
+        }
+        let _: serde_json::Value = run_mobile_command(&app, "audioSetVolume", Payload { value })?;
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        let _ = (app, value);
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn android_audio_set_muted(app: AppHandle, muted: bool) -> Result<(), String> {
+    #[cfg(target_os = "android")]
+    {
+        #[derive(Serialize)]
+        struct Payload {
+            muted: bool,
+        }
+        let _: serde_json::Value = run_mobile_command(&app, "audioSetMuted", Payload { muted })?;
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        let _ = (app, muted);
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn android_audio_set_repeat(app: AppHandle, mode: String) -> Result<(), String> {
+    #[cfg(target_os = "android")]
+    {
+        #[derive(Serialize)]
+        struct Payload {
+            mode: String,
+        }
+        let _: serde_json::Value = run_mobile_command(&app, "audioSetRepeat", Payload { mode })?;
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        let _ = (app, mode);
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn android_audio_state(app: AppHandle) -> Result<serde_json::Value, String> {
+    #[cfg(target_os = "android")]
+    {
+        return run_mobile_command(&app, "audioState", ());
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        let _ = app;
+        Ok(serde_json::json!({
+            "currentIndex": -1,
+            "positionMs": 0,
+            "durationMs": 0,
+            "isPlaying": false,
+            "ended": false,
+        }))
+    }
 }
 
 #[tauri::command]

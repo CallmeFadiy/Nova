@@ -2,8 +2,9 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { audioEngine } from "../lib/audio";
 import { shuffleArray } from "../lib/format";
+import { isAndroid } from "../lib/platform";
 import { audioUrl } from "../lib/tauri";
-import type { RepeatMode, Track } from "../types";
+import type { NativeAudioItem, RepeatMode, Track } from "../types";
 import { useLibraryStore, visibleTracks } from "./library";
 
 const POSITION_KEY = "nova.position";
@@ -28,6 +29,48 @@ function readPosition(): number {
 function findTrack(id: number | null): Track | null {
   if (id === null) return null;
   return useLibraryStore.getState().tracks.find((track) => track.id === id) ?? null;
+}
+
+function nativeQueue(
+  order: number[],
+  startId: number | null,
+): { items: NativeAudioItem[]; startIndex: number } {
+  const tracks = useLibraryStore.getState().tracks;
+  const items = order
+    .map((id) => tracks.find((track) => track.id === id))
+    .filter((track): track is Track => Boolean(track))
+    .map((track) => ({
+      id: track.id,
+      uri: track.path,
+      title: track.title,
+      artist: track.artist,
+      album: track.album,
+      artworkPath: track.customCoverPath ?? track.coverPath,
+      durationMs: track.durationMs,
+    }));
+  const found = items.findIndex((item) => item.id === startId);
+  return { items, startIndex: found >= 0 ? found : 0 };
+}
+
+function syncNativeQueue(
+  state: {
+    order: number[];
+    currentId: number | null;
+    positionMs: number;
+    isPlaying: boolean;
+    repeat: RepeatMode;
+  },
+): void {
+  if (!isAndroid) return;
+  const native = nativeQueue(state.order, state.currentId);
+  if (native.items.length === 0) return;
+  void audioEngine.setQueue(
+    native.items,
+    native.startIndex,
+    state.positionMs,
+    state.isPlaying,
+    state.repeat,
+  );
 }
 
 interface PlayerState {
@@ -116,6 +159,13 @@ export const usePlayerStore = create<PlayerState>()(
           isPlaying: false,
         });
         if (currentId !== null) {
+          syncNativeQueue({
+            order,
+            currentId,
+            positionMs: saved,
+            isPlaying: false,
+            repeat: state.repeat,
+          });
           void audioEngine.load(
             track ? audioUrl(track) : "",
             false,
@@ -161,8 +211,16 @@ export const usePlayerStore = create<PlayerState>()(
           positionMs,
           durationMs: track.durationMs,
         });
-        audioEngine.setVolume(get().volume);
-        audioEngine.setMuted(get().muted);
+        const state = get();
+        syncNativeQueue({
+          order: state.order,
+          currentId: trackId,
+          positionMs,
+          isPlaying: autoplay,
+          repeat: state.repeat,
+        });
+        audioEngine.setVolume(state.volume);
+        audioEngine.setMuted(state.muted);
         void audioEngine.load(
           audioUrl(track),
           autoplay,
@@ -282,6 +340,14 @@ export const usePlayerStore = create<PlayerState>()(
         } else {
           set({ shuffle: false, order: [...queue] });
         }
+        const state = get();
+        syncNativeQueue({
+          order: state.order,
+          currentId: state.currentId,
+          positionMs: state.positionMs,
+          isPlaying: state.isPlaying,
+          repeat: state.repeat,
+        });
       },
 
       reshuffle: () => {
@@ -294,6 +360,14 @@ export const usePlayerStore = create<PlayerState>()(
           ? [currentId, ...shuffleArray(others)]
           : shuffleArray(queue);
         set({ shuffle: true, order });
+        const state = get();
+        syncNativeQueue({
+          order,
+          currentId,
+          positionMs: state.positionMs,
+          isPlaying: state.isPlaying,
+          repeat: state.repeat,
+        });
       },
 
       cycleRepeat: () => {
@@ -301,6 +375,7 @@ export const usePlayerStore = create<PlayerState>()(
         const next: RepeatMode =
           current === "off" ? "all" : current === "all" ? "one" : "off";
         set({ repeat: next });
+        audioEngine.setNativeRepeat(next);
       },
 
       playFromOrder: (index) => {
@@ -351,6 +426,13 @@ export const usePlayerStore = create<PlayerState>()(
             isPlaying: state.isPlaying,
           });
           persistPosition(0);
+          syncNativeQueue({
+            order,
+            currentId: nextId,
+            positionMs: 0,
+            isPlaying: state.isPlaying,
+            repeat: state.repeat,
+          });
           audioEngine.setVolume(state.volume);
           audioEngine.setMuted(state.muted);
           void audioEngine.load(
@@ -363,6 +445,14 @@ export const usePlayerStore = create<PlayerState>()(
         }
 
         set({ queue, order });
+        const nextState = get();
+        syncNativeQueue({
+          order,
+          currentId: nextState.currentId,
+          positionMs: nextState.positionMs,
+          isPlaying: nextState.isPlaying,
+          repeat: nextState.repeat,
+        });
       },
 
       clearQueue: () => {
@@ -412,6 +502,18 @@ audioEngine.onTime = (positionMs, durationMs) => {
     lastPositionSave = Date.now();
     persistPosition(positionMs);
   }
+};
+
+audioEngine.onNativeTrackChange = (index) => {
+  const state = usePlayerStore.getState();
+  const id = state.order[index];
+  if (id === undefined) return;
+  const track = findTrack(id);
+  usePlayerStore.setState({
+    currentId: id,
+    positionMs: 0,
+    durationMs: track?.durationMs ?? 0,
+  });
 };
 
 audioEngine.onEnded = () => {

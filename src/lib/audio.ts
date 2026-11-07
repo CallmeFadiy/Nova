@@ -1,4 +1,6 @@
-import { isTauri } from "./tauri";
+import type { NativeAudioItem, RepeatMode } from "../types";
+import { isAndroid } from "./platform";
+import { api, isTauri } from "./tauri";
 
 export interface EqSettings {
   enabled: boolean;
@@ -38,10 +40,16 @@ class AudioEngine {
   private demoTimer: number | null = null;
   private demoPosition = 0;
   private demoDuration = 0;
+  private nativeTimer: number | null = null;
+  private nativeLoaded = false;
+  private nativeCurrentIndex = -1;
+  private nativePosition = 0;
+  private nativePolling = false;
 
   onTime: ((positionMs: number, durationMs: number) => void) | null = null;
   onEnded: (() => void) | null = null;
   onPlayState: ((playing: boolean) => void) | null = null;
+  onNativeTrackChange: ((index: number) => void) | null = null;
 
   constructor() {
     this.audio = new Audio();
@@ -71,6 +79,69 @@ class AudioEngine {
     });
   }
 
+  async setQueue(
+    items: NativeAudioItem[],
+    startIndex: number,
+    positionMs: number,
+    autoplay: boolean,
+    repeat: RepeatMode,
+  ): Promise<void> {
+    if (!isAndroid || !isTauri) return;
+    try {
+      await api.androidAudioSetQueue(
+        items,
+        startIndex,
+        positionMs,
+        autoplay,
+        repeat,
+      );
+      this.nativeLoaded = items.length > 0;
+      this.nativeCurrentIndex = startIndex;
+      this.startNativePolling();
+    } catch (error) {
+      console.error("native audio queue", error);
+    }
+  }
+
+  setNativeRepeat(mode: RepeatMode): void {
+    if (!isAndroid || !isTauri) return;
+    void api.androidAudioSetRepeat(mode);
+  }
+
+  private startNativePolling(): void {
+    if (this.nativeTimer !== null) return;
+    const tick = async () => {
+      if (this.nativePolling) return;
+      this.nativePolling = true;
+      try {
+        const state = await api.androidAudioState();
+        this.nativePosition = state.positionMs;
+        this.onTime?.(state.positionMs, state.durationMs);
+        this.onPlayState?.(state.isPlaying);
+        if (
+          state.currentIndex >= 0 &&
+          state.currentIndex !== this.nativeCurrentIndex
+        ) {
+          this.nativeCurrentIndex = state.currentIndex;
+          this.onNativeTrackChange?.(state.currentIndex);
+        }
+      } catch {
+        // The native player may not be ready yet.
+      } finally {
+        this.nativePolling = false;
+      }
+    };
+    this.nativeTimer = window.setInterval(() => void tick(), 250);
+    void tick();
+  }
+
+  private stopNativePolling(): void {
+    if (this.nativeTimer !== null) {
+      window.clearInterval(this.nativeTimer);
+      this.nativeTimer = null;
+    }
+  }
+
   async load(
     src: string,
     autoplay: boolean,
@@ -78,6 +149,10 @@ class AudioEngine {
     durationMs = 0,
   ): Promise<void> {
     this.stopDemo();
+    if (isAndroid) {
+      if (this.nativeLoaded && autoplay) await this.play();
+      return;
+    }
     if (!isTauri || !src) {
       this.demoPosition = startMs;
       this.demoDuration = durationMs;
@@ -112,6 +187,12 @@ class AudioEngine {
   }
 
   async play(): Promise<void> {
+    if (isAndroid) {
+      if (!this.nativeLoaded) return;
+      await api.androidAudioPlay();
+      this.onPlayState?.(true);
+      return;
+    }
     if (!isTauri || !this.audio.src) {
       if (this.demoTimer === null) {
         this.demoTimer = window.setInterval(() => {
@@ -141,6 +222,11 @@ class AudioEngine {
   }
 
   pause(): void {
+    if (isAndroid) {
+      void api.androidAudioPause();
+      this.onPlayState?.(false);
+      return;
+    }
     if (!isTauri || !this.audio.src) {
       this.stopDemo();
       this.onPlayState?.(false);
@@ -150,6 +236,14 @@ class AudioEngine {
   }
 
   unload(): void {
+    if (isAndroid) {
+      void api.androidAudioPause();
+      this.nativeLoaded = false;
+      this.nativePosition = 0;
+      this.stopNativePolling();
+      this.onPlayState?.(false);
+      return;
+    }
     this.stopDemo();
     this.audio.pause();
     this.audio.removeAttribute("src");
@@ -160,6 +254,11 @@ class AudioEngine {
   }
 
   seek(ms: number): void {
+    if (isAndroid) {
+      this.nativePosition = ms;
+      void api.androidAudioSeek(ms);
+      return;
+    }
     if (!isTauri || !this.audio.src) {
       this.demoPosition = Math.max(0, Math.min(ms, this.demoDuration));
       this.onTime?.(this.demoPosition, this.demoDuration);
@@ -173,10 +272,18 @@ class AudioEngine {
   }
 
   setVolume(value: number): void {
+    if (isAndroid) {
+      void api.androidAudioSetVolume(value);
+      return;
+    }
     this.audio.volume = Math.max(0, Math.min(1, value));
   }
 
   setMuted(muted: boolean): void {
+    if (isAndroid) {
+      void api.androidAudioSetMuted(muted);
+      return;
+    }
     this.audio.muted = muted;
   }
 
@@ -197,6 +304,7 @@ class AudioEngine {
   }
 
   get currentTimeMs(): number {
+    if (isAndroid) return this.nativePosition;
     if (!isTauri || !this.audio.src) return this.demoPosition;
     return this.audio.currentTime * 1000;
   }
