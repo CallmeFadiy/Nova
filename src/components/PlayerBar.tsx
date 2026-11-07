@@ -57,14 +57,19 @@ export function PlayerBar() {
         >
           <Cover track={current} className="player-cover" />
         </button>
-        <div className="player-track-text">
+        <button
+          className="player-track-text"
+          onClick={() => current && setNowPlayingOpen(true)}
+          disabled={!current}
+          aria-label="Открыть сейчас играет"
+        >
           <strong>{current?.title ?? "Ничего не играет"}</strong>
           <span>
             {current
               ? `${current.artist} · ${current.album}`
               : "Выберите трек в библиотеке"}
           </span>
-        </div>
+        </button>
         {current ? (
           <button
             className={`icon-button heart-button${current.favorite ? " is-favorite" : ""}`}

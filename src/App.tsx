@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { Menu } from "lucide-react";
 import { Navigate, Route, Routes } from "react-router-dom";
+import { onBackButtonPress } from "@tauri-apps/api/app";
 import { AddToPlaylistModal } from "./components/AddToPlaylistModal";
 import { AndroidGate } from "./components/AndroidGate";
 import { ConfirmDialog } from "./components/ConfirmDialog";
@@ -9,6 +10,7 @@ import { EditTrackModal } from "./components/EditTrackModal";
 import { EqualizerPanel } from "./components/EqualizerPanel";
 import { LyricsModal } from "./components/LyricsModal";
 import { MergeAlbumsModal } from "./components/MergeAlbumsModal";
+import { MobileNav } from "./components/MobileNav";
 import { NowPlaying } from "./components/NowPlaying";
 import { PlayerBar } from "./components/PlayerBar";
 import { QueuePanel } from "./components/QueuePanel";
@@ -16,6 +18,7 @@ import { Sidebar } from "./components/Sidebar";
 import { Toasts } from "./components/Toasts";
 import { TrackActionsModal } from "./components/TrackActionsModal";
 import { backgroundUrl, isTauri, listenScanProgress } from "./lib/tauri";
+import { isAndroid } from "./lib/platform";
 import { Downloads } from "./screens/Downloads";
 import { Favorites } from "./screens/Favorites";
 import { Home } from "./screens/Home";
@@ -129,6 +132,60 @@ export default function App() {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
+  useEffect(() => {
+    if (!isAndroid) return;
+    let unlisten: (() => void) | undefined;
+    void onBackButtonPress(({ canGoBack }) => {
+      const ui = useUiStore.getState();
+      if (ui.nowPlayingOpen) {
+        ui.setNowPlayingOpen(false);
+        return;
+      }
+      if (ui.queueOpen) {
+        ui.setQueueOpen(false);
+        return;
+      }
+      if (ui.mobileNavOpen) {
+        ui.setMobileNavOpen(false);
+        return;
+      }
+      if (ui.trackActionsTrackId !== null) {
+        ui.openTrackActions(null);
+        return;
+      }
+      if (ui.addToPlaylistTrackIds !== null) {
+        ui.openAddToPlaylist(null);
+        return;
+      }
+      if (ui.editTrackId !== null) {
+        ui.openEditTrack(null);
+        return;
+      }
+      if (ui.mergeAlbumSeed !== null) {
+        ui.openMergeAlbums(null);
+        return;
+      }
+      if (ui.createPlaylistOpen) {
+        ui.setCreatePlaylistOpen(false);
+        return;
+      }
+      if (ui.equalizerOpen) {
+        ui.setEqualizerOpen(false);
+        return;
+      }
+      if (ui.lyricsTrackId !== null) {
+        ui.openLyrics(null);
+        return;
+      }
+      if (canGoBack) {
+        window.history.back();
+      }
+    }).then((listener) => {
+      unlisten = () => void listener.unregister();
+    });
+    return () => unlisten?.();
   }, []);
 
   useEffect(() => {
@@ -261,6 +318,7 @@ export default function App() {
         </main>
         <QueuePanel />
         <PlayerBar />
+        <MobileNav />
       </div>
 
       <TrackActionsModal />

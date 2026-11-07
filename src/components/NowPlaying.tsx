@@ -15,7 +15,7 @@ import {
   VolumeX,
   X,
 } from "lucide-react";
-import type { CSSProperties } from "react";
+import { useRef, type CSSProperties } from "react";
 import { formatDuration } from "../lib/format";
 import { backgroundUrl, coverUrl } from "../lib/tauri";
 import { useLibraryStore } from "../store/library";
@@ -51,6 +51,7 @@ export function NowPlaying() {
   const toggleShuffle = usePlayerStore((state) => state.toggleShuffle);
   const cycleRepeat = usePlayerStore((state) => state.cycleRepeat);
   const playFromOrder = usePlayerStore((state) => state.playFromOrder);
+  const touchStartY = useRef<number | null>(null);
 
   if (!open) return null;
 
@@ -64,7 +65,19 @@ export function NowPlaying() {
     .filter((track): track is NonNullable<typeof track> => Boolean(track));
 
   return (
-    <div className={`now-playing${background ? " has-background" : ""}`}>
+    <div
+      className={`now-playing${background ? " has-background" : ""}`}
+      onTouchStart={(event) => {
+        touchStartY.current = event.touches[0]?.clientY ?? null;
+      }}
+      onTouchEnd={(event) => {
+        const start = touchStartY.current;
+        touchStartY.current = null;
+        if (start === null) return;
+        const end = event.changedTouches[0]?.clientY ?? start;
+        if (end - start > 80) setOpen(false);
+      }}
+    >
       {background ? (
         <div
           className="now-playing-background"
