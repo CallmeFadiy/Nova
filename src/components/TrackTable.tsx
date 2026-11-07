@@ -1,9 +1,11 @@
-import { useEffect, useState, type CSSProperties } from "react";
+import { useEffect, type CSSProperties } from "react";
 import { ListPlus, Trash2, X } from "lucide-react";
 import { pluralRu } from "../lib/format";
+import { isAndroid } from "../lib/platform";
 import { useConfirmStore } from "../store/confirm";
 import { useLibraryStore } from "../store/library";
 import { usePlayerStore } from "../store/player";
+import { useSelectionStore } from "../store/selection";
 import { useUiStore } from "../store/ui";
 import type { Track } from "../types";
 import { TrackRow } from "./TrackRow";
@@ -40,18 +42,21 @@ export function TrackTable({
   const openTrackActions = useUiStore((state) => state.openTrackActions);
   const openAddToPlaylist = useUiStore((state) => state.openAddToPlaylist);
   const confirm = useConfirmStore((state) => state.confirm);
-  const [selected, setSelected] = useState<Set<number>>(new Set());
-  const [anchorIndex, setAnchorIndex] = useState<number | null>(null);
+  const selected = useSelectionStore((state) => state.selected);
+  const anchorIndex = useSelectionStore((state) => state.anchorIndex);
+  const selectOnly = useSelectionStore((state) => state.selectOnly);
+  const toggleSelection = useSelectionStore((state) => state.toggle);
+  const selectRange = useSelectionStore((state) => state.selectRange);
+  const retainSelection = useSelectionStore((state) => state.retain);
+  const clearSelection = useSelectionStore((state) => state.clear);
 
   useEffect(() => {
-    const available = new Set(tracks.map((track) => track.id));
-    setSelected((previous) => {
-      const next = new Set(
-        [...previous].filter((id) => available.has(id)),
-      );
-      return next.size === previous.size ? previous : next;
-    });
-  }, [tracks]);
+    retainSelection(tracks.map((track) => track.id));
+  }, [tracks, retainSelection]);
+
+  // Match the old local-state behaviour: leaving the screen drops the
+  // selection instead of leaking it into another library view.
+  useEffect(() => () => clearSelection(), [clearSelection]);
 
   const handleActivate = (
     track: Track,
@@ -66,28 +71,25 @@ export function TrackTable({
       const anchor = anchorIndex ?? index;
       const start = Math.min(anchor, index);
       const end = Math.max(anchor, index);
-      setSelected((previous) => {
-        const next = new Set(previous);
-        for (let row = start; row <= end; row += 1) {
-          const item = tracks[row];
-          if (item) next.add(item.id);
-        }
-        return next;
-      });
+      const next = new Set(selected);
+      for (let row = start; row <= end; row += 1) {
+        const item = tracks[row];
+        if (item) next.add(item.id);
+      }
+      selectRange([...next], anchorIndex ?? index);
       return;
     }
     if (event.ctrlKey || event.metaKey) {
-      setSelected((previous) => {
-        const next = new Set(previous);
-        if (next.has(track.id)) next.delete(track.id);
-        else next.add(track.id);
-        return next;
-      });
-      setAnchorIndex(index);
+      toggleSelection(track.id, index);
       return;
     }
-    setSelected(new Set([track.id]));
-    setAnchorIndex(index);
+    if (isAndroid && selected.size > 0) {
+      // Touch-first behaviour: once a selection exists, a tap extends it
+      // instead of starting playback.
+      toggleSelection(track.id, index);
+      return;
+    }
+    selectOnly(track.id, index);
     if (track.id === currentId) {
       togglePlay();
       return;
@@ -114,8 +116,7 @@ export function TrackTable({
     if (!confirmed) return;
     const ids = [...selected];
     await deleteTracks(ids, true);
-    setSelected(new Set());
-    setAnchorIndex(null);
+    clearSelection();
   };
 
   const columns = [
@@ -162,10 +163,7 @@ export function TrackTable({
             </button>
             <button
               className="icon-button"
-              onClick={() => {
-                setSelected(new Set());
-                setAnchorIndex(null);
-              }}
+              onClick={() => clearSelection()}
               aria-label="Снять выделение"
               title="Снять выделение"
             >
@@ -199,6 +197,10 @@ export function TrackTable({
             }
             onToggleFavorite={() => void toggleFavorite(track.id)}
             onMenu={() => openTrackActions(track.id)}
+            onLongPress={() => {
+              selectOnly(track.id, index);
+              openTrackActions(track.id);
+            }}
             showAlbum={showAlbum}
             showFolder={showFolder}
             onRemove={onRemove ? () => onRemove(track) : undefined}

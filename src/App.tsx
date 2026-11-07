@@ -30,6 +30,7 @@ import { Shazam } from "./screens/Shazam";
 import { useEqStore } from "./store/eq";
 import { useLibraryStore } from "./store/library";
 import { usePlayerStore } from "./store/player";
+import { useSelectionStore } from "./store/selection";
 import { useSettingsStore } from "./store/settings";
 import { useUiStore } from "./store/ui";
 
@@ -177,6 +178,10 @@ export default function App() {
       }
       if (ui.lyricsTrackId !== null) {
         ui.openLyrics(null);
+        return;
+      }
+      if (useSelectionStore.getState().selected.size > 0) {
+        useSelectionStore.getState().clear();
         return;
       }
       const hash = window.location.hash;

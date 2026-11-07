@@ -1,5 +1,6 @@
 import { ArrowDown, ArrowUp, Heart, MoreHorizontal } from "lucide-react";
 import type { KeyboardEvent, MouseEvent } from "react";
+import { useLongPress } from "../hooks/useLongPress";
 import { formatDuration } from "../lib/format";
 import type { Track } from "../types";
 import { Cover } from "./Cover";
@@ -17,6 +18,7 @@ interface TrackRowProps {
   onActivate: (event: ActivationEvent) => void;
   onToggleFavorite: () => void;
   onMenu: () => void;
+  onLongPress?: () => void;
   showAlbum?: boolean;
   showFolder?: boolean;
   onRemove?: () => void;
@@ -38,12 +40,15 @@ export function TrackRow({
   onActivate,
   onToggleFavorite,
   onMenu,
+  onLongPress,
   showAlbum = true,
   showFolder = true,
   onRemove,
   onMoveUp,
   onMoveDown,
 }: TrackRowProps) {
+  const longPress = useLongPress(() => onLongPress?.());
+
   return (
     <div
       className={`track-row${active ? " is-active" : ""}${
@@ -51,7 +56,14 @@ export function TrackRow({
       }`}
       role="button"
       tabIndex={0}
-      onClick={onActivate}
+      onClick={(event) => {
+        if (longPress.shouldSuppressClick()) return;
+        onActivate(event);
+      }}
+      onTouchStart={longPress.onTouchStart}
+      onTouchMove={longPress.onTouchMove}
+      onTouchEnd={longPress.onTouchEnd}
+      onTouchCancel={longPress.onTouchCancel}
       onContextMenu={(event) => {
         event.preventDefault();
         onMenu();
