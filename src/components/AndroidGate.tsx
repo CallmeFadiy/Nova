@@ -18,6 +18,7 @@ export function AndroidGate({ children }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const ensured = useRef(false);
+  const notificationsRequested = useRef(false);
 
   const check = async () => {
     if (!isAndroid) return;
@@ -50,6 +51,10 @@ export function AndroidGate({ children }: Props) {
     if (permission !== "granted" || ensured.current) return;
     ensured.current = true;
     void useLibraryStore.getState().addFolder(MUSIC_PATH);
+    if (!notificationsRequested.current) {
+      notificationsRequested.current = true;
+      void api.androidRequestNotifications();
+    }
   }, [permission]);
 
   if (!isAndroid) return <>{children}</>;

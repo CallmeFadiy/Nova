@@ -66,6 +66,13 @@ class NovaMobilePlugin(private val activity: Activity) : Plugin(activity) {
     }
 
     @Command
+    fun audioSetEq(invoke: Invoke) {
+        val args = invoke.parseArgs(AudioEqArgs::class.java)
+        NovaEq.update(args.enabled, args.bands, args.preamp)
+        invoke.resolve()
+    }
+
+    @Command
     fun audioState(invoke: Invoke) {
         invoke.resolve(audio().state())
     }

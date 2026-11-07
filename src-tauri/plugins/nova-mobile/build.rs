@@ -9,6 +9,7 @@ const COMMANDS: &[&str] = &[
     "audioSetVolume",
     "audioSetMuted",
     "audioSetRepeat",
+    "audioSetEq",
     "audioState",
 ];
 

@@ -343,6 +343,38 @@ pub fn android_audio_set_repeat(app: AppHandle, mode: String) -> Result<(), Stri
 }
 
 #[tauri::command]
+pub fn android_audio_set_eq(
+    app: AppHandle,
+    enabled: bool,
+    bands: Vec<f64>,
+    preamp: f64,
+) -> Result<(), String> {
+    #[cfg(target_os = "android")]
+    {
+        #[derive(Serialize)]
+        struct Payload {
+            enabled: bool,
+            bands: Vec<f64>,
+            preamp: f64,
+        }
+        let _: serde_json::Value = run_mobile_command(
+            &app,
+            "audioSetEq",
+            Payload {
+                enabled,
+                bands,
+                preamp,
+            },
+        )?;
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        let _ = (app, enabled, bands, preamp);
+    }
+    Ok(())
+}
+
+#[tauri::command]
 pub fn android_audio_state(app: AppHandle) -> Result<serde_json::Value, String> {
     #[cfg(target_os = "android")]
     {

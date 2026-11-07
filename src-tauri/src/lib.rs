@@ -60,6 +60,7 @@ pub fn run() {
             commands::android_audio_set_volume,
             commands::android_audio_set_muted,
             commands::android_audio_set_repeat,
+            commands::android_audio_set_eq,
             commands::android_audio_state,
             commands::scan_library,
             commands::add_folder,

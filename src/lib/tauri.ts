@@ -230,6 +230,14 @@ export const api = {
     return call<void>("android_audio_set_repeat", { mode });
   },
 
+  androidAudioSetEq(
+    enabled: boolean,
+    bands: number[],
+    preamp: number,
+  ): Promise<void> {
+    return call<void>("android_audio_set_eq", { enabled, bands, preamp });
+  },
+
   androidAudioState(): Promise<NativeAudioState> {
     return call<NativeAudioState>("android_audio_state");
   },

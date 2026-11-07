@@ -288,6 +288,10 @@ class AudioEngine {
   }
 
   setEq(eq: EqSettings): void {
+    if (isAndroid) {
+      void api.androidAudioSetEq(eq.enabled, eq.bands, eq.preamp);
+      return;
+    }
     this.eq = {
       enabled: eq.enabled,
       bands: [...eq.bands],

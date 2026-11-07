@@ -41,3 +41,10 @@ class AudioMutedArgs {
 class AudioRepeatArgs {
     var mode: String = "off"
 }
+
+@InvokeArg
+class AudioEqArgs {
+    var enabled: Boolean = false
+    var bands: Array<Double> = emptyArray()
+    var preamp: Double = 0.0
+}
