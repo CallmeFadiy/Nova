@@ -256,8 +256,8 @@ Playwright/ADB: добавить NovaTest через
 плейлист — 2 трека; добавить трек в избранное; поиск по кириллической
 подстроке (`Галопериод`) находит файл
 `Asper X - Галопериод (СЛИВ Telegram).mp3`; переименовать/удалить плейлист;
-удалить папку NovaTest; проверить SQLite. Expected: FAIL до исправлений
-mobile-багов (если они есть).
+убрать папку NovaTest из библиотеки (файлы оставить для Task 4); проверить
+SQLite. Expected: FAIL до исправлений mobile-багов (если они есть).
 
 - [ ] **Step 3: Исправить найденные mobile-баги**
 
@@ -295,6 +295,8 @@ git commit -m "fix(android): polish library and playlist screens"
 
 - [ ] **Step 1: Зафиксировать хеши оригиналов**
 
+Если `/sdcard/Download/NovaTest` отсутствует или пуст — создать его и
+скопировать 12 файлов из `/sdcard/Music`; затем добавить NovaTest в библиотеку.
 Скачать 12 файлов из `/sdcard/Music` и посчитать SHA-256 в PowerShell
 (`Get-FileHash`); сохранить список в
 `.superpowers/sdd/2026-11-08-android-library/music-before.txt`.
