@@ -25,6 +25,7 @@ import {
   pickFolder,
   revealInFolder,
 } from "../lib/tauri";
+import { isAndroid } from "../lib/platform";
 import { DuplicateDownloadModal } from "../components/DuplicateDownloadModal";
 import { useDownloadProgress } from "../hooks/useDownloadProgress";
 import { findDuplicateTrack, useLibraryStore } from "../store/library";
@@ -137,13 +138,25 @@ export function Downloads() {
   };
 
   const chooseDownloadDir = async () => {
-    const path = await pickFolder("Выбрать папку загрузок");
-    if (!path) {
-      notify("Выбор папки доступен в приложении Nova", "info");
-      return;
+    try {
+      const path = await pickFolder("Выбрать папку загрузок");
+      if (!path) {
+        notify(
+          isAndroid
+            ? "Выбор отменён"
+            : "Выбор папки доступен в приложении Nova",
+          "info",
+        );
+        return;
+      }
+      setDownloadDir(path);
+      notify("Папка загрузок обновлена", "success");
+    } catch (error) {
+      notify(
+        error instanceof Error ? error.message : "Не удалось выбрать папку",
+        "error",
+      );
     }
-    setDownloadDir(path);
-    notify("Папка загрузок обновлена", "success");
   };
 
   const requestCandidate = (

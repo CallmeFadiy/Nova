@@ -22,6 +22,7 @@ import {
   trackCountLabel,
 } from "../lib/format";
 import { pickFolder } from "../lib/tauri";
+import { isAndroid } from "../lib/platform";
 import { useConfirmStore } from "../store/confirm";
 import {
   groupAlbums,
@@ -118,12 +119,24 @@ export function Library({ initialTab = "tracks" }: { initialTab?: Tab }) {
   const albumPlaying = albumIsCurrent && isPlaying;
 
   const handleAddFolder = async () => {
-    const path = await pickFolder();
-    if (!path) {
-      notify("Выбор папки доступен в приложении Nova", "info");
-      return;
+    try {
+      const path = await pickFolder();
+      if (!path) {
+        notify(
+          isAndroid
+            ? "Выбор отменён"
+            : "Выбор папки доступен в приложении Nova",
+          "info",
+        );
+        return;
+      }
+      await addFolder(path);
+    } catch (error) {
+      notify(
+        error instanceof Error ? error.message : "Не удалось добавить папку",
+        "error",
+      );
     }
-    await addFolder(path);
   };
 
   const playAlbum = (albumTracks: Track[], label: string, shuffled = false) => {

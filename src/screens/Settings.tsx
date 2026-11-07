@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { ScanButton } from "../components/ScanButton";
 import { api, backgroundUrl, pickFolder, pickImage } from "../lib/tauri";
+import { isAndroid } from "../lib/platform";
 import {
   NOTIFICATION_SOUND_OPTIONS,
   playNotificationSound,
@@ -169,13 +170,25 @@ export function Settings() {
   }, []);
 
   const chooseDownloadDir = async () => {
-    const path = await pickFolder("Выбрать папку загрузок");
-    if (!path) {
-      notify("Выбор папки доступен в приложении Nova", "info");
-      return;
+    try {
+      const path = await pickFolder("Выбрать папку загрузок");
+      if (!path) {
+        notify(
+          isAndroid
+            ? "Выбор отменён"
+            : "Выбор папки доступен в приложении Nova",
+          "info",
+        );
+        return;
+      }
+      setDownloadDir(path);
+      notify("Папка загрузок обновлена", "success");
+    } catch (error) {
+      notify(
+        error instanceof Error ? error.message : "Не удалось выбрать папку",
+        "error",
+      );
     }
-    setDownloadDir(path);
-    notify("Папка загрузок обновлена", "success");
   };
 
   const removeLyricsFile = async (fileName: string) => {
@@ -307,24 +320,48 @@ export function Settings() {
   };
 
   const handleAddFolder = async () => {
-    const path = await pickFolder();
-    if (!path) {
-      notify("Выбор папки доступен в приложении Nova", "info");
-      return;
+    try {
+      const path = await pickFolder();
+      if (!path) {
+        notify(
+          isAndroid
+            ? "Выбор отменён"
+            : "Выбор папки доступен в приложении Nova",
+          "info",
+        );
+        return;
+      }
+      await addFolder(path);
+    } catch (error) {
+      notify(
+        error instanceof Error ? error.message : "Не удалось добавить папку",
+        "error",
+      );
     }
-    await addFolder(path);
   };
 
   const chooseBackground = async (kind: "app" | "now") => {
-    const path = await pickImage();
-    if (!path) {
-      notify("Выбор изображения доступен в приложении Nova", "info");
-      return;
+    try {
+      const path = await pickImage();
+      if (!path) {
+        notify(
+          isAndroid
+            ? "Выбор отменён"
+            : "Выбор изображения доступен в приложении Nova",
+          "info",
+        );
+        return;
+      }
+      const stored = await api.setBackground(kind, path);
+      if (kind === "app") setAppBackground(stored);
+      else setNowBackground(stored);
+      notify("Фон обновлён", "success");
+    } catch (error) {
+      notify(
+        error instanceof Error ? error.message : "Не удалось обновить фон",
+        "error",
+      );
     }
-    const stored = await api.setBackground(kind, path);
-    if (kind === "app") setAppBackground(stored);
-    else setNowBackground(stored);
-    notify("Фон обновлён", "success");
   };
 
   const resetBackground = async (kind: "app" | "now") => {

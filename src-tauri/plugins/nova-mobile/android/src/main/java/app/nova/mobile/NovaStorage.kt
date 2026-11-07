@@ -10,6 +10,7 @@ import java.io.File
 import java.io.IOException
 
 private val ILLEGAL_FILENAME_CHARS = Regex("[\\\\/:*?\"<>|]")
+private val SAFE_VOLUME = Regex("[A-Za-z0-9._-]+")
 
 /**
  * Converts a document id from [DocumentsContract] into a plain filesystem path.
@@ -17,14 +18,14 @@ private val ILLEGAL_FILENAME_CHARS = Regex("[\\\\/:*?\"<>|]")
  * `primary:Music` maps onto [primaryRoot], other volumes (`1234-ABCD:Music`) onto
  * `/storage/<volume>/<relative>`. Paths are joined with `/` instead of
  * [File] so the function stays host independent and can be unit tested on the JVM.
- * Ids whose volume contains `/` or whose relative part contains `.` or `..`
- * segments are rejected.
+ * Ids with an empty/`.`/`..`/non-safe volume, or with `.`/`..` relative segments,
+ * are rejected.
  */
 internal fun treeDocumentIdToPath(documentId: String, primaryRoot: String): String? {
     val separator = documentId.indexOf(':')
     if (separator <= 0) return null
     val volume = documentId.substring(0, separator)
-    if (volume.contains('/')) return null
+    if (volume == "." || volume == ".." || !SAFE_VOLUME.matches(volume)) return null
     val relative = documentId.substring(separator + 1).trim('/')
     if (relative.split('/').any { it == "." || it == ".." }) return null
     val root = if (volume == "primary") primaryRoot.trimEnd('/') else "/storage/$volume"
@@ -38,10 +39,11 @@ internal fun treeUriToPath(uri: Uri): String? {
     } catch (_: IllegalArgumentException) {
         return null
     }
-    return treeDocumentIdToPath(
+    val path = treeDocumentIdToPath(
         documentId,
         Environment.getExternalStorageDirectory().absolutePath,
-    )
+    ) ?: return null
+    return if (File(path).isDirectory) path else null
 }
 
 /**

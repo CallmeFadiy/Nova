@@ -37,4 +37,19 @@ class NovaStorageTest {
     fun traversalDeep() {
         assertNull(treeDocumentIdToPath("primary:Music/../..", "/storage/emulated/0"))
     }
+
+    @Test
+    fun dotdotVolume() {
+        assertNull(treeDocumentIdToPath("..:Music", "/storage/emulated/0"))
+    }
+
+    @Test
+    fun dotVolume() {
+        assertNull(treeDocumentIdToPath(".:Music", "/storage/emulated/0"))
+    }
+
+    @Test
+    fun sdCardRoot() {
+        assertEquals("/storage/1234-ABCD", treeDocumentIdToPath("1234-ABCD:", "/storage/emulated/0"))
+    }
 }

@@ -9,6 +9,7 @@ import android.os.Build
 import android.os.Environment
 import android.provider.Settings
 import androidx.activity.result.ActivityResult
+import androidx.appcompat.app.AppCompatActivity
 import app.tauri.annotation.ActivityCallback
 import app.tauri.annotation.Command
 import app.tauri.annotation.TauriPlugin
@@ -17,10 +18,16 @@ import app.tauri.plugin.JSObject
 import app.tauri.plugin.Plugin
 import org.json.JSONObject
 import java.io.File
+import java.util.concurrent.Executors
 
 @TauriPlugin
 class NovaMobilePlugin(private val activity: Activity) : Plugin(activity) {
     private var audioController: NovaAudioController? = null
+    private val importExecutor = Executors.newSingleThreadExecutor()
+
+    override fun onDestroy(activity: AppCompatActivity) {
+        importExecutor.shutdownNow()
+    }
 
     private fun audio(): NovaAudioController =
         audioController ?: NovaAudioController(activity.applicationContext).also {
@@ -219,12 +226,17 @@ class NovaMobilePlugin(private val activity: Activity) : Plugin(activity) {
             resolvePath(invoke, null)
             return
         }
-        try {
-            val importsDir = File(activity.applicationContext.filesDir, "nova-imports")
-            val file = copyContentToFile(activity.applicationContext, uri, importsDir)
-            resolvePath(invoke, file.absolutePath)
-        } catch (error: Exception) {
-            invoke.reject(error.message ?: "Не удалось скопировать выбранный файл")
+        val context = activity.applicationContext
+        importExecutor.execute {
+            try {
+                val importsDir = File(context.filesDir, "nova-imports")
+                val file = copyContentToFile(context, uri, importsDir)
+                activity.runOnUiThread { resolvePath(invoke, file.absolutePath) }
+            } catch (error: Exception) {
+                activity.runOnUiThread {
+                    invoke.reject(error.message ?: "Не удалось скопировать выбранный файл")
+                }
+            }
         }
     }
 

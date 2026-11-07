@@ -16,6 +16,7 @@ import {
   trackCountLabel,
 } from "../lib/format";
 import { pickFolder } from "../lib/tauri";
+import { isAndroid } from "../lib/platform";
 import { groupAlbums, useLibraryStore, visibleTracks } from "../store/library";
 import { useCurrentTrack, usePlayerStore } from "../store/player";
 import { useUiStore } from "../store/ui";
@@ -103,12 +104,24 @@ export function Home() {
   };
 
   const handleAddFolder = async () => {
-    const path = await pickFolder();
-    if (!path) {
-      notify("Выбор папки доступен в приложении Nova", "info");
-      return;
+    try {
+      const path = await pickFolder();
+      if (!path) {
+        notify(
+          isAndroid
+            ? "Выбор отменён"
+            : "Выбор папки доступен в приложении Nova",
+          "info",
+        );
+        return;
+      }
+      await addFolder(path);
+    } catch (error) {
+      notify(
+        error instanceof Error ? error.message : "Не удалось добавить папку",
+        "error",
+      );
     }
-    await addFolder(path);
   };
 
   if (visible.length === 0) {
