@@ -393,6 +393,7 @@ pub fn android_audio_state(app: AppHandle) -> Result<serde_json::Value, String> 
     }
 }
 
+
 #[tauri::command]
 pub fn scan_library(app: AppHandle, state: State<'_, AppState>) -> Result<ScanResult, String> {
     let conn = state.db.lock().map_err(|e| e.to_string())?;
@@ -636,7 +637,10 @@ pub fn set_track_cover(
 }
 
 #[tauri::command]
-pub fn clear_track_cover(state: State<'_, AppState>, track_id: i64) -> Result<Snapshot, String> {
+pub fn clear_track_cover(
+    state: State<'_, AppState>,
+    track_id: i64,
+) -> Result<Snapshot, String> {
     let conn = state.db.lock().map_err(|e| e.to_string())?;
     let old: Option<String> = conn
         .query_row(
@@ -684,7 +688,8 @@ pub fn update_track_metadata(
         )
         .optional()
         .map_err(|e| e.to_string())?;
-    let (old_album, old_album_artist) = current.ok_or_else(|| "Трек не найден".to_string())?;
+    let (old_album, old_album_artist) =
+        current.ok_or_else(|| "Трек не найден".to_string())?;
     let album = album
         .as_deref()
         .map(str::trim)
@@ -726,7 +731,8 @@ pub fn delete_track(
     if delete_file {
         let file = std::path::Path::new(&path);
         if file.exists() {
-            fs::remove_file(file).map_err(|error| format!("Не удалось удалить файл: {error}"))?;
+            fs::remove_file(file)
+                .map_err(|error| format!("Не удалось удалить файл: {error}"))?;
         }
     }
     conn.execute("DELETE FROM tracks WHERE id = ?1", params![track_id])
@@ -790,7 +796,9 @@ fn sha1_file(path: &std::path::Path) -> std::io::Result<String> {
 }
 
 #[tauri::command]
-pub fn delete_missing_tracks(state: State<'_, AppState>) -> Result<DeleteTracksResult, String> {
+pub fn delete_missing_tracks(
+    state: State<'_, AppState>,
+) -> Result<DeleteTracksResult, String> {
     let conn = state.db.lock().map_err(|e| e.to_string())?;
     let deleted = conn
         .execute("DELETE FROM tracks WHERE missing = 1", [])
@@ -842,13 +850,17 @@ fn tag_encoding_issues(conn: &Connection) -> Result<Vec<TagEncodingIssue>, Strin
 }
 
 #[tauri::command]
-pub fn preview_tag_encoding(state: State<'_, AppState>) -> Result<Vec<TagEncodingIssue>, String> {
+pub fn preview_tag_encoding(
+    state: State<'_, AppState>,
+) -> Result<Vec<TagEncodingIssue>, String> {
     let conn = state.db.lock().map_err(|e| e.to_string())?;
     tag_encoding_issues(&conn)
 }
 
 #[tauri::command]
-pub fn apply_tag_encoding(state: State<'_, AppState>) -> Result<TagEncodingResult, String> {
+pub fn apply_tag_encoding(
+    state: State<'_, AppState>,
+) -> Result<TagEncodingResult, String> {
     let conn = state.db.lock().map_err(|e| e.to_string())?;
     let issues = tag_encoding_issues(&conn)?;
     let now = crate::db::now_secs();
@@ -1085,7 +1097,11 @@ pub fn list_lyrics(app: AppHandle) -> Result<Vec<LyricsFile>, String> {
 }
 
 #[tauri::command]
-pub fn save_lyrics(app: AppHandle, file_name: String, text: String) -> Result<String, String> {
+pub fn save_lyrics(
+    app: AppHandle,
+    file_name: String,
+    text: String,
+) -> Result<String, String> {
     lyrics::save(&app, &file_name, &text)
 }
 
