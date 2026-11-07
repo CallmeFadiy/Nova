@@ -47,15 +47,13 @@ class EqualizerAudioProcessor : BaseAudioProcessor() {
     override fun queueInput(inputBuffer: ByteBuffer) {
         val bytes = inputBuffer.remaining()
         if (bytes == 0) {
-            replaceOutputBuffer(0).position(0)
             return
         }
         val output = replaceOutputBuffer(bytes)
         val config = settings
         if (!config.enabled || !pcm16 || channelCount <= 0 || filters.isEmpty()) {
             output.put(inputBuffer)
-            output.position(bytes)
-            inputBuffer.position(inputBuffer.limit())
+            output.flip()
             return
         }
 
@@ -93,6 +91,7 @@ class EqualizerAudioProcessor : BaseAudioProcessor() {
             }
         }
         output.position(bytes)
+        output.flip()
         inputBuffer.position(inputBuffer.limit())
     }
 
