@@ -22,6 +22,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_nova_mobile::init())
         .setup(|app| {
             let app_dir = std::env::var_os("NOVA_DATA_DIR")
                 .map(std::path::PathBuf::from)
@@ -49,6 +50,9 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::bootstrap,
             commands::get_snapshot,
+            commands::android_permission_state,
+            commands::android_open_all_files_settings,
+            commands::android_request_notifications,
             commands::scan_library,
             commands::add_folder,
             commands::remove_folder,

@@ -28,9 +28,7 @@ fn trailing_number_regex() -> &'static Regex {
 fn clean_metadata(value: &str) -> String {
     let mut cleaned = value.replace('_', " ").replace('\u{00a0}', " ");
     for _ in 0..3 {
-        let next = source_suffix_regex()
-            .replace_all(&cleaned, " ")
-            .to_string();
+        let next = source_suffix_regex().replace_all(&cleaned, " ").to_string();
         if next == cleaned {
             break;
         }
@@ -147,10 +145,7 @@ pub async fn get_lyrics(
     })
 }
 
-async fn genius_lookup(
-    artist: &str,
-    title: &str,
-) -> Result<(String, Option<String>), String> {
+async fn genius_lookup(artist: &str, title: &str) -> Result<(String, Option<String>), String> {
     let client = reqwest::Client::builder()
         .user_agent(BROWSER_UA)
         .timeout(Duration::from_secs(28))
@@ -480,7 +475,10 @@ pub fn list(app: &AppHandle) -> Result<Vec<LyricsFile>, String> {
             continue;
         };
         let metadata = entry.metadata().ok();
-        let size = metadata.as_ref().map(|value| value.len() as i64).unwrap_or(0);
+        let size = metadata
+            .as_ref()
+            .map(|value| value.len() as i64)
+            .unwrap_or(0);
         let modified = metadata
             .and_then(|value| value.modified().ok())
             .and_then(|value| value.duration_since(UNIX_EPOCH).ok())
@@ -509,11 +507,7 @@ pub fn save(app: &AppHandle, file_name: &str, text: &str) -> Result<String, Stri
     if Path::new(file_name).components().count() != 1 {
         return Err("Некорректное имя файла".to_string());
     }
-    if !name
-        .to_string_lossy()
-        .to_lowercase()
-        .ends_with(".txt")
-    {
+    if !name.to_string_lossy().to_lowercase().ends_with(".txt") {
         return Err("Текст песни должен храниться в файле .txt".to_string());
     }
     let path = lyrics_dir(app)?.join(name);
@@ -528,11 +522,7 @@ pub fn delete(app: &AppHandle, file_name: &str) -> Result<(), String> {
     if Path::new(file_name).components().count() != 1 {
         return Err("Некорректное имя файла".to_string());
     }
-    if !name
-        .to_string_lossy()
-        .to_lowercase()
-        .ends_with(".txt")
-    {
+    if !name.to_string_lossy().to_lowercase().ends_with(".txt") {
         return Err("Можно удалять только текстовые файлы кэша".to_string());
     }
     let path = lyrics_dir(app)?.join(name);
@@ -582,14 +572,14 @@ mod tests {
 
     #[test]
     fn cleans_source_suffixes_from_track_name() {
-        assert_eq!(
-            clean_metadata("Ван Хельсинг (Sefon.Pro)"),
-            "Ван Хельсинг"
-        );
+        assert_eq!(clean_metadata("Ван Хельсинг (Sefon.Pro)"), "Ван Хельсинг");
         assert_eq!(
             clean_metadata("Asper_X_-_Sgorayu_(musmore.org)"),
             "Asper X - Sgorayu"
         );
-        assert_eq!(clean_metadata("Галопериод (СЛИВ Telegram) (1)"), "Галопериод");
+        assert_eq!(
+            clean_metadata("Галопериод (СЛИВ Telegram) (1)"),
+            "Галопериод"
+        );
     }
 }

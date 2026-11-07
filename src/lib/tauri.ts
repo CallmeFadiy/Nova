@@ -176,6 +176,18 @@ export const api = {
     return call<Snapshot>("bootstrap");
   },
 
+  androidPermissionState(): Promise<string> {
+    return call<string>("android_permission_state");
+  },
+
+  androidOpenAllFilesSettings(): Promise<void> {
+    return call<void>("android_open_all_files_settings");
+  },
+
+  androidRequestNotifications(): Promise<void> {
+    return call<void>("android_request_notifications");
+  },
+
   async getSnapshot(): Promise<Snapshot> {
     if (!isTauri) return clone(demo);
     return call<Snapshot>("get_snapshot");

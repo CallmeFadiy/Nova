@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { Menu } from "lucide-react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { AddToPlaylistModal } from "./components/AddToPlaylistModal";
+import { AndroidGate } from "./components/AndroidGate";
 import { ConfirmDialog } from "./components/ConfirmDialog";
 import { CreatePlaylistModal } from "./components/CreatePlaylistModal";
 import { EditTrackModal } from "./components/EditTrackModal";
@@ -195,22 +196,62 @@ export default function App() {
         </button>
         <main className="main-scroll">
           <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/library" element={<Library key="tracks" />} />
+            <Route
+              path="/"
+              element={
+                <AndroidGate>
+                  <Home />
+                </AndroidGate>
+              }
+            />
+            <Route
+              path="/library"
+              element={
+                <AndroidGate>
+                  <Library key="tracks" />
+                </AndroidGate>
+              }
+            />
             <Route
               path="/albums"
-              element={<Library key="albums" initialTab="albums" />}
+              element={
+                <AndroidGate>
+                  <Library key="albums" initialTab="albums" />
+                </AndroidGate>
+              }
             />
             <Route
               path="/folders"
-              element={<Library key="folders" initialTab="folders" />}
+              element={
+                <AndroidGate>
+                  <Library key="folders" initialTab="folders" />
+                </AndroidGate>
+              }
             />
             <Route
               path="/playlists"
-              element={<Library key="playlists" initialTab="playlists" />}
+              element={
+                <AndroidGate>
+                  <Library key="playlists" initialTab="playlists" />
+                </AndroidGate>
+              }
             />
-            <Route path="/playlists/:id" element={<PlaylistDetail />} />
-            <Route path="/favorites" element={<Favorites />} />
+            <Route
+              path="/playlists/:id"
+              element={
+                <AndroidGate>
+                  <PlaylistDetail />
+                </AndroidGate>
+              }
+            />
+            <Route
+              path="/favorites"
+              element={
+                <AndroidGate>
+                  <Favorites />
+                </AndroidGate>
+              }
+            />
             <Route path="/downloads" element={<Downloads />} />
             <Route path="/import" element={<Import />} />
             <Route path="/shazam" element={<Shazam />} />

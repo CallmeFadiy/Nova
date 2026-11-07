@@ -6031,3 +6031,82 @@ body {
     transform: none;
   }
 }
+
+.android-gate {
+  width: 100%;
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  box-sizing: border-box;
+  overflow-x: hidden;
+  padding: 28px 20px calc(var(--player-height, 76px) + 28px);
+}
+
+.android-gate-card {
+  width: 100%;
+  max-width: 460px;
+  min-width: 0;
+  box-sizing: border-box;
+  overflow-wrap: anywhere;
+  padding: 28px 24px;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.035), transparent 55%),
+    var(--panel);
+  box-shadow: 0 22px 60px rgba(0, 0, 0, 0.35);
+}
+
+.android-gate-icon {
+  width: 58px;
+  height: 58px;
+  display: grid;
+  place-items: center;
+  margin-bottom: 22px;
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent);
+}
+
+.android-gate-card h1 {
+  margin: 0 0 14px;
+  font-size: clamp(28px, 8vw, 38px);
+  line-height: 1.04;
+}
+
+.android-gate-copy {
+  margin: 0 0 18px;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.android-gate-error {
+  margin: 0 0 14px;
+  color: #ff9d8a;
+  font-size: 12px;
+}
+
+.android-gate-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.android-gate-actions .primary-button,
+.android-gate-actions .secondary-button,
+.android-gate-actions .ghost-button {
+  height: 44px;
+  padding: 0 16px;
+}
+
+.android-gate-hint {
+  margin: 18px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+

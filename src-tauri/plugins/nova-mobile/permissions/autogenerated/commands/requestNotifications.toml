@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-requestNotifications"
+description = "Enables the requestNotifications command without any pre-configured scope."
+commands.allow = ["requestNotifications"]
+
+[[permission]]
+identifier = "deny-requestNotifications"
+description = "Denies the requestNotifications command without any pre-configured scope."
+commands.deny = ["requestNotifications"]

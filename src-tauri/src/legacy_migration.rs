@@ -30,10 +30,7 @@ fn find_legacy_dir(appdata: &Path, target: &Path) -> Option<PathBuf> {
         if path == target || !path.join("nova.db").is_file() {
             continue;
         }
-        if !DATA_ENTRIES
-            .iter()
-            .any(|name| path.join(name).is_dir())
-        {
+        if !DATA_ENTRIES.iter().any(|name| path.join(name).is_dir()) {
             continue;
         }
         let modified = fs::metadata(path.join("nova.db"))

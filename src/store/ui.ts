@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { isAndroid } from "../lib/platform";
 import { playNotificationSound } from "../lib/notificationSound";
 import { useSettingsStore } from "./settings";
 
@@ -50,7 +51,7 @@ export const useUiStore = create<UiState>((set) => ({
   equalizerOpen: false,
   nowPlayingOpen: false,
   lyricsTrackId: null,
-  queueOpen: true,
+  queueOpen: !isAndroid,
   mobileNavOpen: false,
 
   notify: (message, tone = "info") => {
