@@ -141,12 +141,12 @@ adb -s emulator-5554 shell dumpsys activity services app.nova.player
 adb -s emulator-5554 shell dumpsys notification --noredact
 ```
 
-## Acceptance (2026-11-07)
+## Acceptance (2026-11-07 — 2026-11-08)
 
 - Чистая установка debug APK: успешно.
 - Permission gate: отображается, после разрешения автоматически сканируется
   `/storage/emulated/0/Music`.
-- Библиотека: 6 треков, 4 альбома, 1 папка; кириллица сохранена.
+- Эмулятор: 6 треков, 4 альбома, 1 папка; кириллица сохранена.
 - Нативный ExoPlayer: play/pause, seek, next/prev, автопереход.
 - Автопереход после seek за 5 секунд до конца трека: переключается на следующий.
 - Фон: playback продолжается после Home; `NovaPlaybackService` в foreground.
@@ -163,9 +163,11 @@ adb -s emulator-5554 shell dumpsys notification --noredact
 - Repeat: off → all → one → off; shuffle включается и восстанавливается.
 - Windows: `npm.cmd run build:web` и
   `cargo test --manifest-path src-tauri/Cargo.toml --lib` проходят.
-- Проверка выполнена на эмуляторе `Medium_Phone_API_37.0` (Android 16, x86_64)
-  с 6 файлами: физический телефон `21121210G` был отключён. Повторить на
-  arm64-телефоне с полной библиотекой перед релизом.
+- Проверка на эмуляторе `Medium_Phone_API_37.0` (Android 16, x86_64) с 6 файлами
+  и на POCO F4 GT `21121210G` (Android 13, arm64-v8a): 78 треков, 24 альбома,
+  1 папка, 70 треков с кириллицей, `missing=0`, 392 CSS px. На телефоне
+  проверены play/pause/seek/next/prev, автопереход, фон, уведомление, EQ, темы,
+  repeat/shuffle, clear queue и back-на-корне.
 
 ## Заметка по EQ
 
@@ -180,6 +182,9 @@ PCM16 и PCM float; другие кодировки проходят без об
 - WMA/AIFF: Media3 их не декодирует; транскод через ffmpeg ещё не подключён.
 - Обложка в системном ImageLoader может не читаться на локскрине из-за
   app-private пути; в медиа-уведомлении обложка отображается.
+- На MIUI карточка медиа-уведомления использует светлую обложку как фон; на
+  светлых обложках белый текст и кнопки малоконтрастны. Действия функционально
+  доступны; кастомная разметка уведомления — phase 2.
 - `MANAGE_EXTERNAL_STORAGE` — sideload-разрешение, не Play Store.
 - `MediaProjection` для системного распознавания, загрузки, импорт, Shazam,
   тексты, редактирование тегов, дубликаты и полный touch-паритет — следующие
