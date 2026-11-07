@@ -2,6 +2,7 @@ import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
 import { openUrl, revealItemInDir } from "@tauri-apps/plugin-opener";
+import { isAndroid } from "./platform";
 import type {
   DeleteTracksResult,
   DownloadProgress,
@@ -192,6 +193,18 @@ export const api = {
 
   androidMinimizeApp(): Promise<void> {
     return call<void>("android_minimize_app");
+  },
+
+  androidPickImage(): Promise<string | null> {
+    return call<string | null>("android_pick_image");
+  },
+
+  androidPickAudio(): Promise<string | null> {
+    return call<string | null>("android_pick_audio");
+  },
+
+  androidPickFolder(): Promise<string | null> {
+    return call<string | null>("android_pick_folder");
   },
 
   androidAudioSetQueue(
@@ -772,6 +785,7 @@ export async function pickFolder(
   title = "Добавить папку с музыкой",
 ): Promise<string | null> {
   if (!isTauri) return null;
+  if (isAndroid) return api.androidPickFolder();
   const result = await open({
     directory: true,
     multiple: false,
@@ -783,6 +797,7 @@ export async function pickFolder(
 
 export async function pickImage(): Promise<string | null> {
   if (!isTauri) return null;
+  if (isAndroid) return api.androidPickImage();
   const result = await open({
     directory: false,
     multiple: false,
@@ -800,6 +815,7 @@ export async function pickImage(): Promise<string | null> {
 
 export async function pickAudioFile(): Promise<string | null> {
   if (!isTauri) return null;
+  if (isAndroid) return api.androidPickAudio();
   const result = await open({
     directory: false,
     multiple: false,

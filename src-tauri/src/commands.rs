@@ -207,6 +207,57 @@ pub fn android_minimize_app(app: AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+#[cfg(target_os = "android")]
+fn mobile_pick_path(app: &AppHandle, command: &str) -> Result<Option<String>, String> {
+    #[derive(serde::Deserialize)]
+    struct PickPathResult {
+        #[serde(default)]
+        path: Option<String>,
+    }
+
+    let result: PickPathResult = run_mobile_command(app, command, ())?;
+    Ok(result.path)
+}
+
+#[tauri::command]
+pub fn android_pick_image(app: AppHandle) -> Result<Option<String>, String> {
+    #[cfg(target_os = "android")]
+    {
+        return mobile_pick_path(&app, "pickImage");
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        let _ = app;
+        Ok(None)
+    }
+}
+
+#[tauri::command]
+pub fn android_pick_audio(app: AppHandle) -> Result<Option<String>, String> {
+    #[cfg(target_os = "android")]
+    {
+        return mobile_pick_path(&app, "pickAudio");
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        let _ = app;
+        Ok(None)
+    }
+}
+
+#[tauri::command]
+pub fn android_pick_folder(app: AppHandle) -> Result<Option<String>, String> {
+    #[cfg(target_os = "android")]
+    {
+        return mobile_pick_path(&app, "pickFolder");
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        let _ = app;
+        Ok(None)
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NativeAudioItem {

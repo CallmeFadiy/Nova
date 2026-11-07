@@ -8,11 +8,15 @@ import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.provider.Settings
+import androidx.activity.result.ActivityResult
+import app.tauri.annotation.ActivityCallback
 import app.tauri.annotation.Command
 import app.tauri.annotation.TauriPlugin
 import app.tauri.plugin.Invoke
 import app.tauri.plugin.JSObject
 import app.tauri.plugin.Plugin
+import org.json.JSONObject
+import java.io.File
 
 @TauriPlugin
 class NovaMobilePlugin(private val activity: Activity) : Plugin(activity) {
@@ -123,5 +127,111 @@ class NovaMobilePlugin(private val activity: Activity) : Plugin(activity) {
     fun minimizeApp(invoke: Invoke) {
         activity.moveTaskToBack(true)
         invoke.resolve()
+    }
+
+    @Command
+    fun pickImage(invoke: Invoke) {
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "image/*"
+        }
+        launchPicker(invoke, intent, "pickImageResult")
+    }
+
+    @Command
+    fun pickAudio(invoke: Invoke) {
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "audio/*"
+            putExtra(
+                Intent.EXTRA_MIME_TYPES,
+                arrayOf("audio/mpeg", "audio/flac", "audio/wav", "audio/ogg", "audio/mp4"),
+            )
+        }
+        launchPicker(invoke, intent, "pickAudioResult")
+    }
+
+    @Command
+    fun pickFolder(invoke: Invoke) {
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).apply {
+            addFlags(
+                Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                    Intent.FLAG_GRANT_WRITE_URI_PERMISSION or
+                    Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION,
+            )
+        }
+        launchPicker(invoke, intent, "pickFolderResult")
+    }
+
+    @ActivityCallback
+    fun pickImageResult(invoke: Invoke, result: ActivityResult) {
+        copyPickedFile(invoke, result)
+    }
+
+    @ActivityCallback
+    fun pickAudioResult(invoke: Invoke, result: ActivityResult) {
+        copyPickedFile(invoke, result)
+    }
+
+    @ActivityCallback
+    fun pickFolderResult(invoke: Invoke, result: ActivityResult) {
+        if (result.resultCode != Activity.RESULT_OK) {
+            resolvePath(invoke, null)
+            return
+        }
+        val uri = result.data?.data
+        if (uri == null) {
+            resolvePath(invoke, null)
+            return
+        }
+        val path = treeUriToPath(uri)
+        if (path == null) {
+            invoke.reject("Выберите папку во внутренней памяти")
+            return
+        }
+        runCatching {
+            val flags = result.data?.flags?.and(
+                Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
+            ) ?: 0
+            activity.contentResolver.takePersistableUriPermission(uri, flags)
+        }
+        resolvePath(invoke, path)
+    }
+
+    private fun copyPickedFile(invoke: Invoke, result: ActivityResult) {
+        if (result.resultCode != Activity.RESULT_OK) {
+            resolvePath(invoke, null)
+            return
+        }
+        val uri = result.data?.data
+        if (uri == null) {
+            resolvePath(invoke, null)
+            return
+        }
+        try {
+            val importsDir = File(activity.applicationContext.filesDir, "nova-imports")
+            val file = copyContentToFile(activity.applicationContext, uri, importsDir)
+            resolvePath(invoke, file.absolutePath)
+        } catch (error: Exception) {
+            invoke.reject(error.message ?: "Не удалось скопировать выбранный файл")
+        }
+    }
+
+    private fun resolvePath(invoke: Invoke, path: String?) {
+        val payload = JSObject()
+        if (path == null) {
+            payload.put("path", JSONObject.NULL)
+        } else {
+            payload.put("path", path)
+        }
+        invoke.resolve(payload)
+    }
+
+    private fun launchPicker(invoke: Invoke, intent: Intent, callback: String) {
+        try {
+            startActivityForResult(invoke, intent, callback)
+        } catch (error: Exception) {
+            invoke.reject(error.message ?: "Не удалось открыть системный выбор файлов")
+        }
     }
 }
