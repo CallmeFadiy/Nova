@@ -89,7 +89,10 @@ export function TrackTable({
       toggleSelection(track.id, index);
       return;
     }
-    selectOnly(track.id, index);
+    // On Android a play tap must not enter selection mode, otherwise the next
+    // tap would toggle selection instead of playing. Long-press is the only
+    // way into selection on touch; desktop keeps select-on-click.
+    if (!isAndroid) selectOnly(track.id, index);
     if (track.id === currentId) {
       togglePlay();
       return;
