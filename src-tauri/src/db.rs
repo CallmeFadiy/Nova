@@ -1,6 +1,6 @@
+use rusqlite::Connection;
 #[cfg(debug_assertions)]
 use rusqlite::params;
-use rusqlite::Connection;
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -115,7 +115,10 @@ fn ensure_track_columns(conn: &Connection) -> rusqlite::Result<()> {
         conn.execute("ALTER TABLE tracks ADD COLUMN group_key_override TEXT", [])?;
     }
     if !columns.iter().any(|column| column == "group_name_override") {
-        conn.execute("ALTER TABLE tracks ADD COLUMN group_name_override TEXT", [])?;
+        conn.execute(
+            "ALTER TABLE tracks ADD COLUMN group_name_override TEXT",
+            [],
+        )?;
     }
     Ok(())
 }

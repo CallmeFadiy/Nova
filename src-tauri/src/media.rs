@@ -285,8 +285,8 @@ async fn search_zaycev(
     client: &reqwest::Client,
     query: &str,
 ) -> Result<Vec<MediaCandidate>, String> {
-    let mut url =
-        reqwest::Url::parse("https://zaycev.net/search").map_err(|error| error.to_string())?;
+    let mut url = reqwest::Url::parse("https://zaycev.net/search")
+        .map_err(|error| error.to_string())?;
     url.query_pairs_mut()
         .append_pair("query_search", query)
         .append_pair("type", "all");
@@ -304,13 +304,16 @@ async fn search_zaycev(
         .await
         .map_err(|error| format!("не удалось прочитать ответ: {error}"))?;
 
-    let link_re = Regex::new(r#"(?s)<a href="([^"]+)" title="([^"]*)"[^>]*data-qa="track-link""#)
+    let link_re = Regex::new(
+        r#"(?s)<a href="([^"]+)" title="([^"]*)"[^>]*data-qa="track-link""#,
+    )
+    .map_err(|error| error.to_string())?;
+    let artist_re = Regex::new(
+        r#"(?s)<a href="([^"]+)" title="([^"]*)"[^>]*data-qa="artist-link""#,
+    )
+    .map_err(|error| error.to_string())?;
+    let bitrate_re = Regex::new(r#"(?i)content="(\d+)\s*kbps""#)
         .map_err(|error| error.to_string())?;
-    let artist_re =
-        Regex::new(r#"(?s)<a href="([^"]+)" title="([^"]*)"[^>]*data-qa="artist-link""#)
-            .map_err(|error| error.to_string())?;
-    let bitrate_re =
-        Regex::new(r#"(?i)content="(\d+)\s*kbps""#).map_err(|error| error.to_string())?;
     let duration_re = Regex::new(r#"(?s)data-qa="track-duration">([^<]+)</time>"#)
         .map_err(|error| error.to_string())?;
     let image_re = Regex::new(r#"(?s)content="([^"]+)" itemProp="thumbnailUrl""#)
@@ -333,10 +336,7 @@ async fn search_zaycev(
             .unwrap_or_default();
         let (artist, mut title) = match full_title.split_once(" - ") {
             Some((left, right)) => (left.trim().to_string(), right.trim().to_string()),
-            None => (
-                artist_hint.trim().to_string(),
-                full_title.trim().to_string(),
-            ),
+            None => (artist_hint.trim().to_string(), full_title.trim().to_string()),
         };
         if title.is_empty() {
             title = artist_hint.trim().to_string();
@@ -398,8 +398,8 @@ async fn search_muzofond(
     client: &reqwest::Client,
     query: &str,
 ) -> Result<Vec<MediaCandidate>, String> {
-    let mut url =
-        reqwest::Url::parse("https://muzofond.fm/search").map_err(|error| error.to_string())?;
+    let mut url = reqwest::Url::parse("https://muzofond.fm/search")
+        .map_err(|error| error.to_string())?;
     url.path_segments_mut()
         .map_err(|_| "не удалось собрать адрес поиска".to_string())?
         .push(query);
@@ -421,10 +421,11 @@ async fn search_muzofond(
         .map_err(|error| error.to_string())?;
     let artist_re = Regex::new(r#"(?s)<span class="artist">(.*?)</span>"#)
         .map_err(|error| error.to_string())?;
-    let title_re =
-        Regex::new(r#"(?s)<span class="track">(.*?)</span>"#).map_err(|error| error.to_string())?;
+    let title_re = Regex::new(r#"(?s)<span class="track">(.*?)</span>"#)
+        .map_err(|error| error.to_string())?;
     let id_re = Regex::new(r#"data-id="(\d+)""#).map_err(|error| error.to_string())?;
-    let duration_re = Regex::new(r#"data-duration="(\d+)""#).map_err(|error| error.to_string())?;
+    let duration_re = Regex::new(r#"data-duration="(\d+)""#)
+        .map_err(|error| error.to_string())?;
     let image_re = Regex::new(r#"data-img="([^"]+)""#).map_err(|error| error.to_string())?;
     let link_title_re =
         Regex::new(r#"(?s)<a href="https://muzofond\.fm/track/[^"]+"[^>]*title="([^"]*)""#)
@@ -441,7 +442,9 @@ async fn search_muzofond(
             // suffix is only a routing token, not a URL we need to decode.
             encoded
         } else {
-            let Ok(bytes) = base64::engine::general_purpose::STANDARD.decode(encoded.trim()) else {
+            let Ok(bytes) =
+                base64::engine::general_purpose::STANDARD.decode(encoded.trim())
+            else {
                 continue;
             };
             let Ok(decoded) = String::from_utf8(bytes) else {
@@ -541,8 +544,8 @@ async fn search_drivemusic(
     client: &reqwest::Client,
     query: &str,
 ) -> Result<Vec<MediaCandidate>, String> {
-    let mut url =
-        reqwest::Url::parse("https://ru.drivemusic.me/").map_err(|error| error.to_string())?;
+    let mut url = reqwest::Url::parse("https://ru.drivemusic.me/")
+        .map_err(|error| error.to_string())?;
     url.query_pairs_mut()
         .append_pair("do", "search")
         .append_pair("subaction", "search")
@@ -564,14 +567,17 @@ async fn search_drivemusic(
     let url_re = Regex::new(r#"(?s)data-url="([^"]+)""#).map_err(|error| error.to_string())?;
     let title_re = Regex::new(r#"(?s)class="popular-play-author"[^>]*>(.*?)</a>"#)
         .map_err(|error| error.to_string())?;
-    let artist_re = Regex::new(r#"(?s)<div class=['"]popular-play-composition['"]>(.*?)</div>"#)
-        .map_err(|error| error.to_string())?;
+    let artist_re =
+        Regex::new(r#"(?s)<div class=['"]popular-play-composition['"]>(.*?)</div>"#)
+            .map_err(|error| error.to_string())?;
     let quality_re = Regex::new(r#"(?s)class="popular-download-date"[^>]*>(.*?)</div>"#)
         .map_err(|error| error.to_string())?;
     let duration_re = Regex::new(r#"(?s)class="popular-download-number"[^>]*>(.*?)</div>"#)
         .map_err(|error| error.to_string())?;
-    let link_re = Regex::new(r#"(?s)<a href="([^"]+)" class="popular-download-link""#)
-        .map_err(|error| error.to_string())?;
+    let link_re = Regex::new(
+        r#"(?s)<a href="([^"]+)" class="popular-download-link""#,
+    )
+    .map_err(|error| error.to_string())?;
 
     let mut items = Vec::new();
     for block in html.split(r#"<div class="music-popular__item">"#).skip(1) {
@@ -1148,7 +1154,9 @@ fn find_yandex_playlist_meta(html: &str) -> Option<serde_json::Value> {
             continue;
         };
         for operation in operations {
-            if operation.get("path").and_then(|value| value.as_str()) == Some("/playlist/meta") {
+            if operation.get("path").and_then(|value| value.as_str())
+                == Some("/playlist/meta")
+            {
                 return operation.get("value").cloned();
             }
         }
@@ -1187,18 +1195,21 @@ async fn resolve_youtube(
     }
 
     if is_single_youtube(url) {
-        return resolve_youtube_noembed(url)
-            .await
-            .map_err(|fallback_error| match ytdlp_error {
+        return resolve_youtube_noembed(url).await.map_err(|fallback_error| {
+            match ytdlp_error {
                 Some(primary) => format!("{primary} · {fallback_error}"),
                 None => fallback_error,
-            });
+            }
+        });
     }
 
     Err(ytdlp_error.unwrap_or_else(|| "YouTube не вернул треков".to_string()))
 }
 
-fn youtube_playlist_from_json(json: &serde_json::Value, url: &str) -> Option<ImportPlaylist> {
+fn youtube_playlist_from_json(
+    json: &serde_json::Value,
+    url: &str,
+) -> Option<ImportPlaylist> {
     let playlist_title = json
         .get("title")
         .and_then(|value| value.as_str())
@@ -1303,8 +1314,8 @@ fn youtube_playlist_from_json(json: &serde_json::Value, url: &str) -> Option<Imp
 
 async fn resolve_youtube_noembed(url: &str) -> Result<ImportPlaylist, String> {
     let client = media_client()?;
-    let mut api =
-        reqwest::Url::parse("https://noembed.com/embed").map_err(|error| error.to_string())?;
+    let mut api = reqwest::Url::parse("https://noembed.com/embed")
+        .map_err(|error| error.to_string())?;
     api.query_pairs_mut().append_pair("url", url);
     let response = client
         .get(api)
@@ -1457,9 +1468,7 @@ fn verify_download(
     expected_artist: Option<&str>,
     expected_title: Option<&str>,
 ) -> Result<(), String> {
-    let Some(expected_title) = expected_title
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
+    let Some(expected_title) = expected_title.map(str::trim).filter(|value| !value.is_empty())
     else {
         return Ok(());
     };
@@ -1702,8 +1711,8 @@ pub async fn download_direct(
         counter += 1;
     }
 
-    let mut file =
-        fs::File::create(&path).map_err(|error| format!("Не удалось создать файл: {error}"))?;
+    let mut file = fs::File::create(&path)
+        .map_err(|error| format!("Не удалось создать файл: {error}"))?;
     let mut received = 0u64;
     let mut last_percent = -1.0f64;
     loop {
@@ -1746,9 +1755,11 @@ pub async fn download_direct(
         return Err(format!("Не удалось завершить файл: {error}"));
     }
     drop(file);
-    if let Err(error) =
-        verify_download(&path, expected_artist.as_deref(), expected_title.as_deref())
-    {
+    if let Err(error) = verify_download(
+        &path,
+        expected_artist.as_deref(),
+        expected_title.as_deref(),
+    ) {
         emit_progress(
             app,
             DownloadProgress {
@@ -1781,7 +1792,10 @@ pub async fn download_direct(
     })
 }
 
-async fn resolve_zaycev_stream(client: &reqwest::Client, page_url: &str) -> Result<String, String> {
+async fn resolve_zaycev_stream(
+    client: &reqwest::Client,
+    page_url: &str,
+) -> Result<String, String> {
     let without_query = page_url.split('?').next().unwrap_or(page_url);
     let id = without_query
         .rsplit('/')
@@ -1925,15 +1939,9 @@ mod tests {
     fn finds_yandex_playlist_meta_in_state_patches() {
         let html = r#"<script>(window.__STATE_PATCHES__ = window.__STATE_PATCHES__ || []).push([{"op":"replace","path":"\u002Fplaylist\u002Fmeta","value":{"uid":955066455,"kind":3,"title":"Test"}}]);</script>"#;
         let meta = find_yandex_playlist_meta(html).expect("meta");
-        assert_eq!(
-            meta.get("uid").and_then(|value| value.as_i64()),
-            Some(955066455)
-        );
+        assert_eq!(meta.get("uid").and_then(|value| value.as_i64()), Some(955066455));
         assert_eq!(meta.get("kind").and_then(|value| value.as_i64()), Some(3));
-        assert_eq!(
-            meta.get("title").and_then(|value| value.as_str()),
-            Some("Test")
-        );
+        assert_eq!(meta.get("title").and_then(|value| value.as_str()), Some("Test"));
     }
 
     #[test]

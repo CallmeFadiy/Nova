@@ -150,9 +150,9 @@ fn capture_microphone(app: &AppHandle, seconds: u64) -> Result<(Vec<f32>, u32), 
     use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 
     let host = cpal::default_host();
-    let device = host.default_input_device().ok_or_else(|| {
-        "Микрофон не найден. Проверьте, что он подключён и разрешён Windows.".to_string()
-    })?;
+    let device = host
+        .default_input_device()
+        .ok_or_else(|| "Микрофон не найден. Проверьте, что он подключён и разрешён Windows.".to_string())?;
     let supported = device.default_input_config().map_err(|error| {
         format!(
             "Не удалось открыть микрофон «{}»: {error}",
@@ -264,7 +264,10 @@ fn capture_microphone(app: &AppHandle, seconds: u64) -> Result<(Vec<f32>, u32), 
     std::thread::sleep(Duration::from_secs(seconds));
     drop(stream);
 
-    let collected = samples.lock().map_err(|error| error.to_string())?.clone();
+    let collected = samples
+        .lock()
+        .map_err(|error| error.to_string())?
+        .clone();
     if collected.is_empty() {
         return Err("Микрофон не записал ни одного сэмпла".to_string());
     }
@@ -307,7 +310,10 @@ where
                 maybe_emit_level(&app, RecognitionSource::Microphone, rms, peak, &last_emit);
             },
             move |error| {
-                let _ = app_error.emit("recognition-error", format!("Ошибка микрофона: {error}"));
+                let _ = app_error.emit(
+                    "recognition-error",
+                    format!("Ошибка микрофона: {error}"),
+                );
             },
             None,
         )
@@ -316,12 +322,15 @@ where
 
 #[cfg(windows)]
 fn capture_system(app: &AppHandle, seconds: u64) -> Result<(Vec<f32>, u32), String> {
-    use wasapi::{initialize_mta, DeviceEnumerator, Direction, SampleType, StreamMode, WaveFormat};
+    use wasapi::{
+        initialize_mta, DeviceEnumerator, Direction, SampleType, StreamMode, WaveFormat,
+    };
 
     initialize_mta()
         .ok()
         .map_err(|error| format!("WASAPI: не удалось инициализировать COM: {error}"))?;
-    let enumerator = DeviceEnumerator::new().map_err(|error| format!("WASAPI: {error}"))?;
+    let enumerator =
+        DeviceEnumerator::new().map_err(|error| format!("WASAPI: {error}"))?;
     let device = enumerator
         .get_default_device(&Direction::Render)
         .map_err(|error| format!("Не найден системный динамик: {error}"))?;
@@ -333,7 +342,14 @@ fn capture_system(app: &AppHandle, seconds: u64) -> Result<(Vec<f32>, u32), Stri
         .map_err(|error| format!("WASAPI: не удалось узнать формат динамика: {error}"))?;
     let rate = mix_format.get_samplespersec();
     let channels = mix_format.get_nchannels() as usize;
-    let desired_format = WaveFormat::new(32, 32, &SampleType::Float, rate as usize, channels, None);
+    let desired_format = WaveFormat::new(
+        32,
+        32,
+        &SampleType::Float,
+        rate as usize,
+        channels,
+        None,
+    );
     let (default_period, _minimum_period) = audio_client
         .get_device_period()
         .map_err(|error| format!("WASAPI: {error}"))?;
@@ -496,9 +512,7 @@ pub async fn recognize_audd(
 
     let result = json.get("result").unwrap_or(&serde_json::Value::Null);
     if result.is_null() {
-        return Err(
-            "Не удалось распознать трек. Попробуйте громче или ближе к источнику.".to_string(),
-        );
+        return Err("Не удалось распознать трек. Попробуйте громче или ближе к источнику.".to_string());
     }
 
     let title = result

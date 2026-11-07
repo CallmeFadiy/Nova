@@ -37,7 +37,10 @@ pub fn repair_mojibake(value: &str) -> Option<String> {
             .chars()
             .filter(|character| is_cyrillic(*character))
             .count();
-        if cyrillic >= 3 && candidate != value && !candidate.chars().any(is_bad_character) {
+        if cyrillic >= 3
+            && candidate != value
+            && !candidate.chars().any(is_bad_character)
+        {
             return Some(candidate.to_string());
         }
     }
@@ -78,7 +81,9 @@ mod tests {
 
     #[test]
     fn repairs_windows_1251_read_as_latin1() {
-        let original = latin1_string(&[0xC1, 0xF0, 0xF3, 0xF2, 0xE0, 0xEB, 0xE8, 0xF2, 0xE8]);
+        let original = latin1_string(&[
+            0xC1, 0xF0, 0xF3, 0xF2, 0xE0, 0xEB, 0xE8, 0xF2, 0xE8,
+        ]);
         assert_eq!(repair_mojibake(&original), Some("Бруталити".to_string()));
     }
 

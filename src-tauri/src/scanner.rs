@@ -11,7 +11,8 @@ use tauri::{AppHandle, Emitter};
 use walkdir::WalkDir;
 
 const AUDIO_EXTENSIONS: &[&str] = &[
-    "mp3", "flac", "wav", "ogg", "opus", "m4a", "aac", "wma", "aiff", "aif", "webm",
+    "mp3", "flac", "wav", "ogg", "opus", "m4a", "aac", "wma", "aiff", "aif",
+    "webm",
 ];
 
 const COVER_NAMES: &[&str] = &[
@@ -47,8 +48,7 @@ pub fn scan(app: &AppHandle, conn: &Connection, app_dir: &Path) -> Result<ScanRe
         let rows = stmt
             .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
             .map_err(|e| e.to_string())?;
-        rows.collect::<Result<Vec<_>, _>>()
-            .map_err(|e| e.to_string())?
+        rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?
     };
 
     let mut added = 0usize;
@@ -110,12 +110,28 @@ pub fn scan(app: &AppHandle, conn: &Connection, app_dir: &Path) -> Result<ScanRe
                     .map_err(|e| e.to_string())?;
                 } else {
                     let parsed = parse_track(path, app_dir);
-                    upsert(conn, &path_string, folder_id, path, &parsed, size, mtime)?;
+                    upsert(
+                        conn,
+                        &path_string,
+                        folder_id,
+                        path,
+                        &parsed,
+                        size,
+                        mtime,
+                    )?;
                     updated += 1;
                 }
             } else {
                 let parsed = parse_track(path, app_dir);
-                upsert(conn, &path_string, folder_id, path, &parsed, size, mtime)?;
+                upsert(
+                    conn,
+                    &path_string,
+                    folder_id,
+                    path,
+                    &parsed,
+                    size,
+                    mtime,
+                )?;
                 added += 1;
             }
 
@@ -307,10 +323,9 @@ fn folder_cover(path: &Path, app_dir: &Path) -> Option<String> {
                 .extension()
                 .and_then(|value| value.to_str())
                 .unwrap_or("jpg");
-            let cover_path =
-                app_dir
-                    .join("covers")
-                    .join(format!("{}.{}", cover_hash(path), extension));
+            let cover_path = app_dir
+                .join("covers")
+                .join(format!("{}.{}", cover_hash(path), extension));
             if !cover_path.exists() {
                 fs::copy(&candidate, &cover_path).ok()?;
             }
