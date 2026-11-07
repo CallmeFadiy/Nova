@@ -53,6 +53,7 @@ pub fn run() {
             commands::android_permission_state,
             commands::android_open_all_files_settings,
             commands::android_request_notifications,
+            commands::android_minimize_app,
             commands::android_audio_set_queue,
             commands::android_audio_play,
             commands::android_audio_pause,

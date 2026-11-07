@@ -3109,7 +3109,6 @@ p {
 
   .track-album,
   .track-folder,
-  .track-duration,
   .track-format {
     display: none;
   }
@@ -6236,7 +6235,7 @@ body {
   }
 
   .track-row {
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr) auto auto;
     min-height: 62px;
     gap: 8px;
     padding: 8px 4px;
@@ -6244,9 +6243,13 @@ body {
 
   .track-album,
   .track-folder,
-  .track-duration,
   .track-format {
     display: none;
+  }
+
+  .track-duration {
+    font-size: 9.5px;
+    white-space: nowrap;
   }
 
   .track-actions {

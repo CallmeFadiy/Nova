@@ -12,13 +12,24 @@ interface Props {
 }
 
 const MUSIC_PATH = "/storage/emulated/0/Music";
+let defaultFolderPromise: Promise<void> | null = null;
+let notificationsRequested = false;
+
+function ensureDefaultFolder(): Promise<void> {
+  if (!defaultFolderPromise) {
+    const { folders, addFolder } = useLibraryStore.getState();
+    defaultFolderPromise = folders.some((folder) => folder.path === MUSIC_PATH)
+      ? Promise.resolve()
+      : addFolder(MUSIC_PATH);
+  }
+  return defaultFolderPromise;
+}
 
 export function AndroidGate({ children }: Props) {
   const [permission, setPermission] = useState<PermissionState>("checking");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const ensured = useRef(false);
-  const notificationsRequested = useRef(false);
 
   const check = async () => {
     if (!isAndroid) return;
@@ -50,9 +61,9 @@ export function AndroidGate({ children }: Props) {
   useEffect(() => {
     if (permission !== "granted" || ensured.current) return;
     ensured.current = true;
-    void useLibraryStore.getState().addFolder(MUSIC_PATH);
-    if (!notificationsRequested.current) {
-      notificationsRequested.current = true;
+    void ensureDefaultFolder();
+    if (!notificationsRequested) {
+      notificationsRequested = true;
       void api.androidRequestNotifications();
     }
   }, [permission]);

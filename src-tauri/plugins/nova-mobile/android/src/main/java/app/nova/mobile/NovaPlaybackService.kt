@@ -4,6 +4,7 @@ import android.content.Intent
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.session.DefaultMediaNotificationProvider
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 
@@ -13,6 +14,13 @@ class NovaPlaybackService : MediaSessionService() {
 
     override fun onCreate() {
         super.onCreate()
+        setMediaNotificationProvider(
+            DefaultMediaNotificationProvider.Builder(this)
+                .setChannelId("nova_playback")
+                .setChannelName(R.string.nova_playback_channel)
+                .setNotificationId(1001)
+                .build(),
+        )
         val exo = ExoPlayer.Builder(this)
             .setRenderersFactory(NovaRenderersFactory(this))
             .build()

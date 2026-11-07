@@ -97,7 +97,12 @@ class AudioEngine {
       );
       this.nativeLoaded = items.length > 0;
       this.nativeCurrentIndex = startIndex;
-      this.startNativePolling();
+      this.nativePosition = positionMs;
+      if (this.nativeLoaded) {
+        this.startNativePolling();
+      } else {
+        this.stopNativePolling();
+      }
     } catch (error) {
       console.error("native audio queue", error);
     }

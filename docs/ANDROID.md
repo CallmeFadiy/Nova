@@ -152,21 +152,28 @@ adb -s emulator-5554 shell dumpsys notification --noredact
 - Фон: playback продолжается после Home; `NovaPlaybackService` в foreground.
 - Медиа-сессия: `state=PLAYING`, metadata с названием/исполнителем, медиа-кнопки
   pause/play работают.
-- Уведомление: MediaStyle с обложкой, play/pause, prev/next и seek.
+- Уведомление: MediaStyle с обложкой, play/pause, prev/next и seek; канал
+  `nova_playback`.
 - EQ: команды boost/cut применяются, playback не прерывается.
 - Мобильная оболочка: 411 CSS px, `scrollWidth=411`, нижняя навигация и player
-  bar не перекрываются; back закрывает NowPlaying, очередь и drawer.
+  bar не перекрываются; back закрывает NowPlaying, очередь и drawer, а на
+  корневом экране сворачивает приложение через `moveTaskToBack`.
+- В мобильной строке трека видны обложка, название, исполнитель и длительность.
 - Темы: Nocturne, Лёд, Огонь, Пепел, Киберпанк переключаются.
 - Repeat: off → all → one → off; shuffle включается и восстанавливается.
 - Windows: `npm.cmd run build:web` и
   `cargo test --manifest-path src-tauri/Cargo.toml --lib` проходят.
+- Проверка выполнена на эмуляторе `Medium_Phone_API_37.0` (Android 16, x86_64)
+  с 6 файлами: физический телефон `21121210G` был отключён. Повторить на
+  arm64-телефоне с полной библиотекой перед релизом.
 
 ## Заметка по EQ
 
 `EqualizerAudioProcessor` построен на `BaseAudioProcessor`. Выходной буфер
 обязательно нужно `flip()`-нуть, а на пустом входе нельзя вызывать
 `replaceOutputBuffer`: иначе `AudioProcessingPipeline` не увидит конец потока,
-позиция уедет за `durationMs`, а автопереход остановится.
+позиция уедет за `durationMs`, а автопереход остановится. Обрабатываются
+PCM16 и PCM float; другие кодировки проходят без обработки.
 
 ## Ограничения этапа 1
 
@@ -180,6 +187,8 @@ adb -s emulator-5554 shell dumpsys notification --noredact
 - `yt-dlp` на Android пока не встроен; `externalBin` отключён в
   `tauri.android.conf.json`.
 - APK debug; подписанный release-APK будет на этапе релиза.
+- Состояние плеера синхронизируется опросом `android_audio_state` каждые
+  250 мс; нативные события Media3 — следующий этап.
 
 ## Следующие планы
 

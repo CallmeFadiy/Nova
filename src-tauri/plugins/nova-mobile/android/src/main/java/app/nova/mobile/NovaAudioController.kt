@@ -53,7 +53,10 @@ class NovaAudioController(private val context: Context) {
         items = args.items.toList()
         repeatMode = args.repeat
         if (items.isEmpty()) {
-            withController { it.clearMediaItems() }
+            withController {
+                it.clearMediaItems()
+                it.stop()
+            }
             return
         }
 
@@ -124,7 +127,7 @@ class NovaAudioController(private val context: Context) {
             return result
         }
 
-        val index = player.currentMediaItemIndex
+        val index = if (player.mediaItemCount == 0) -1 else player.currentMediaItemIndex
         val itemDuration = items.getOrNull(index)?.durationMs ?: 0L
         val duration = if (player.duration > 0) player.duration else itemDuration
         result.put("currentIndex", index)

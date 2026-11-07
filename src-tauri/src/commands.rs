@@ -194,6 +194,19 @@ pub fn android_request_notifications(app: AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+#[tauri::command]
+pub fn android_minimize_app(app: AppHandle) -> Result<(), String> {
+    #[cfg(target_os = "android")]
+    {
+        let _: serde_json::Value = run_mobile_command(&app, "minimizeApp", ())?;
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        let _ = app;
+    }
+    Ok(())
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NativeAudioItem {

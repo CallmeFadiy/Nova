@@ -2,6 +2,7 @@ const COMMANDS: &[&str] = &[
     "hasAllFilesAccess",
     "openAllFilesSettings",
     "requestNotifications",
+    "minimizeApp",
     "audioSetQueue",
     "audioPlay",
     "audioPause",

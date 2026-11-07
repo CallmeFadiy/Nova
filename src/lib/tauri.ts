@@ -190,6 +190,10 @@ export const api = {
     return call<void>("android_request_notifications");
   },
 
+  androidMinimizeApp(): Promise<void> {
+    return call<void>("android_minimize_app");
+  },
+
   androidAudioSetQueue(
     items: NativeAudioItem[],
     startIndex: number,

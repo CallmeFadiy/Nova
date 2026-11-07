@@ -1,5 +1,6 @@
 package app.nova.mobile
 
+import androidx.media3.common.C
 import androidx.media3.common.audio.AudioProcessor
 import androidx.media3.common.audio.BaseAudioProcessor
 import java.nio.ByteBuffer
@@ -26,6 +27,7 @@ class EqualizerAudioProcessor : BaseAudioProcessor() {
     private var sampleRate = 44100
     private var channelCount = 2
     private var pcm16 = true
+    private var pcmFloat = false
     private var filters: Array<Array<Biquad>> = emptyArray()
 
     fun update(enabled: Boolean, bands: Array<Double>, preamp: Double) {
@@ -39,7 +41,8 @@ class EqualizerAudioProcessor : BaseAudioProcessor() {
     override fun onConfigure(inputAudioFormat: AudioProcessor.AudioFormat): AudioProcessor.AudioFormat {
         sampleRate = inputAudioFormat.sampleRate
         channelCount = inputAudioFormat.channelCount.coerceAtLeast(1)
-        pcm16 = inputAudioFormat.encoding == androidx.media3.common.C.ENCODING_PCM_16BIT
+        pcm16 = inputAudioFormat.encoding == C.ENCODING_PCM_16BIT
+        pcmFloat = inputAudioFormat.encoding == C.ENCODING_PCM_FLOAT
         filters = Array(channelCount) { Array(frequencies.size) { Biquad() } }
         return inputAudioFormat
     }
@@ -51,15 +54,12 @@ class EqualizerAudioProcessor : BaseAudioProcessor() {
         }
         val output = replaceOutputBuffer(bytes)
         val config = settings
-        if (!config.enabled || !pcm16 || channelCount <= 0 || filters.isEmpty()) {
+        if (!config.enabled || (!pcm16 && !pcmFloat) || channelCount <= 0 || filters.isEmpty()) {
             output.put(inputBuffer)
             output.flip()
             return
         }
 
-        val inputShorts = inputBuffer.order(ByteOrder.nativeOrder()).asShortBuffer()
-        val outputShorts = output.order(ByteOrder.nativeOrder()).asShortBuffer()
-        val sampleCount = inputShorts.remaining()
         val preamp = 10.0.pow(config.preamp / 20.0)
         val maxFrequency = sampleRate * 0.45
         val coefficients = Array(frequencies.size) { index ->
@@ -76,23 +76,44 @@ class EqualizerAudioProcessor : BaseAudioProcessor() {
             }
         }
 
-        var index = 0
-        while (index < sampleCount) {
-            for (channel in 0 until channelCount) {
-                if (index >= sampleCount) break
-                var sample = inputShorts.get(index) / 32768.0
-                sample *= preamp
-                for (band in frequencies.indices) {
-                    sample = filters[channel][band].process(sample)
+        if (pcmFloat) {
+            val inputFloats = inputBuffer.order(ByteOrder.nativeOrder()).asFloatBuffer()
+            val outputFloats = output.order(ByteOrder.nativeOrder()).asFloatBuffer()
+            val sampleCount = inputFloats.remaining()
+            var index = 0
+            while (index < sampleCount) {
+                for (channel in 0 until channelCount) {
+                    if (index >= sampleCount) break
+                    val sample = processSample(inputFloats.get(index).toDouble(), channel, preamp)
+                    outputFloats.put(index, sample.toFloat())
+                    index += 1
                 }
-                val clamped = sample.coerceIn(-1.0, 1.0)
-                outputShorts.put(index, (clamped * 32767.0).toInt().toShort())
-                index += 1
+            }
+        } else {
+            val inputShorts = inputBuffer.order(ByteOrder.nativeOrder()).asShortBuffer()
+            val outputShorts = output.order(ByteOrder.nativeOrder()).asShortBuffer()
+            val sampleCount = inputShorts.remaining()
+            var index = 0
+            while (index < sampleCount) {
+                for (channel in 0 until channelCount) {
+                    if (index >= sampleCount) break
+                    val sample = processSample(inputShorts.get(index) / 32768.0, channel, preamp)
+                    outputShorts.put(index, (sample * 32767.0).toInt().toShort())
+                    index += 1
+                }
             }
         }
         output.position(bytes)
         output.flip()
         inputBuffer.position(inputBuffer.limit())
+    }
+
+    private fun processSample(input: Double, channel: Int, preamp: Double): Double {
+        var sample = input * preamp
+        for (band in frequencies.indices) {
+            sample = filters[channel][band].process(sample)
+        }
+        return sample.coerceIn(-1.0, 1.0)
     }
 
     override fun onFlush() {

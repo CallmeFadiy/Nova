@@ -17,7 +17,7 @@ import { QueuePanel } from "./components/QueuePanel";
 import { Sidebar } from "./components/Sidebar";
 import { Toasts } from "./components/Toasts";
 import { TrackActionsModal } from "./components/TrackActionsModal";
-import { backgroundUrl, isTauri, listenScanProgress } from "./lib/tauri";
+import { api, backgroundUrl, isTauri, listenScanProgress } from "./lib/tauri";
 import { isAndroid } from "./lib/platform";
 import { Downloads } from "./screens/Downloads";
 import { Favorites } from "./screens/Favorites";
@@ -179,8 +179,14 @@ export default function App() {
         ui.openLyrics(null);
         return;
       }
-      if (canGoBack) {
+      const hash = window.location.hash;
+      const atRoot = hash === "" || hash === "#" || hash === "#/";
+      if (atRoot) {
+        void api.androidMinimizeApp();
+      } else if (canGoBack) {
         window.history.back();
+      } else {
+        void api.androidMinimizeApp();
       }
     }).then((listener) => {
       unlisten = () => void listener.unregister();

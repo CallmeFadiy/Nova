@@ -118,4 +118,10 @@ class NovaMobilePlugin(private val activity: Activity) : Plugin(activity) {
         }
         invoke.resolve()
     }
+
+    @Command
+    fun minimizeApp(invoke: Invoke) {
+        activity.moveTaskToBack(true)
+        invoke.resolve()
+    }
 }

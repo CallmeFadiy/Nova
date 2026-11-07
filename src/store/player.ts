@@ -63,7 +63,6 @@ function syncNativeQueue(
 ): void {
   if (!isAndroid) return;
   const native = nativeQueue(state.order, state.currentId);
-  if (native.items.length === 0) return;
   void audioEngine.setQueue(
     native.items,
     native.startIndex,
@@ -456,6 +455,13 @@ export const usePlayerStore = create<PlayerState>()(
       },
 
       clearQueue: () => {
+        syncNativeQueue({
+          order: [],
+          currentId: null,
+          positionMs: 0,
+          isPlaying: false,
+          repeat: get().repeat,
+        });
         audioEngine.unload();
         set({
           queue: [],
