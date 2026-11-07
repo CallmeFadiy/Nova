@@ -116,6 +116,7 @@ class NovaAudioController(private val context: Context) {
         val player = controller
         if (player == null) {
             result.put("currentIndex", -1)
+            result.put("queueLength", 0)
             result.put("positionMs", 0L)
             result.put("durationMs", 0L)
             result.put("isPlaying", false)
@@ -127,6 +128,7 @@ class NovaAudioController(private val context: Context) {
         val itemDuration = items.getOrNull(index)?.durationMs ?: 0L
         val duration = if (player.duration > 0) player.duration else itemDuration
         result.put("currentIndex", index)
+        result.put("queueLength", player.mediaItemCount)
         result.put("positionMs", player.currentPosition.coerceAtLeast(0))
         result.put("durationMs", duration)
         result.put("isPlaying", player.isPlaying)
