@@ -1568,6 +1568,17 @@ p {
   gap: 3px;
 }
 
+.settings-action-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.settings-action-grid button {
+  min-height: 44px;
+}
+
 .settings-empty {
   display: flex;
   align-items: center;
@@ -6661,6 +6672,12 @@ body {
 
   .settings-page .recognition-source-switch button {
     min-height: 44px;
+  }
+
+  .page .recognition-source-switch button {
+    min-height: 44px;
+    height: auto;
+    padding: 0 14px;
   }
 
   /* Android edge-to-edge does not resize the layout viewport when the IME

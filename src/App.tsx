@@ -17,8 +17,12 @@ import { QueuePanel } from "./components/QueuePanel";
 import { Sidebar } from "./components/Sidebar";
 import { Toasts } from "./components/Toasts";
 import { TrackActionsModal } from "./components/TrackActionsModal";
-import { api, backgroundUrl, isTauri, listenScanProgress } from "./lib/tauri";
-import { isAndroid } from "./lib/platform";
+import {
+  api,
+  backgroundUrl,
+  isTauri,
+  listenScanProgress,
+} from "./lib/tauri";import { isAndroid } from "./lib/platform";
 import { Downloads } from "./screens/Downloads";
 import { Favorites } from "./screens/Favorites";
 import { Home } from "./screens/Home";
@@ -40,6 +44,32 @@ export default function App() {
   // not only when Downloads/Import is opened. This variant does not subscribe
   // the root to progress events.
   useDownloadSync();
+
+  useEffect(() => {
+    if (!isAndroid) return;
+    const handled = new Set<string>();
+    const importOpened = async () => {
+      if (document.visibilityState !== "visible") return;
+      const path = await api.androidTakeOpenedFile();
+      if (!path || handled.has(path)) return;
+      handled.add(path);
+      const directory = path.substring(0, path.lastIndexOf("/"));
+      await useLibraryStore.getState().addFolder(directory);
+      const name = path.split("/").pop() ?? "файл";
+      useUiStore.getState().notify(`Добавлено в библиотеку: ${name}`, "success");
+      window.location.hash = "#/library";
+    };
+    void importOpened();
+    const interval = window.setInterval(() => void importOpened(), 3000);
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") void importOpened();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, []);
   const loading = useLibraryStore((state) => state.loading);
   const tracks = useLibraryStore((state) => state.tracks);
   const folders = useLibraryStore((state) => state.folders);

@@ -18,6 +18,7 @@ import {
   openExternal,
   pickAudioFile,
 } from "../lib/tauri";
+import { isAndroid } from "../lib/platform";
 import { useSettingsStore } from "../store/settings";
 import { useUiStore } from "../store/ui";
 import type { RecognitionResult } from "../types";
@@ -26,6 +27,9 @@ const WAVE_BARS = 18;
 
 export function Shazam() {
   const provider = useSettingsStore((state) => state.shazamProvider);
+  const setShazamProvider = useSettingsStore(
+    (state) => state.setShazamProvider,
+  );
   const shazamKey = useSettingsStore((state) => state.shazamKey);
   const recognitionSource = useSettingsStore(
     (state) => state.recognitionSource,
@@ -41,6 +45,17 @@ export function Shazam() {
   const [manual, setManual] = useState("");
   const [level, setLevel] = useState(0);
   const [peak, setPeak] = useState(0);
+
+  // The bundled Shazam fingerprint engine is Windows-only (songrec-lib panics
+  // on Android), so mobile recognition uses AudD.
+  const effectiveProvider =
+    isAndroid && provider === "builtin" ? "audd" : provider;
+
+  useEffect(() => {
+    if (isAndroid && provider === "builtin") {
+      setShazamProvider("audd");
+    }
+  }, [isAndroid, provider, setShazamProvider]);
 
   useEffect(() => {
     if (!listening) {
@@ -65,29 +80,36 @@ export function Shazam() {
   const hearsAudio = level > 0.45;
 
   const providerLabel =
-    provider === "builtin"
+    effectiveProvider === "builtin"
       ? "Встроенное распознавание"
-      : provider === "audd"
+      : effectiveProvider === "audd"
         ? "AudD"
         : "ACRCloud";
 
   const recognize = async () => {
-    if (provider === "acrcloud") {
+    if (effectiveProvider === "acrcloud") {
       notify(
         "ACRCloud требует host, access key и secret. Пока подключён AudD – выберите его в настройках.",
         "info",
       );
       return;
     }
-    if (provider === "audd" && !shazamKey.trim()) {
+    if (effectiveProvider === "audd" && !shazamKey.trim()) {
       notify("Добавьте API-ключ AudD в настройках", "info");
       return;
+    }
+    if (isAndroid && recognitionSource === "microphone") {
+      const granted = await api.androidRequestMicrophone();
+      if (!granted) {
+        notify("Разрешите доступ к микрофону в настройках Android", "info");
+        return;
+      }
     }
     setListening(true);
     setResult(null);
     try {
       const recognized =
-        provider === "builtin"
+        effectiveProvider === "builtin"
           ? await api.recognizeShazam(recognitionSource)
           : await api.recognizeAudd(shazamKey, recognitionSource);
       setResult(recognized);
@@ -115,10 +137,17 @@ export function Shazam() {
       notify("Выбор файла доступен в приложении Nova", "info");
       return;
     }
+    if (effectiveProvider === "audd" && !shazamKey.trim()) {
+      notify("Добавьте API-ключ AudD в настройках", "info");
+      return;
+    }
     setListening(true);
     setResult(null);
     try {
-      const recognized = await api.recognizeShazamFile(path);
+      const recognized =
+        effectiveProvider === "builtin"
+          ? await api.recognizeShazamFile(path)
+          : await api.recognizeAuddFile(path, shazamKey);
       setResult(recognized);
       notify(`Распознано: ${recognized.artist} – ${recognized.title}`, "success");
     } catch (error) {
@@ -223,13 +252,13 @@ export function Shazam() {
             : "Нажмите, чтобы слушать"}
         </h2>
         <p>
-          {provider === "builtin"
+          {effectiveProvider === "builtin"
             ? `Встроенное распознавание Shazam: 12 секунд записи через ${sourceLabel.toLowerCase()}, без ключа.`
-            : provider === "acrcloud"
+            : effectiveProvider === "acrcloud"
               ? "ACRCloud требует три параметра. Используйте AudD или ручной поиск."
               : shazamKey
                 ? `Запись через ${sourceLabel.toLowerCase()} не сохраняется.`
-                : "Добавьте ключ AudD в настройках – и распознавание заработает."}
+                : "Добавьте ключ AudD в настройках – и распознавание заработает на Android."}
         </p>
         <div className="shazam-providers">
           <span>Провайдер: {providerLabel}</span>

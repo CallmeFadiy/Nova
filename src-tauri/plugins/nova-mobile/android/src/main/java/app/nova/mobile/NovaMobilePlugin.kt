@@ -4,14 +4,20 @@ import android.Manifest
 import android.app.Activity
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.media.projection.MediaProjectionManager
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
+import android.os.PowerManager
 import android.provider.Settings
+import android.webkit.MimeTypeMap
 import androidx.activity.result.ActivityResult
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.FileProvider
 import app.tauri.annotation.ActivityCallback
 import app.tauri.annotation.Command
+import app.tauri.annotation.Permission
+import app.tauri.annotation.PermissionCallback
 import app.tauri.annotation.TauriPlugin
 import app.tauri.plugin.Invoke
 import app.tauri.plugin.JSObject
@@ -20,13 +26,59 @@ import org.json.JSONObject
 import java.io.File
 import java.util.concurrent.Executors
 
-@TauriPlugin
+@TauriPlugin(
+    permissions = [
+        Permission(
+            alias = "microphone",
+            strings = [Manifest.permission.RECORD_AUDIO],
+        ),
+    ],
+)
 class NovaMobilePlugin(private val activity: Activity) : Plugin(activity) {
     private var audioController: NovaAudioController? = null
     private val importExecutor = Executors.newSingleThreadExecutor()
 
     override fun onDestroy(activity: AppCompatActivity) {
         importExecutor.shutdownNow()
+    }
+
+    private var lastOpenIntent: String? = null
+
+    override fun onNewIntent(intent: Intent) {
+        handleOpenIntent(intent)
+    }
+
+    override fun onResume(activity: AppCompatActivity) {
+        handleOpenIntent(activity.intent)
+    }
+
+    private fun handleOpenIntent(intent: Intent?) {
+        if (intent?.action != Intent.ACTION_VIEW) return
+        val uri = intent.data ?: return
+        val key = uri.toString()
+        if (key == lastOpenIntent) return
+        lastOpenIntent = key
+        importExecutor.execute {
+            try {
+                val inbox = File(
+                    Environment.getExternalStorageDirectory(),
+                    "Download/NovaInbox",
+                ).apply { mkdirs() }
+                val file = copyContentToFile(
+                    activity.applicationContext,
+                    uri,
+                    inbox,
+                )
+                val payload = JSObject()
+                payload.put("path", file.absolutePath)
+                pendingOpenPath = file.absolutePath
+                trigger("open-file", payload)
+            } catch (error: Exception) {
+                val payload = JSObject()
+                payload.put("error", error.message ?: "Не удалось открыть файл")
+                trigger("open-file-error", payload)
+            }
+        }
     }
 
     private fun audio(): NovaAudioController =
@@ -128,6 +180,208 @@ class NovaMobilePlugin(private val activity: Activity) : Plugin(activity) {
             )
         }
         invoke.resolve()
+    }
+
+    @Command
+    fun requestMicrophone(invoke: Invoke) {
+        if (activity.checkSelfPermission(Manifest.permission.RECORD_AUDIO) ==
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            resolveGranted(invoke, true)
+            return
+        }
+        requestPermissionForAlias("microphone", invoke, "microphoneResult")
+    }
+
+    @PermissionCallback
+    fun microphoneResult(invoke: Invoke) {
+        val granted = activity.checkSelfPermission(Manifest.permission.RECORD_AUDIO) ==
+            PackageManager.PERMISSION_GRANTED
+        resolveGranted(invoke, granted)
+    }
+
+    private fun resolveGranted(invoke: Invoke, granted: Boolean) {
+        val result = JSObject()
+        result.put("granted", granted)
+        invoke.resolve(result)
+    }
+
+    @Command
+    fun shareFile(invoke: Invoke) {
+        val file = File(invoke.parseArgs(FilePathArgs::class.java).path)
+        if (!file.isFile) {
+            invoke.reject("Файл не найден")
+            return
+        }
+        try {
+            val intent = Intent(Intent.ACTION_SEND).apply {
+                type = mimeType(file.name)
+                putExtra(Intent.EXTRA_STREAM, contentUri(file))
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            activity.startActivity(Intent.createChooser(intent, "Поделиться"))
+            invoke.resolve()
+        } catch (error: Exception) {
+            invoke.reject(error.message ?: "Не удалось поделиться файлом")
+        }
+    }
+
+    @Command
+    fun openFile(invoke: Invoke) {
+        val file = File(invoke.parseArgs(FilePathArgs::class.java).path)
+        if (!file.isFile) {
+            invoke.reject("Файл не найден")
+            return
+        }
+        try {
+            val intent = Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(contentUri(file), mimeType(file.name))
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            activity.startActivity(Intent.createChooser(intent, "Открыть"))
+            invoke.resolve()
+        } catch (error: Exception) {
+            invoke.reject(error.message ?: "Не удалось открыть файл")
+        }
+    }
+
+    @Command
+    fun batteryState(invoke: Invoke) {
+        val manager = activity.getSystemService(PowerManager::class.java)
+        val result = JSObject()
+        result.put(
+            "ignoring",
+            manager?.isIgnoringBatteryOptimizations(activity.packageName) ?: false,
+        )
+        result.put("manufacturer", Build.MANUFACTURER)
+        invoke.resolve(result)
+    }
+
+    @Command
+    fun takeOpenedFile(invoke: Invoke) {
+        val result = JSObject()
+        val path = pendingOpenPath
+        pendingOpenPath = null
+        if (path == null) {
+            result.put("path", JSONObject.NULL)
+        } else {
+            result.put("path", path)
+        }
+        invoke.resolve(result)
+    }
+
+    @Command
+    fun requestIgnoreBattery(invoke: Invoke) {
+        val request = Intent(
+            Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+            Uri.parse("package:${activity.packageName}"),
+        )
+        try {
+            activity.startActivity(request)
+        } catch (_: Exception) {
+            activity.startActivity(
+                Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS),
+            )
+        }
+        invoke.resolve()
+    }
+
+    @Command
+    fun openBatterySettings(invoke: Invoke) {
+        try {
+            activity.startActivity(
+                Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS),
+            )
+        } catch (error: Exception) {
+            invoke.reject(error.message ?: "Не удалось открыть настройки батареи")
+            return
+        }
+        invoke.resolve()
+    }
+
+    @Command
+    fun openAutoStartSettings(invoke: Invoke) {
+        val miui = Intent().apply {
+            setClassName(
+                "com.miui.securitycenter",
+                "com.miui.permcenter.autostart.AutoStartManagementActivity",
+            )
+        }
+        try {
+            activity.startActivity(miui)
+        } catch (_: Exception) {
+            activity.startActivity(
+                Intent(
+                    Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                    Uri.parse("package:${activity.packageName}"),
+                ),
+            )
+        }
+        invoke.resolve()
+    }
+
+    private fun contentUri(file: File): Uri =
+        FileProvider.getUriForFile(
+            activity,
+            "${activity.packageName}.fileprovider",
+            file,
+        )
+
+    private fun mimeType(name: String): String {
+        val extension = name.substringAfterLast('.', "").lowercase()
+        return MimeTypeMap.getSingleton()
+            .getMimeTypeFromExtension(extension) ?: "audio/*"
+    }
+
+    @Command
+    fun captureSystemAudio(invoke: Invoke) {
+        val manager = activity.getSystemService(MediaProjectionManager::class.java)
+        if (manager == null) {
+            invoke.reject("MediaProjection недоступен на этом устройстве")
+            return
+        }
+        systemAudioResult = { path, error ->
+            activity.runOnUiThread {
+                if (error != null) {
+                    invoke.reject(error)
+                } else {
+                    val payload = JSObject()
+                    payload.put("path", path)
+                    invoke.resolve(payload)
+                }
+            }
+        }
+        try {
+            startActivityForResult(
+                invoke,
+                manager.createScreenCaptureIntent(),
+                "systemAudioConsent",
+            )
+        } catch (error: Exception) {
+            systemAudioResult = null
+            invoke.reject(error.message ?: "Не удалось запросить захват экрана")
+        }
+    }
+
+    @ActivityCallback
+    fun systemAudioConsent(invoke: Invoke, result: ActivityResult) {
+        if (result.resultCode != Activity.RESULT_OK || result.data == null) {
+            systemAudioResult = null
+            invoke.reject("Захват системного звука отменён")
+            return
+        }
+        val intent = Intent(activity, NovaProjectionService::class.java).apply {
+            action = NovaProjectionService.ACTION_CAPTURE
+            putExtra(NovaProjectionService.EXTRA_RESULT_CODE, result.resultCode)
+            putExtra(NovaProjectionService.EXTRA_RESULT_DATA, result.data)
+            putExtra(NovaProjectionService.EXTRA_SECONDS, 12)
+        }
+        try {
+            activity.startForegroundService(intent)
+        } catch (error: Exception) {
+            systemAudioResult = null
+            invoke.reject(error.message ?: "Не удалось запустить запись системного звука")
+        }
     }
 
     @Command
@@ -255,6 +509,21 @@ class NovaMobilePlugin(private val activity: Activity) : Plugin(activity) {
             startActivityForResult(invoke, intent, callback)
         } catch (error: Exception) {
             invoke.reject(error.message ?: "Не удалось открыть системный выбор файлов")
+        }
+    }
+
+    companion object {
+        @Volatile
+        private var systemAudioResult: ((String?, String?) -> Unit)? = null
+
+        @Volatile
+        private var pendingOpenPath: String? = null
+
+        /** Called by [NovaProjectionService] after the WAV is written. */
+        fun deliverSystemAudio(path: String?, error: String?) {
+            val callback = systemAudioResult
+            systemAudioResult = null
+            callback?.invoke(path, error)
         }
     }
 }

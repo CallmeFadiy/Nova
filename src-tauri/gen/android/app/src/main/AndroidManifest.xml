@@ -9,6 +9,8 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
 
     <!-- AndroidTV support -->
@@ -32,6 +34,13 @@
                 <!-- AndroidTV support -->
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:mimeType="audio/*" />
+                <data android:mimeType="video/*" />
+            </intent-filter>
         </activity>
 
         <service
@@ -47,6 +56,11 @@
             android:name="app.nova.download.NovaTaskService"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
+
+        <service
+            android:name="app.nova.mobile.NovaProjectionService"
+            android:exported="false"
+            android:foregroundServiceType="mediaProjection" />
 
         <provider
           android:name="androidx.core.content.FileProvider"

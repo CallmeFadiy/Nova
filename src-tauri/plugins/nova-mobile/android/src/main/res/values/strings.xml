@@ -11,4 +11,8 @@
     <string name="nova_download_status_error">Ошибка</string>
     <string name="nova_download_status_cancelled">Отменено</string>
     <string name="nova_download_status_paused">Пауза</string>
+    <string name="nova_recognition_channel">Распознавание</string>
+    <string name="nova_recognition_channel_description">Запись системного звука для распознавания трека</string>
+    <string name="nova_recognition_notification_title">Слушаю системный звук</string>
+    <string name="nova_recognition_notification_text">Nova распознаёт трек</string>
 </resources>

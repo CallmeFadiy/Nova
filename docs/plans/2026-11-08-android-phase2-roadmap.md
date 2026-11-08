@@ -63,32 +63,32 @@
   паузу без отдельного уведомления. Прогресс в БД обновляется событиями, а после
   перезапуска загрузка начинается с 0 %.
 
-## 2C. Распознавание и тексты
+## 2C. Распознавание и тексты — готово (2026-11-08)
 
-- `NovaRecognitionPlugin`: `AudioRecord` для микрофона, `AudioPlaybackCapture` +
-  `MediaProjection` для системного звука, WAV для Rust.
-- Runtime-разрешение `RECORD_AUDIO`; согласие на `MediaProjection` на каждую
-  сессию; предупреждение о защищённых приложениях.
-- AudD и встроенный Shazam; fallback, если `songrec-lib` не собирается под
-  Android (решение фиксируется по результатам spike).
-- Файловое распознавание через пикер из 2A.
-- Тексты Genius/LRC: существующие `get_lyrics`, `save_lyrics`, `list_lyrics`,
-  `delete_lyrics`, `clear_lyrics`; проверка на телефоне.
-- Критерий: микрофон, файл, системный звук (в пределах Android), AudD/Shazam,
+- Android: AudD; runtime-разрешение `RECORD_AUDIO`; микрофон через cpal,
+  файл через `recognize_audd_file`.
+- `NovaProjectionService`: `MediaProjection` + `AudioPlaybackCapture`,
+  `mediaProjection` foreground service, 16 кГц mono WAV.
+- Встроенный `songrec` на Android не работает (паника); UI переключается на
+  AudD, прямой builtin-вызов возвращает понятную ошибку Windows-версии.
+- Тексты: Genius и fallback LRCLIB (LRC/plain), кэш и редактор проверены.
+- Критерий выполнен в пределах Android: микрофон, файл, системный звук, AudD,
   тексты и LRC.
 
-## 2D. Полировка и релиз
+## 2D. Полировка и релиз — готово (2026-11-08)
 
-- Кастомная разметка медиа-уведомления для MIUI: тёмный фон/контраст на
-  светлых обложках (текущее ограничение).
-- Нативные события Media3 вместо опроса `android_audio_state` каждые 250 мс.
-- Share/Open with для «Показать в папке»; `ACTION_VIEW` для аудио/видео.
-- Запрос отключения оптимизации батареи MIUI; проверка foreground service.
-- Release APK: signing config, versionName, ABI splits (arm64), R8, размер,
-  checksums; `release/Android/`.
-- Доступность: 44 px, контраст, TalkBack-метки, safe area, поворот.
-- Финальный прогон по разделу 9 спецификации на `7ac47954`; Windows smoke.
-- Документация: `docs/ANDROID.md`, `README.md`, `docs/DECISIONS.md`.
+- Share/Open with через FileProvider; `ACTION_VIEW` audio/video и импорт в
+  `/sdcard/Download/NovaInbox`.
+- MIUI: статус батареи, запрос ignore optimizations, настройки батареи и
+  автозапуска.
+- Release APK: signing config, R8, arm64-only, `release/Android/`; финальный
+  APK установлен начисто и проверен.
+- Доступность: 10 экранов, 26/26 проверок 392 px/44 px/overflow; Now Playing,
+  Lyrics, track actions.
+- Финальный прогон: 78 треков, playback/background/lockscreen, `/sdcard/Music`
+  104 файла, Windows smoke.
+- Отложено: кастомная разметка медиа-уведомления MIUI (контраст на светлых
+  обложках) и нативные события Media3 вместо опроса 250 мс.
 
 ## Общие критерии готовности phase 2
 

@@ -170,6 +170,36 @@ export function Settings() {
     void refreshLyrics();
   }, []);
 
+  useEffect(() => {
+    if (isAndroid && shazamProvider === "builtin") {
+      setShazamProvider("audd");
+    }
+  }, [isAndroid, shazamProvider, setShazamProvider]);
+
+  const [batteryState, setBatteryState] = useState<{
+    ignoring: boolean;
+    manufacturer: string;
+  } | null>(null);
+
+  const refreshBattery = async () => {
+    if (!isAndroid) return;
+    try {
+      setBatteryState(await api.androidBatteryState());
+    } catch {
+      // The status is informative; a failed read is not an error.
+    }
+  };
+
+  useEffect(() => {
+    if (!isAndroid) return;
+    void refreshBattery();
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") void refreshBattery();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
+  }, []);
+
   const chooseDownloadDir = async () => {
     try {
       const path = await pickFolder("Выбрать папку загрузок");
@@ -754,6 +784,55 @@ export function Settings() {
         )}
       </section>
 
+      {isAndroid ? (
+        <section className="settings-section">
+          <div className="settings-section-head">
+            <h2 className="serif">Фоновая работа</h2>
+            <span className="settings-badge">
+              {batteryState?.ignoring ? "Без ограничений" : "Оптимизируется"}
+            </span>
+          </div>
+          <p className="settings-hint">
+            MIUI может останавливать загрузки, уведомления и воспроизведение в
+            фоне. Разрешите Nova работу без ограничений и автозапуск, чтобы
+            очередь и плеер не засыпали.
+          </p>
+          <div className="settings-action-grid">
+            <button
+              className="secondary-button"
+              onClick={() => {
+                void api
+                  .androidRequestIgnoreBattery()
+                  .then(() => window.setTimeout(() => void refreshBattery(), 1200))
+                  .catch((error) => notify(errorText(error), "error"));
+              }}
+            >
+              Разрешить фоновую работу
+            </button>
+            <button
+              className="ghost-button"
+              onClick={() =>
+                void api
+                  .androidOpenBatterySettings()
+                  .catch((error) => notify(errorText(error), "error"))
+              }
+            >
+              Настройки батареи
+            </button>
+            <button
+              className="ghost-button"
+              onClick={() =>
+                void api
+                  .androidOpenAutostartSettings()
+                  .catch((error) => notify(errorText(error), "error"))
+              }
+            >
+              Автозапуск MIUI
+            </button>
+          </div>
+        </section>
+      ) : null}
+
       <section className="settings-section">
         <div className="settings-section-head">
           <h2 className="serif">Тексты песен</h2>
@@ -825,11 +904,22 @@ export function Settings() {
               )
             }
           >
-            <option value="builtin">Встроенное распознавание</option>
+            {!isAndroid ? (
+              <option value="builtin">Встроенное распознавание</option>
+            ) : null}
             <option value="audd">AudD</option>
             <option value="acrcloud">ACRCloud</option>
           </select>
         </div>
+        {isAndroid ? (
+          <div className="settings-inline">
+            <Info size={15} />
+            <span>
+              Встроенный Shazam доступен в Windows-версии. На Android
+              распознавание идёт через AudD – добавьте API-ключ AudD.
+            </span>
+          </div>
+        ) : null}
         {shazamProvider !== "builtin" ? (
           <div className="settings-field">
             <label>API-ключ</label>

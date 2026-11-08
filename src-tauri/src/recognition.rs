@@ -430,36 +430,80 @@ fn capture_system(_app: &AppHandle, _seconds: u64) -> Result<(Vec<f32>, u32), St
     Err("Захват системного звука доступен только в Windows-версии Nova".to_string())
 }
 
+fn songrec_file(path: String) -> Result<RecognitionResult, String> {
+    // `songrec-lib` uses a blocking reqwest client, which creates and drops its
+    // own Tokio runtime. On Android that panics when it happens on a Tokio
+    // worker/blocking thread ("event loop thread panicked"), so isolate the
+    // library on a plain OS thread.
+    std::thread::spawn(move || {
+        let songrec = songrec::SongRec::new(songrec::Config::default());
+        songrec
+            .recognize_from_file(&path)
+            .map(map_shazam_result)
+            .map_err(|error| error.to_string())
+    })
+    .join()
+    .map_err(|_| {
+        "Встроенный Shazam недоступен на этом устройстве. Используйте AudD (нужен API-ключ)."
+            .to_string()
+    })?
+}
+
+fn songrec_samples(samples: Vec<i16>) -> Result<RecognitionResult, String> {
+    std::thread::spawn(move || {
+        let songrec = songrec::SongRec::new(songrec::Config::default());
+        songrec
+            .recognize_from_samples(&samples, TARGET_RATE)
+            .map(map_shazam_result)
+            .map_err(|error| error.to_string())
+    })
+    .join()
+    .map_err(|_| {
+        "Встроенный Shazam недоступен на этом устройстве. Используйте AudD (нужен API-ключ)."
+            .to_string()
+    })?
+}
+
 pub async fn recognize_shazam(
     app: AppHandle,
     source: Option<String>,
 ) -> Result<RecognitionResult, String> {
-    let source = RecognitionSource::parse(source.as_deref());
-    let captured_app = app.clone();
-    let samples = capture_16k(&captured_app, source, CAPTURE_SECONDS).await?;
-    let usable_len = samples.len() / 128 * 128;
-    let samples = samples[..usable_len].to_vec();
-    let result = tauri::async_runtime::spawn_blocking(move || {
-        let songrec = songrec::SongRec::new(songrec::Config::default());
-        songrec.recognize_from_samples(&samples, TARGET_RATE)
-    })
-    .await
-    .map_err(|error| format!("Ошибка распознавания: {error}"))?
-    .map_err(|error| error.to_string())?;
-
-    Ok(map_shazam_result(result))
+    #[cfg(target_os = "android")]
+    {
+        let _ = (app, source);
+        return Err(
+            "Встроенный Shazam доступен в Windows-версии. Выберите AudD в настройках."
+                .to_string(),
+        );
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        let source = RecognitionSource::parse(source.as_deref());
+        let captured_app = app.clone();
+        let samples = capture_16k(&captured_app, source, CAPTURE_SECONDS).await?;
+        let usable_len = samples.len() / 128 * 128;
+        let samples = samples[..usable_len].to_vec();
+        tauri::async_runtime::spawn_blocking(move || songrec_samples(samples))
+            .await
+            .map_err(|error| format!("Ошибка распознавания: {error}"))?
+    }
 }
 
 pub async fn recognize_shazam_file(path: String) -> Result<RecognitionResult, String> {
-    let result = tauri::async_runtime::spawn_blocking(move || {
-        let songrec = songrec::SongRec::new(songrec::Config::default());
-        songrec.recognize_from_file(&path)
-    })
-    .await
-    .map_err(|error| format!("Ошибка чтения файла: {error}"))?
-    .map_err(|error| error.to_string())?;
-
-    Ok(map_shazam_result(result))
+    #[cfg(target_os = "android")]
+    {
+        let _ = path;
+        return Err(
+            "Встроенный Shazam доступен в Windows-версии. Выберите AudD в настройках."
+                .to_string(),
+        );
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        tauri::async_runtime::spawn_blocking(move || songrec_file(path))
+            .await
+            .map_err(|error| format!("Ошибка чтения файла: {error}"))?
+    }
 }
 
 pub async fn recognize_audd(
@@ -472,21 +516,62 @@ pub async fn recognize_audd(
         return Err("Укажите API-ключ AudD в настройках".to_string());
     }
     let source = RecognitionSource::parse(source.as_deref());
+    #[cfg(target_os = "android")]
+    if source == RecognitionSource::System {
+        let path = crate::commands::android_capture_system_audio(&app).await?;
+        return recognize_audd_file(path, token).await;
+    }
     let samples = capture_16k(&app, source, CAPTURE_SECONDS).await?;
     let wav = tauri::async_runtime::spawn_blocking(move || wav_bytes(&samples))
         .await
         .map_err(|error| format!("Не удалось подготовить WAV: {error}"))??;
 
+    audd_send(wav, "nova-sample.wav", "audio/wav", &token).await
+}
+
+/// AudD accepts common audio files, so the Android file picker can recognize a
+/// track without the (Windows-only) local Shazam fingerprint engine.
+pub async fn recognize_audd_file(
+    path: String,
+    api_token: String,
+) -> Result<RecognitionResult, String> {
+    let token = api_token.trim().to_string();
+    if token.is_empty() {
+        return Err("Укажите API-ключ AudD в настройках".to_string());
+    }
+    let name = std::path::Path::new(&path)
+        .file_name()
+        .map(|value| value.to_string_lossy().to_string())
+        .unwrap_or_else(|| "nova-sample.wav".to_string());
+    let mime = match name.rsplit('.').next().unwrap_or("").to_lowercase().as_str() {
+        "mp3" => "audio/mpeg",
+        "flac" => "audio/flac",
+        "ogg" | "opus" => "audio/ogg",
+        "m4a" | "aac" | "mp4" => "audio/mp4",
+        _ => "audio/wav",
+    };
+    let bytes = tokio::fs::read(&path)
+        .await
+        .map_err(|error| format!("Не удалось прочитать файл: {error}"))?;
+    audd_send(bytes, &name, mime, &token).await
+}
+
+async fn audd_send(
+    bytes: Vec<u8>,
+    file_name: &str,
+    mime: &str,
+    token: &str,
+) -> Result<RecognitionResult, String> {
     let client = crate::http::client_builder()
         .timeout(Duration::from_secs(45))
         .build()
         .map_err(|error| error.to_string())?;
-    let part = reqwest::multipart::Part::bytes(wav)
-        .file_name("nova-sample.wav")
-        .mime_str("audio/wav")
+    let part = reqwest::multipart::Part::bytes(bytes)
+        .file_name(file_name.to_string())
+        .mime_str(mime)
         .map_err(|error| error.to_string())?;
     let form = reqwest::multipart::Form::new()
-        .text("api_token", token)
+        .text("api_token", token.to_string())
         .text("return", "apple_music,spotify")
         .part("audio", part);
 

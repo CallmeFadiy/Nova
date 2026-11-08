@@ -1,4 +1,5 @@
 import {
+  ExternalLink,
   FolderOpen,
   Heart,
   Image,
@@ -7,9 +8,11 @@ import {
   Pencil,
   Play,
   ScrollText,
+  Share2,
   Trash2,
 } from "lucide-react";
-import { pickImage, revealInFolder } from "../lib/tauri";
+import { api, pickImage, revealInFolder } from "../lib/tauri";
+import { isAndroid } from "../lib/platform";
 import { errorText } from "../lib/errors";
 import { useConfirmStore } from "../store/confirm";
 import { groupAlbums, useLibraryStore } from "../store/library";
@@ -85,6 +88,34 @@ export function TrackActionsModal() {
               <ScrollText size={16} />
               Текст песни
             </button>
+            {isAndroid ? (
+              <>
+                <button
+                  className="action-row"
+                  onClick={() => {
+                    close();
+                    void api
+                      .androidShareFile(track.path)
+                      .catch((error) => notify(errorText(error), "error"));
+                  }}
+                >
+                  <Share2 size={16} />
+                  Поделиться
+                </button>
+                <button
+                  className="action-row"
+                  onClick={() => {
+                    close();
+                    void api
+                      .androidOpenFile(track.path)
+                      .catch((error) => notify(errorText(error), "error"));
+                  }}
+                >
+                  <ExternalLink size={16} />
+                  Открыть в другом приложении
+                </button>
+              </>
+            ) : null}
             <button
               className="action-row"
               onClick={() => {

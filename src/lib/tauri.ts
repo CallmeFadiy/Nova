@@ -1,4 +1,4 @@
-import { convertFileSrc, invoke } from "@tauri-apps/api/core";
+import { addPluginListener, convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
 import { openUrl, revealItemInDir } from "@tauri-apps/plugin-opener";
@@ -194,6 +194,46 @@ export const api = {
 
   androidRequestNotifications(): Promise<void> {
     return call<void>("android_request_notifications");
+  },
+
+  androidRequestMicrophone(): Promise<boolean> {
+    if (!isTauri) return Promise.resolve(true);
+    return call<boolean>("android_request_microphone");
+  },
+
+  androidShareFile(path: string): Promise<void> {
+    return call<void>("android_share_file", { path });
+  },
+
+  androidOpenFile(path: string): Promise<void> {
+    return call<void>("android_open_file", { path });
+  },
+
+  androidBatteryState(): Promise<{
+    ignoring: boolean;
+    manufacturer: string;
+  }> {
+    if (!isTauri) return Promise.resolve({ ignoring: true, manufacturer: "" });
+    return call<{ ignoring: boolean; manufacturer: string }>(
+      "android_battery_state",
+    );
+  },
+
+  androidTakeOpenedFile(): Promise<string | null> {
+    if (!isTauri) return Promise.resolve(null);
+    return call<string | null>("android_take_opened_file");
+  },
+
+  androidRequestIgnoreBattery(): Promise<void> {
+    return call<void>("android_request_ignore_battery");
+  },
+
+  androidOpenBatterySettings(): Promise<void> {
+    return call<void>("android_open_battery_settings");
+  },
+
+  androidOpenAutostartSettings(): Promise<void> {
+    return call<void>("android_open_autostart_settings");
   },
 
   androidMinimizeApp(): Promise<void> {
@@ -753,6 +793,25 @@ export const api = {
     return call<RecognitionResult>("recognize_audd", { apiToken, source });
   },
 
+  async recognizeAuddFile(
+    path: string,
+    apiToken: string,
+  ): Promise<RecognitionResult> {
+    if (!isTauri) {
+      await delay(1600);
+      return {
+        title: "Ван Хельсинг",
+        artist: "Norma Tale",
+        album: "Ван Хельсинг",
+        artworkUrl: null,
+        sourceUrl: null,
+        query: "Norma Tale Ван Хельсинг",
+        provider: "Демо",
+      };
+    }
+    return call<RecognitionResult>("recognize_audd_file", { path, apiToken });
+  },
+
   async recognizeShazam(
     source: RecognitionInput = "microphone",
   ): Promise<RecognitionResult> {
@@ -937,6 +996,38 @@ export async function listenDownloadComplete(
   return listen<DownloadComplete>("download-complete", (event) =>
     callback(event.payload),
   );
+}
+
+export async function listenOpenFile(
+  callback: (path: string) => void,
+): Promise<() => void> {
+  if (!isTauri) return () => undefined;
+  const listener = await addPluginListener<{ path?: string; error?: string }>(
+    "nova-mobile",
+    "open-file",
+    (payload) => {
+      if (payload.path) callback(payload.path);
+    },
+  );
+  return () => {
+    void listener.unregister();
+  };
+}
+
+export async function listenOpenFileError(
+  callback: (message: string) => void,
+): Promise<() => void> {
+  if (!isTauri) return () => undefined;
+  const listener = await addPluginListener<{ path?: string; error?: string }>(
+    "nova-mobile",
+    "open-file-error",
+    (payload) => {
+      if (payload.error) callback(payload.error);
+    },
+  );
+  return () => {
+    void listener.unregister();
+  };
 }
 
 export async function listenRecognitionLevel(

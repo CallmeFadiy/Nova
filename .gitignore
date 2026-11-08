@@ -50,6 +50,12 @@ dev-data/
 # local release artifacts
 release/
 
+# local Android signing material
+src-tauri/gen/android/nova-release.jks
+src-tauri/gen/android/keystore.properties
+
 # personal media and captured app screenshots
 Music/
 docs/design/screens/
+src-tauri/gen/android/debug.keystore
+src-tauri/gen/android/keystore-release.properties

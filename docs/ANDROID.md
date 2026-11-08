@@ -382,6 +382,52 @@ SHA-256 `48E69E78C820BBA75E7F1F4BC3D4B446C26FD61B00F9E86FAFADA24A30287A8A`,
 - Пользовательские CA не доверяются в Android HTTP-клиенте: Rust использует
   корни webpki, поэтому TLS-инспекция и самоподписанные прокси не работают.
 
+## Приёмка phase 2C–2D (2026-11-08)
+
+- Распознавание на Android идёт через AudD: `RECORD_AUDIO` запрашивается
+  runtime-разрешением; микрофон пишет Rust/cpal, файл уходит в
+  `recognize_audd_file`, системный звук — через `NovaProjectionService`
+  (`MediaProjection` + `AudioPlaybackCapture`, 16 кГц mono WAV). Встроенный
+  `songrec` на Android падает, поэтому UI переключает провайдера на AudD и
+  показывает ошибку Windows-версии, если вызвать builtin напрямую.
+- Тексты: Genius, при 403 — LRCLIB (`syncedLyrics` LRC или plain). На треке
+  Kosandra получено 2953 символа LRC; кэш и редактор работают.
+- Share/Open with: FileProvider, `ACTION_VIEW` audio/video, импорт в
+  `/sdcard/Download/NovaInbox` и добавление папки в библиотеку. Проверено
+  `content://` из MediaStore (79-й трек, переход в Library); chooser
+  «Поделиться» и «Открыть в другом приложении» показываются.
+- MIUI: состояние `PowerManager.isIgnoringBatteryOptimizations`, запрос
+  исключения, настройки батареи и автозапуска в Settings.
+- Release: `release/Android/Nova-0.1.0-arm64-release.apk`, 66 861 927 байт,
+  SHA-256 `A7525B2C8FDC5C61CA82B54D929F540AEA589ACE852EBA2AD414956F50C7A6C9`,
+  arm64-v8a, подписан локальным `nova-release.jks` (CN=Nova Local, cert
+  SHA-256 `b4ec51312f56ae3cfd4c76912b7cf9aa41a24776301ef7715883eecd1e584958`).
+  Финальный APK установлен начисто (`adb uninstall` → install): 78 треков
+  пересобраны из `/sdcard/Music`, play/pause, next/prev, фон, локскрин и
+  действия медиа-уведомления проверены. Плейлистов, избранного и кастомных
+  обложек перед переустановкой не было, потери данных нет.
+- Polish: 26/26 проверок на 392 px — 10 экранов без overflow, все controls
+  ≥ 44 px, Now Playing, Lyrics, track actions с Share/Open with. Исправлены
+  30 px переключатели источника на Shazam.
+- Windows: `npm.cmd run build:web` и
+  `cargo test --manifest-path src-tauri/Cargo.toml --lib` — 36 passed.
+- `/sdcard/Music` — 104 файла, 78 треков, только Music; тестовые папки удалены.
+
+## Известные ограничения phase 2C–2D
+
+- AudD требует API-ключ; без ключа распознавание показывает подсказку.
+- Встроенный Shazam доступен только в Windows; на Android он отключён.
+- `AudioPlaybackCapture` не захватывает звук самого Nova (ограничение Android);
+  для проверки нужен другой плеер/видео.
+- `file://` intents не импортируются; файловые менеджеры используют
+  `content://`.
+- Release подписан локальным ключом; для распространения заменить keystore.
+- Кастомная разметка медиа-уведомления для MIUI не сделана: на светлых
+  обложках локскрин-карточка остаётся малоконтрастной (действия доступны).
+- Нативные события Media3 не подключены; состояние плеера по-прежнему
+  синхронизируется опросом `android_audio_state` каждые 250 мс.
+- Реальный Android 15 `dataSync` timeout не проверялся (телефон Android 13).
+
 ## Известные ограничения phase 2B-1
 
 - Прямые загрузки Rust и история в `localStorage` заменены нативным worker'ом и
@@ -420,18 +466,19 @@ PCM16 и PCM float; другие кодировки проходят без об
 - Обложка в системном ImageLoader может не читаться на локскрине из-за
   app-private пути; в медиа-уведомлении обложка отображается.
 - `MANAGE_EXTERNAL_STORAGE` — sideload-разрешение, не Play Store.
-- `MediaProjection` для системного распознавания, загрузки, импорт, Shazam и
-  тексты — следующие этапы. Редактирование тегов, дубликаты и 44 px targets
-  для player bar, drawer, страниц, модальных окон и selection bar уже вошли в
-  phase 2A; полный touch-паритет (очередь, «Сейчас играет») — phase 2D.
+- `MediaProjection` для системного распознавания реализован в 2C; он не
+  захватывает звук самого Nova (ограничение Android). Редактирование тегов,
+  дубликаты и 44 px targets для player bar, drawer, страниц, модальных окон и
+  selection bar вошли в phase 2A; полный touch-паритет — в 2D.
 - `yt-dlp` на Android встроен в APK (phase 2B-1); `externalBin` для
   desktop-сайдкара остаётся отключён в `tauri.android.conf.json`.
-- APK debug; подписанный release-APK будет на этапе релиза.
+- Debug APK — для разработки; подписанный release-APK:
+  `release/Android/Nova-0.1.0-arm64-release.apk`.
 - Состояние плеера синхронизируется опросом `android_audio_state` каждые
   250 мс; нативные события Media3 — следующий этап.
 
 ## Следующие планы
 
-1. 2C: распознавание (микрофон, файл, MediaProjection, AudD/Shazam) и тексты
-   (Genius/LRC).
-2. 2D: мобильная полировка, share/open with, release APK, подпись и ABI splits.
+Android phase 2 (2A–2D) завершена. Дальше: release-подпись для распространения
+(заменить локальный keystore), ABI splits/Play Store-вариант, проверка реального
+Android 15 timeout и внешние видео-интенты.

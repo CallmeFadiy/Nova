@@ -132,7 +132,18 @@ pub async fn get_lyrics(
         }
     }
 
-    let (text, source_url) = genius_lookup(&display_artist, &display_title).await?;
+    let (text, source_url) = match genius_lookup(&display_artist, &display_title).await {
+        Ok(result) => result,
+        Err(genius_error) => {
+            // Genius aggressively rate-limits/blocks some networks. LRCLIB is a
+            // free, keyless fallback with optional synced LRC timestamps.
+            lrclib_lookup(&display_artist, &display_title)
+                .await
+                .map_err(|lrclib_error| {
+                    format!("{genius_error}. LRCLIB: {lrclib_error}")
+                })?
+        }
+    };
     fs::write(&path, &text).map_err(|error| format!("Не удалось сохранить текст: {error}"))?;
 
     Ok(LyricsResult {
@@ -264,6 +275,76 @@ async fn genius_lookup(
         .ok_or_else(|| "Genius нашёл страницу, но текст песни не распознан".to_string())?;
 
     Ok((text, Some(chosen)))
+}
+
+async fn lrclib_lookup(
+    artist: &str,
+    title: &str,
+) -> Result<(String, Option<String>), String> {
+    let client = crate::http::client_builder()
+        .user_agent(BROWSER_UA)
+        .timeout(Duration::from_secs(20))
+        .build()
+        .map_err(|error| error.to_string())?;
+
+    let mut url = reqwest::Url::parse("https://lrclib.net/api/search")
+        .map_err(|error| error.to_string())?;
+    url.query_pairs_mut()
+        .append_pair("artist_name", artist)
+        .append_pair("track_name", title);
+    let response = client
+        .get(url)
+        .header(reqwest::header::ACCEPT, "application/json")
+        .send()
+        .await
+        .map_err(|error| format!("LRCLIB недоступен: {error}"))?;
+    if !response.status().is_success() {
+        return Err(format!("LRCLIB вернул HTTP {}", response.status()));
+    }
+    let entries = response
+        .json::<Vec<serde_json::Value>>()
+        .await
+        .map_err(|error| format!("LRCLIB вернул некорректный ответ: {error}"))?;
+
+    let candidate = entries.iter().find(|entry| {
+        entry
+            .get("syncedLyrics")
+            .and_then(|value| value.as_str())
+            .map(|value| !value.trim().is_empty())
+            .unwrap_or(false)
+    });
+    let (text, synced) = if let Some(entry) = candidate {
+        (
+            entry
+                .get("syncedLyrics")
+                .and_then(|value| value.as_str())
+                .unwrap_or_default()
+                .trim()
+                .to_string(),
+            true,
+        )
+    } else {
+        let plain = entries.iter().find_map(|entry| {
+            entry
+                .get("plainLyrics")
+                .and_then(|value| value.as_str())
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .map(str::to_string)
+        });
+        (
+            plain.ok_or_else(|| "LRCLIB не нашёл текст этой песни".to_string())?,
+            false,
+        )
+    };
+
+    let text = normalize_lyrics(&text);
+    let source = if synced {
+        "https://lrclib.net/ (LRC)"
+    } else {
+        "https://lrclib.net/"
+    };
+    Ok((text, Some(source.to_string())))
 }
 
 fn match_key(value: &str) -> String {

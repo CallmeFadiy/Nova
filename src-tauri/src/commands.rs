@@ -159,6 +159,21 @@ where
 }
 
 #[cfg(target_os = "android")]
+pub(crate) async fn android_capture_system_audio(app: &AppHandle) -> Result<String, String> {
+    let app = app.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let value: serde_json::Value = run_mobile_command(&app, "captureSystemAudio", ())?;
+        value
+            .get("path")
+            .and_then(|value| value.as_str())
+            .map(str::to_string)
+            .ok_or_else(|| "Системный звук не записан".to_string())
+    })
+    .await
+    .map_err(|error| error.to_string())?
+}
+
+#[cfg(target_os = "android")]
 async fn run_download_command_async<T, P>(
     app: &AppHandle,
     command: &str,
@@ -229,6 +244,23 @@ pub fn android_request_notifications(app: AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
+pub fn android_request_microphone(app: AppHandle) -> Result<bool, String> {
+    #[cfg(target_os = "android")]
+    {
+        let value: serde_json::Value = run_mobile_command(&app, "requestMicrophone", ())?;
+        return Ok(value
+            .get("granted")
+            .and_then(|value| value.as_bool())
+            .unwrap_or(false));
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        let _ = app;
+        Ok(true)
+    }
+}
+
+#[tauri::command]
 pub fn android_minimize_app(app: AppHandle) -> Result<(), String> {
     #[cfg(target_os = "android")]
     {
@@ -277,6 +309,113 @@ pub fn android_pick_audio(app: AppHandle) -> Result<Option<String>, String> {
         let _ = app;
         Ok(None)
     }
+}
+
+#[cfg_attr(not(target_os = "android"), allow(dead_code))]
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct FilePathPayload<'a> {
+    path: &'a str,
+}
+
+#[tauri::command]
+pub fn android_share_file(app: AppHandle, path: String) -> Result<(), String> {
+    #[cfg(target_os = "android")]
+    {
+        let _: serde_json::Value =
+            run_mobile_command(&app, "shareFile", FilePathPayload { path: &path })?;
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        let _ = (app, path);
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn android_open_file(app: AppHandle, path: String) -> Result<(), String> {
+    #[cfg(target_os = "android")]
+    {
+        let _: serde_json::Value =
+            run_mobile_command(&app, "openFile", FilePathPayload { path: &path })?;
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        let _ = (app, path);
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn android_battery_state(app: AppHandle) -> Result<serde_json::Value, String> {
+    #[cfg(target_os = "android")]
+    {
+        return run_mobile_command(&app, "batteryState", ());
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        let _ = app;
+        Ok(serde_json::json!({
+            "ignoring": true,
+            "manufacturer": "",
+        }))
+    }
+}
+
+#[tauri::command]
+pub fn android_take_opened_file(app: AppHandle) -> Result<Option<String>, String> {
+    #[cfg(target_os = "android")]
+    {
+        let value: serde_json::Value = run_mobile_command(&app, "takeOpenedFile", ())?;
+        return Ok(value
+            .get("path")
+            .and_then(|value| value.as_str())
+            .map(str::to_string));
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        let _ = app;
+        Ok(None)
+    }
+}
+
+#[tauri::command]
+pub fn android_request_ignore_battery(app: AppHandle) -> Result<(), String> {
+    #[cfg(target_os = "android")]
+    {
+        let _: serde_json::Value = run_mobile_command(&app, "requestIgnoreBattery", ())?;
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        let _ = app;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn android_open_battery_settings(app: AppHandle) -> Result<(), String> {
+    #[cfg(target_os = "android")]
+    {
+        let _: serde_json::Value = run_mobile_command(&app, "openBatterySettings", ())?;
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        let _ = app;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn android_open_autostart_settings(app: AppHandle) -> Result<(), String> {
+    #[cfg(target_os = "android")]
+    {
+        let _: serde_json::Value = run_mobile_command(&app, "openAutoStartSettings", ())?;
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        let _ = app;
+    }
+    Ok(())
 }
 
 #[tauri::command]
@@ -1625,6 +1764,14 @@ pub async fn recognize_audd(
     source: Option<String>,
 ) -> Result<RecognitionResult, String> {
     recognition::recognize_audd(app, api_token, source).await
+}
+
+#[tauri::command]
+pub async fn recognize_audd_file(
+    path: String,
+    api_token: String,
+) -> Result<RecognitionResult, String> {
+    recognition::recognize_audd_file(path, api_token).await
 }
 
 #[tauri::command]
