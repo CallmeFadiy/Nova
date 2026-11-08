@@ -6572,6 +6572,23 @@ body {
     min-height: 44px;
   }
 
+  /* The duplicate-finder uses small text buttons («Не трогать», «Только этот»)
+     and a 12 px checkbox; on a phone both need a real 44 px hit area. */
+  .modal .text-button,
+  .modal .merge-album-row {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  .modal .duplicate-track-check {
+    min-height: 44px;
+  }
+
+  .modal .duplicate-track-check input {
+    width: 18px;
+    height: 18px;
+  }
+
   .library-tab {
     min-height: 44px;
     min-width: 44px;
@@ -6622,14 +6639,25 @@ body {
   /* Android edge-to-edge does not resize the layout viewport when the IME
      opens. A sheet with a text field is anchored to the top on phones so the
      field and its submit button stay above the keyboard. Keeping it there for
-     the whole lifetime avoids the sheet moving when a button takes focus. */
-  .modal-backdrop:has(.modal input) {
+     the whole lifetime avoids the sheet moving when a button takes focus.
+     Checkboxes do not open a keyboard, so duplicates stay a bottom sheet. */
+  .modal-backdrop:has(.modal input:not([type="checkbox"]):not([type="radio"])) {
     align-items: start;
     padding-top: calc(12px + env(safe-area-inset-top));
   }
 
-  .modal-backdrop:has(.modal input) .modal {
+  .modal-backdrop:has(.modal input:not([type="checkbox"]):not([type="radio"])) .modal {
     border-radius: 18px;
+  }
+
+  /* A scrollable IME-capped edit sheet must keep its submit button reachable. */
+  .modal .modal-actions {
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
+    margin-top: 4px;
+    padding: 8px 0 2px;
+    background: #131316;
   }
 
   .mobile-menu {
