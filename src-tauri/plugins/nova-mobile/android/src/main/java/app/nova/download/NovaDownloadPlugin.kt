@@ -52,6 +52,13 @@ class DownloadStateArgs {
     var id: String = ""
 }
 
+@InvokeArg
+class TaskNotificationArgs {
+    var title: String = ""
+    var percent: Double = 0.0
+    var status: String = ""
+}
+
 private data class DownloadSnapshot(
     val id: String,
     val percent: Double = 0.0,
@@ -227,6 +234,51 @@ class NovaDownloadPlugin(private val activity: Activity) : Plugin(activity) {
         val args = invoke.parseArgs(DownloadStateArgs::class.java)
         val snapshot = snapshots[args.id.trim()]
         resolveOnUi(invoke, snapshotPayload(snapshot, args.id.trim()))
+    }
+
+    @Command
+    fun startTaskService(invoke: Invoke) {
+        val args = invoke.parseArgs(TaskNotificationArgs::class.java)
+        val started = NovaTaskService.start(
+            activity.applicationContext,
+            args.title,
+            args.percent,
+            args.status,
+        )
+        val result = JSObject()
+        result.put("started", started)
+        resolveOnUi(invoke, result)
+    }
+
+    @Command
+    fun updateTaskNotification(invoke: Invoke) {
+        val args = invoke.parseArgs(TaskNotificationArgs::class.java)
+        val updated = NovaTaskService.update(
+            activity.applicationContext,
+            args.title,
+            args.percent,
+            args.status,
+        )
+        val result = JSObject()
+        result.put("updated", updated)
+        resolveOnUi(invoke, result)
+    }
+
+    @Command
+    fun stopTaskService(invoke: Invoke) {
+        val stopped = NovaTaskService.stop(activity.applicationContext)
+        val result = JSObject()
+        result.put("stopped", stopped)
+        resolveOnUi(invoke, result)
+    }
+
+    /** Debug hook for API < 35: exercises the real `onTimeout` path. */
+    @Command
+    fun simulateTaskTimeout(invoke: Invoke) {
+        val simulated = NovaTaskService.simulateTimeout(activity.applicationContext)
+        val result = JSObject()
+        result.put("simulated", simulated)
+        resolveOnUi(invoke, result)
     }
 
     private fun runDownload(
@@ -462,6 +514,14 @@ class NovaDownloadPlugin(private val activity: Activity) : Plugin(activity) {
     private fun publish(snapshot: DownloadSnapshot) {
         snapshots[snapshot.id] = snapshot
         trigger(PROGRESS_EVENT, snapshotPayload(snapshot, snapshot.id))
+        // The queue worker owns the foreground service and its title. This is a
+        // no-op for the legacy (pre-Task-4) JS path because no service runs then.
+        NovaTaskService.update(
+            activity.applicationContext,
+            "",
+            snapshot.percent,
+            snapshot.status,
+        )
     }
 
     private fun snapshotPayload(snapshot: DownloadSnapshot?, id: String): JSObject {

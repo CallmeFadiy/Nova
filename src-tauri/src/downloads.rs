@@ -142,6 +142,27 @@ pub mod queue {
         tx.commit()
     }
 
+    /// `(active, queued)` counts. `active` means a row the worker owns
+    /// (`starting`/`downloading`); terminal rows are ignored so the service is
+    /// stopped once the last finished row is recorded.
+    pub fn counts(conn: &Connection) -> rusqlite::Result<(i64, i64)> {
+        conn.query_row(
+            r#"
+            SELECT
+                SUM(CASE WHEN status IN ('starting', 'downloading') THEN 1 ELSE 0 END),
+                SUM(CASE WHEN status = 'queued' THEN 1 ELSE 0 END)
+            FROM download_queue
+            "#,
+            [],
+            |row| {
+                Ok((
+                    row.get::<_, Option<i64>>(0)?.unwrap_or(0),
+                    row.get::<_, Option<i64>>(1)?.unwrap_or(0),
+                ))
+            },
+        )
+    }
+
     /// Oldest row the worker should run. Rows a previous process left in
     /// `starting`/`downloading` are re-queued by [`resume`] before the first
     /// pick, so only `queued` rows are eligible here.
@@ -354,6 +375,22 @@ static WORKER_RUNNING: AtomicBool = AtomicBool::new(false);
 /// allowed to finish so its files and queue row stay consistent).
 static WORKER_STOP: AtomicBool = AtomicBool::new(false);
 
+/// Whether `NovaTaskService` is currently in the foreground. The worker starts
+/// it before the first task and stops it when no queued/active row remains.
+static SERVICE_ACTIVE: AtomicBool = AtomicBool::new(false);
+
+/// Ensures the "Пауза" notification is posted only once while the queue stays
+/// paused instead of on every 250 ms worker tick.
+static PAUSED_SHOWN: AtomicBool = AtomicBool::new(false);
+
+/// Id of the row the worker is running. Progress events for other ids (the
+/// legacy JS download path) must not overwrite the queue notification.
+static ACTIVE_TASK_ID: Mutex<Option<String>> = Mutex::new(None);
+
+/// Written by `NovaTaskService.onTimeout` (API 35) next to `nova.db`, i.e. in
+/// Rust's `app_data_dir`. The worker consumes it and persists the pause flag.
+const TIMEOUT_MARKER: &str = "nova-task-timeout-pause";
+
 /// Cancellation flags by download id. `download_queue_cancel` sets the flag;
 /// `download_direct` polls it while streaming and the worker checks it before
 /// and after dispatch. Entries are removed on terminal status so the map does
@@ -437,6 +474,103 @@ pub fn stop_worker() {
     WORKER_STOP.store(true, Ordering::SeqCst);
 }
 
+fn set_active_task(id: Option<&str>) {
+    let mut active = ACTIVE_TASK_ID
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    *active = id.map(str::to_string);
+}
+
+/// Whether `id` is the queue row currently running. Used by `media` progress
+/// callbacks so a legacy JS download cannot overwrite the queue notification.
+#[cfg(target_os = "android")]
+pub fn is_active_download(id: &str) -> bool {
+    ACTIVE_TASK_ID
+        .lock()
+        .map(|active| active.as_deref() == Some(id))
+        .unwrap_or(false)
+}
+
+fn service_start(app: Option<&AppHandle>, title: &str) {
+    #[cfg(target_os = "android")]
+    if let Some(app) = app {
+        // Always drive a START, even when a previous task is still running: it
+        // refreshes the notification title for the new row. Kotlin uses a plain
+        // `startService` in that case, so a background queue stays allowed.
+        if crate::commands::android_task_service_start(app, title, 0.0, "starting") {
+            SERVICE_ACTIVE.store(true, Ordering::SeqCst);
+            PAUSED_SHOWN.store(false, Ordering::SeqCst);
+        }
+    }
+    #[cfg(not(target_os = "android"))]
+    let _ = (app, title);
+}
+
+fn service_update(app: Option<&AppHandle>, percent: f64, status: &str) {
+    #[cfg(target_os = "android")]
+    if let Some(app) = app {
+        if SERVICE_ACTIVE.load(Ordering::SeqCst) {
+            crate::commands::android_task_notification(app, "", percent, status);
+        }
+    }
+    #[cfg(not(target_os = "android"))]
+    let _ = (app, percent, status);
+}
+
+fn service_stop(app: Option<&AppHandle>) {
+    #[cfg(target_os = "android")]
+    if let Some(app) = app {
+        if SERVICE_ACTIVE.swap(false, Ordering::SeqCst) {
+            crate::commands::android_task_service_stop(app);
+        }
+    }
+    #[cfg(not(target_os = "android"))]
+    let _ = app;
+    PAUSED_SHOWN.store(false, Ordering::SeqCst);
+}
+
+/// Applies the Android 15 `dataSync` timeout marker written by the service.
+/// Returns `true` when a marker was consumed.
+fn consume_timeout_marker(db: &Mutex<Connection>, app_dir: &Path) -> bool {
+    let marker = app_dir.join(TIMEOUT_MARKER);
+    if !marker.exists() {
+        return false;
+    }
+    let _ = std::fs::remove_file(&marker);
+    let paused = with_db(db, |conn| queue::set_paused(conn, true));
+    if let Err(error) = paused {
+        eprintln!("download worker: cannot persist timeout pause: {error}");
+    }
+    // The service already left the foreground in `onTimeout`; do not try to
+    // stop it again, just forget it so the next task starts a fresh one.
+    SERVICE_ACTIVE.store(false, Ordering::SeqCst);
+    PAUSED_SHOWN.store(true, Ordering::SeqCst);
+    true
+}
+
+/// Stops the foreground service when no work is left, and posts a single
+/// "Пауза" update while the queue is paused with pending rows.
+fn service_after_step(db: &Mutex<Connection>, app: Option<&AppHandle>) {
+    let (active, queued, paused) = with_db(db, |conn| {
+        let counts = queue::counts(conn).unwrap_or((0, 0));
+        let paused = queue::is_paused(conn).unwrap_or(false);
+        (counts.0, counts.1, paused)
+    });
+
+    if active == 0 && queued == 0 {
+        service_stop(app);
+        return;
+    }
+
+    if paused {
+        if !PAUSED_SHOWN.swap(true, Ordering::SeqCst) {
+            service_update(app, 0.0, "paused");
+        }
+    } else {
+        PAUSED_SHOWN.store(false, Ordering::SeqCst);
+    }
+}
+
 /// Dedicated connection for the worker. WAL matches `db::init`; the busy
 /// timeout lets the worker and UI commands share the database instead of
 /// failing with `SQLITE_BUSY` during a scan or a queue update.
@@ -471,15 +605,23 @@ async fn worker_loop(
         if WORKER_STOP.load(Ordering::SeqCst) {
             break;
         }
+        if let Some(app_dir) = app_dir {
+            consume_timeout_marker(db, app_dir);
+        }
         if with_db(db, |conn| queue::is_paused(conn).unwrap_or(false)) {
+            service_after_step(db, app);
             tokio::time::sleep(IDLE_SLEEP).await;
             continue;
         }
         match worker_step(db, app, app_dir, db_path).await {
-            Ok(true) => {}
-            Ok(false) => tokio::time::sleep(IDLE_SLEEP).await,
+            Ok(true) => service_after_step(db, app),
+            Ok(false) => {
+                service_after_step(db, app);
+                tokio::time::sleep(IDLE_SLEEP).await;
+            }
             Err(error) => {
                 eprintln!("download worker: {error}");
+                service_after_step(db, app);
                 tokio::time::sleep(IDLE_SLEEP).await;
             }
         }
@@ -521,6 +663,8 @@ fn claim_next(
     // A cancel may have arrived while the row was queued; the token is the
     // source of truth, not the row status.
     let token = cancel_token(&task.id);
+    set_active_task(Some(&task.id));
+    service_start(app, &history_title(&task));
     emit_progress(
         app,
         DownloadProgress {
@@ -551,6 +695,7 @@ async fn worker_step(
 
     if token.load(Ordering::Relaxed) {
         with_db(db, |conn| finish_cancelled(conn, app, &task));
+        set_active_task(None);
         forget_cancel_token(&task.id);
         return Ok(true);
     }
@@ -577,6 +722,7 @@ async fn worker_step(
             });
         }
         forget_cancel_token(&task.id);
+        set_active_task(None);
         return Err(error.to_string());
     }
 
@@ -606,6 +752,7 @@ async fn worker_step(
     }
 
     forget_cancel_token(&task.id);
+    set_active_task(None);
     Ok(true)
 }
 
@@ -855,6 +1002,10 @@ fn history_title(task: &DownloadTask) -> String {
 
 fn emit_progress(app: Option<&AppHandle>, progress: DownloadProgress) {
     if let Some(app) = app {
+        #[cfg(target_os = "android")]
+        if is_active_download(&progress.id) {
+            service_update(Some(app), progress.percent, &progress.status);
+        }
         let _ = app.emit("download-progress", progress);
     }
 }
@@ -1055,6 +1206,23 @@ mod tests {
         assert_eq!(by_id("queued").status, "queued");
         assert_eq!(by_id("done").status, "done");
         assert_eq!(by_id("done").percent, 100.0);
+    }
+
+    #[test]
+    fn counts_active_and_queued_rows() {
+        let conn = conn();
+        assert_eq!(queue::counts(&conn).unwrap(), (0, 0));
+
+        queue::enqueue(&conn, &task("queued", "https://example/q.mp3")).unwrap();
+        queue::enqueue(&conn, &task("starting", "https://example/s.mp3")).unwrap();
+        queue::enqueue(&conn, &task("downloading", "https://example/d.mp3")).unwrap();
+        queue::set_status(&conn, "starting", "starting", None, None, None, None).unwrap();
+        queue::set_status(&conn, "downloading", "downloading", None, None, None, None).unwrap();
+
+        assert_eq!(queue::counts(&conn).unwrap(), (2, 1));
+
+        queue::set_status(&conn, "starting", "done", Some(100.0), None, None, None).unwrap();
+        assert_eq!(queue::counts(&conn).unwrap(), (1, 1));
     }
 
     #[test]

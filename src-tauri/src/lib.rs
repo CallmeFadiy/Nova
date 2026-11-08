@@ -76,6 +76,7 @@ pub fn run() {
             commands::android_download_info,
             commands::android_download_start,
             commands::android_download_cancel,
+            commands::android_download_simulate_timeout,
             commands::download_queue_list,
             commands::download_history_list,
             commands::download_enqueue,

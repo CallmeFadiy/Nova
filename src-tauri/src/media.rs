@@ -62,6 +62,10 @@ fn resolve_output_dir_optional(
 
 fn emit_progress_optional(app: Option<&AppHandle>, progress: DownloadProgress) {
     if let Some(app) = app {
+        #[cfg(target_os = "android")]
+        if crate::downloads::is_active_download(&progress.id) {
+            crate::commands::android_task_notification(app, "", progress.percent, &progress.status);
+        }
         emit_progress(app, progress);
     }
 }

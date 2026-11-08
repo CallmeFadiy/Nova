@@ -610,6 +610,112 @@ pub fn android_download_cancel(app: AppHandle, id: String) -> Result<bool, Strin
     }
 }
 
+/// `{title, percent, status}` payload for the `NovaTaskService` bridge. Field
+/// names match the Kotlin `TaskNotificationArgs` InvokeArg exactly.
+#[cfg_attr(not(target_os = "android"), allow(dead_code))]
+#[derive(Serialize)]
+struct TaskNotificationPayload<'a> {
+    title: &'a str,
+    percent: f64,
+    status: &'a str,
+}
+
+#[cfg(target_os = "android")]
+fn run_task_notification_command(
+    app: &AppHandle,
+    command: &str,
+    title: &str,
+    percent: f64,
+    status: &str,
+) -> Result<serde_json::Value, String> {
+    run_download_command(
+        app,
+        command,
+        TaskNotificationPayload {
+            title,
+            percent,
+            status,
+        },
+    )
+}
+
+/// Starts the `dataSync` foreground service. Returns `false` when the platform
+/// refuses the background start so the worker can retry on the next task.
+#[cfg_attr(not(target_os = "android"), allow(dead_code))]
+pub(crate) fn android_task_service_start(
+    app: &AppHandle,
+    title: &str,
+    percent: f64,
+    status: &str,
+) -> bool {
+    #[cfg(target_os = "android")]
+    {
+        return run_task_notification_command(app, "startTaskService", title, percent, status)
+            .map(|value| {
+                value
+                    .get("started")
+                    .and_then(|value| value.as_bool())
+                    .unwrap_or(false)
+            })
+            .unwrap_or(false);
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        let _ = (app, title, percent, status);
+        false
+    }
+}
+
+/// Throttled notification refresh. A no-op when the service is not running.
+#[cfg_attr(not(target_os = "android"), allow(dead_code))]
+pub(crate) fn android_task_notification(
+    app: &AppHandle,
+    title: &str,
+    percent: f64,
+    status: &str,
+) {
+    #[cfg(target_os = "android")]
+    {
+        let _ =
+            run_task_notification_command(app, "updateTaskNotification", title, percent, status);
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        let _ = (app, title, percent, status);
+    }
+}
+
+#[cfg_attr(not(target_os = "android"), allow(dead_code))]
+pub(crate) fn android_task_service_stop(app: &AppHandle) {
+    #[cfg(target_os = "android")]
+    {
+        let _: Result<serde_json::Value, String> = run_download_command(app, "stopTaskService", ());
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        let _ = app;
+    }
+}
+
+/// Debug-only hook: exercises the real `NovaTaskService.onTimeout` path on
+/// devices below API 35 (the phone is Android 13). Not used by the UI.
+#[tauri::command]
+pub fn android_download_simulate_timeout(app: AppHandle) -> Result<bool, String> {
+    #[cfg(target_os = "android")]
+    {
+        let value: serde_json::Value = run_download_command(&app, "simulateTaskTimeout", ())?;
+        return Ok(value
+            .get("simulated")
+            .and_then(|value| value.as_bool())
+            .unwrap_or(false));
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        let _ = app;
+        Ok(false)
+    }
+}
+
 /// Persistent queue/history commands.
 ///
 /// These only take the app DB mutex around the SQL call. The worker runs on its
