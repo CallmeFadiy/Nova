@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use subagent-driven-development
 > (recommended) or executing-plans to implement this plan task-by-task. Steps
-> use checkbox (`- [x]`) syntax for tracking.
+> use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Перенести очередь/историю загрузок в SQLite, запускать загрузки
 нативным worker'ом и `NovaTaskService` (dataSync), переживать перезапуск

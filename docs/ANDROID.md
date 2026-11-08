@@ -331,8 +331,8 @@ production-сборкой `build:web`.
 
 Устройство: POCO F4 GT `21121210G`, serial `7ac47954`, Android 13, arm64-v8a,
 392 CSS px. APK собран из `feat/android-download-queue` (commit `8ebeced`):
-`app-universal-debug.apk` (внутри только arm64-v8a), 236 282 981 байт,
-SHA-256 `F57FFC8029BB534903B2BE3A618B1BA9C43FA64BF8E96BA3AA105A2CD56B77C4`,
+`app-universal-debug.apk` (внутри только arm64-v8a), 236 308 929 байт,
+SHA-256 `48E69E78C820BBA75E7F1F4BC3D4B446C26FD61B00F9E86FAFADA24A30287A8A`,
 установлен поверх 2B-1.
 
 - Очередь и история: `download_queue`/`download_history` в `nova.db` (WAL),
@@ -359,7 +359,9 @@ SHA-256 `F57FFC8029BB534903B2BE3A618B1BA9C43FA64BF8E96BA3AA105A2CD56B77C4`,
   перезапуск и докачка с тем же id; очистка истории из UI; 392 px, нет
   горизонтального overflow, 44 px.
 - Windows: `npm.cmd run build:web` и
-  `cargo test --manifest-path src-tauri/Cargo.toml --lib` — 33 passed.
+  `cargo test --manifest-path src-tauri/Cargo.toml --lib` — 36 passed.
+- Финальный APK после правок review прошёл smoke: UI enqueue → `done` в
+  SQLite, библиотека 79 треков, очистка вернула 78 и Music-only.
 - `/sdcard/Music` не изменён: 104 файла, 78 треков в библиотеке, только Music;
   папка NovaDownloads удалена, очередь/история пусты, `stay_on` = 0.
 

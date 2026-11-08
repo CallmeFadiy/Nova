@@ -154,6 +154,8 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
         if (progress.status === "done") retryById.delete(progress.id);
         else if (progress.retry) retryById.set(progress.id, progress.retry);
         else if (previous?.retry) retryById.set(progress.id, previous.retry);
+        // A replace callback only makes sense for a successful task.
+        if (progress.status !== "done") doneCallbacks.delete(progress.id);
         const items = { ...state.items };
         delete items[progress.id];
         return { items, pending: pendingFromItems(items) };

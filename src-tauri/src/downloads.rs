@@ -1239,6 +1239,52 @@ mod tests {
     }
 
     #[test]
+    fn apply_schema_adds_ytdlp_path_to_an_existing_queue() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            r#"
+            CREATE TABLE download_queue (
+                id TEXT PRIMARY KEY,
+                kind TEXT NOT NULL DEFAULT '',
+                url TEXT NOT NULL DEFAULT '',
+                query TEXT,
+                output_dir TEXT NOT NULL DEFAULT '',
+                file_name TEXT,
+                expected_artist TEXT,
+                expected_title TEXT,
+                title TEXT,
+                status TEXT NOT NULL DEFAULT 'queued',
+                percent REAL NOT NULL DEFAULT 0,
+                line TEXT NOT NULL DEFAULT '',
+                path TEXT,
+                error TEXT,
+                order_index INTEGER NOT NULL DEFAULT 0,
+                created_at INTEGER NOT NULL DEFAULT 0,
+                updated_at INTEGER NOT NULL DEFAULT 0,
+                finished_at INTEGER
+            );
+            INSERT INTO download_queue (id, kind) VALUES ('old', 'direct');
+            "#,
+        )
+        .unwrap();
+
+        crate::db::apply_schema(&conn).unwrap();
+
+        let columns: Vec<String> = conn
+            .prepare("PRAGMA table_info(download_queue)")
+            .unwrap()
+            .query_map([], |row| row.get(1))
+            .unwrap()
+            .collect::<Result<_, _>>()
+            .unwrap();
+        assert!(columns.iter().any(|column| column == "ytdlp_path"));
+        let rows: i64 = conn
+            .query_row("SELECT COUNT(*) FROM download_queue", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(rows, 1);
+    }
+
+    #[test]
     fn list_returns_queue_rows_with_order_and_metadata() {
         let conn = conn();
         queue::enqueue(&conn, &task("a", "https://example/a.mp3")).unwrap();

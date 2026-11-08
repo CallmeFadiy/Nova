@@ -58,7 +58,7 @@
   библиотеку, восстановление после force-stop с тем же id.
 - UI: pause/resume/move/cancel по нативным командам, история из SQLite,
   `download-complete` обновляет библиотеку.
-- 392 px/44 px, 48/48 device checks, 33 Rust tests; `/sdcard/Music` не изменён.
+- 392 px/44 px, 48/48 device checks, 36 Rust tests; `/sdcard/Music` не изменён.
 - Android 15 `onTimeout(int, int)` обрабатывается; timeout оставляет сохранённую
   паузу без отдельного уведомления. Прогресс в БД обновляется событиями, а после
   перезапуска загрузка начинается с 0 %.

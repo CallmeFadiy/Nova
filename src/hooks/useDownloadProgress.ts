@@ -8,7 +8,37 @@ import { useLibraryStore } from "../store/library";
 
 let listenersStarted = false;
 
+/**
+ * Effects-only variant for the app root: installs the global download
+ * listeners and hydrates the native queue without subscribing the root
+ * component to every progress event.
+ */
+export function useDownloadSync() {
+  useEffect(() => {
+    if (listenersStarted) return;
+    listenersStarted = true;
+
+    // Keep these listeners for the lifetime of the window: a batch continues
+    // after the user navigates away from Downloads/Import.
+    void listenDownloadProgress((progress) => {
+      useDownloadStore.getState().upsert(progress);
+    });
+    void listenDownloadComplete(() => {
+      // The worker already scanned the output folder; reload the snapshot
+      // instead of running a second scan.
+      void useLibraryStore.getState().refresh();
+    });
+  }, []);
+
+  useEffect(() => {
+    // Idempotent; a failed hydrate resets `hydrated` and the next mount retries.
+    void useDownloadStore.getState().hydrate();
+  }, []);
+}
+
 export function useDownloadProgress() {
+  useDownloadSync();
+
   const items = useDownloadStore((state) => state.items);
   const pending = useDownloadStore((state) => state.pending);
   const paused = useDownloadStore((state) => state.paused);
@@ -24,28 +54,6 @@ export function useDownloadProgress() {
   const clearHistory = useDownloadStore((state) => state.clearHistory);
   const hydrate = useDownloadStore((state) => state.hydrate);
   const recordFailure = useDownloadStore((state) => state.recordFailure);
-
-  useEffect(() => {
-    if (listenersStarted) return;
-    listenersStarted = true;
-
-    // Keep these listeners for the lifetime of the window: a batch continues
-    // after the user navigates away from Downloads/Import. The root App calls
-    // this hook so a background/restart download also refreshes the library.
-    void listenDownloadProgress((progress) => {
-      useDownloadStore.getState().upsert(progress);
-    });
-    void listenDownloadComplete(() => {
-      // The worker already scanned the output folder; reload the snapshot
-      // instead of running a second scan.
-      void useLibraryStore.getState().refresh();
-    });
-  }, []);
-
-  useEffect(() => {
-    // Idempotent; a failed hydrate resets `hydrated` and the next mount retries.
-    void useDownloadStore.getState().hydrate();
-  }, []);
 
   return {
     items,
