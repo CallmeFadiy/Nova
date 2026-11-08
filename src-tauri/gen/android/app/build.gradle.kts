@@ -57,6 +57,11 @@ android {
     buildFeatures {
         buildConfig = true
     }
+    packaging {
+        // youtubedl-android unpacks its Python/ffmpeg payloads from nativeLibraryDir,
+        // so the jni libs must be extracted at install time.
+        jniLibs.useLegacyPackaging = true
+    }
 }
 
 kotlin {

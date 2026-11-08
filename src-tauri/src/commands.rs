@@ -144,6 +144,19 @@ where
         .map_err(|e| e.to_string())
 }
 
+#[cfg(target_os = "android")]
+fn run_download_command<T, P>(app: &AppHandle, command: &str, payload: P) -> Result<T, String>
+where
+    T: serde::de::DeserializeOwned,
+    P: Serialize,
+{
+    let state = app.state::<tauri_plugin_nova_mobile::NovaDownloads<tauri::Wry>>();
+    state
+        .0
+        .run_mobile_plugin(command, payload)
+        .map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 pub fn android_permission_state(app: AppHandle) -> Result<String, String> {
     #[cfg(target_os = "android")]
@@ -457,6 +470,23 @@ pub fn android_audio_state(app: AppHandle) -> Result<serde_json::Value, String> 
     }
 }
 
+
+#[tauri::command]
+pub fn android_download_probe(app: AppHandle, url: String) -> Result<serde_json::Value, String> {
+    #[cfg(target_os = "android")]
+    {
+        #[derive(Serialize)]
+        struct Payload {
+            url: String,
+        }
+        return run_download_command(&app, "downloadProbe", Payload { url });
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        let _ = (app, url);
+        Err("Встроенный yt-dlp доступен только на Android".to_string())
+    }
+}
 
 #[tauri::command]
 pub fn scan_library(app: AppHandle, state: State<'_, AppState>) -> Result<ScanResult, String> {

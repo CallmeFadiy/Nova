@@ -23,6 +23,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_nova_mobile::init())
+        .plugin(tauri_plugin_nova_mobile::init_downloads())
         .setup(|app| {
             let app_dir = std::env::var_os("NOVA_DATA_DIR")
                 .map(std::path::PathBuf::from)
@@ -66,6 +67,7 @@ pub fn run() {
             commands::android_audio_set_repeat,
             commands::android_audio_set_eq,
             commands::android_audio_state,
+            commands::android_download_probe,
             commands::scan_library,
             commands::add_folder,
             commands::remove_folder,
