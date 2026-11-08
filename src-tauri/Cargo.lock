@@ -2668,6 +2668,7 @@ dependencies = [
  "tauri-plugin-nova-mobile",
  "tauri-plugin-opener",
  "tauri-plugin-shell",
+ "tokio",
  "walkdir",
  "wasapi",
  "webpki-roots",

@@ -206,6 +206,15 @@ pub struct DownloadResult {
     pub directory: String,
 }
 
+/// Payload of the `download-complete` event. The worker emits it after the
+/// finished file has been scanned into the library.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DownloadComplete {
+    pub id: String,
+    pub path: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RecognitionResult {

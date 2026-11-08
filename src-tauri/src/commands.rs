@@ -11,6 +11,7 @@ use sha1::{Digest, Sha1};
 use std::fs;
 use std::io::Read;
 use std::path::PathBuf;
+use std::sync::atomic::Ordering;
 use tauri::{AppHandle, Manager, State};
 
 pub fn snapshot(conn: &Connection) -> Result<Snapshot, String> {
@@ -611,8 +612,8 @@ pub fn android_download_cancel(app: AppHandle, id: String) -> Result<bool, Strin
 
 /// Persistent queue/history commands.
 ///
-/// These only take the app DB mutex around the SQL call. The worker and the
-/// progress listener live outside this layer (Tasks 2-4).
+/// These only take the app DB mutex around the SQL call. The worker runs on its
+/// own connection and holds no lock while downloading.
 #[tauri::command]
 pub fn download_queue_list(state: State<'_, AppState>) -> Result<Vec<DownloadQueueRow>, String> {
     let conn = state.db.lock().map_err(|e| e.to_string())?;
@@ -628,21 +629,101 @@ pub fn download_history_list(
 }
 
 #[tauri::command]
-pub fn download_enqueue(state: State<'_, AppState>, task: DownloadTask) -> Result<String, String> {
-    let conn = state.db.lock().map_err(|e| e.to_string())?;
-    crate::downloads::queue::enqueue(&conn, &task).map_err(|e| e.to_string())
+pub fn download_enqueue(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    task: DownloadTask,
+) -> Result<String, String> {
+    let id = {
+        let conn = state.db.lock().map_err(|e| e.to_string())?;
+        crate::downloads::queue::enqueue(&conn, &task).map_err(|e| e.to_string())?
+    };
+    crate::downloads::start_worker(app);
+    Ok(id)
+}
+
+/// Explicit worker start, used on restart after `download_queue_resume`.
+#[tauri::command]
+pub fn download_queue_start(app: AppHandle) -> Result<(), String> {
+    crate::downloads::start_worker(app);
+    Ok(())
 }
 
 #[tauri::command]
-pub fn download_queue_pause(state: State<'_, AppState>, paused: bool) -> Result<(), String> {
-    let conn = state.db.lock().map_err(|e| e.to_string())?;
-    crate::downloads::queue::set_paused(&conn, paused).map_err(|e| e.to_string())
+pub fn download_queue_pause(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    paused: bool,
+) -> Result<(), String> {
+    {
+        let conn = state.db.lock().map_err(|e| e.to_string())?;
+        crate::downloads::queue::set_paused(&conn, paused).map_err(|e| e.to_string())?;
+    }
+    // Resuming must also revive a worker that exited earlier; pausing keeps it
+    // alive but idle (Task 3's service owns the foreground notification).
+    if !paused {
+        crate::downloads::start_worker(app);
+    }
+    Ok(())
 }
 
 #[tauri::command]
-pub fn download_queue_cancel(state: State<'_, AppState>, id: String) -> Result<bool, String> {
-    let conn = state.db.lock().map_err(|e| e.to_string())?;
-    crate::downloads::queue::cancel(&conn, &id).map_err(|e| e.to_string())
+pub fn download_queue_cancel(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: String,
+) -> Result<bool, String> {
+    let Some((status, kind)) = ({
+        let conn = state.db.lock().map_err(|e| e.to_string())?;
+        crate::downloads::queue::status_kind(&conn, &id).map_err(|e| e.to_string())?
+    }) else {
+        crate::downloads::forget_cancel_token(&id);
+        return Ok(false);
+    };
+
+    if !matches!(status.as_str(), "queued" | "starting" | "downloading") {
+        crate::downloads::forget_cancel_token(&id);
+        return Ok(false);
+    }
+
+    // Signal before touching the row: the worker may claim a queued row between
+    // the status read and the DELETE.
+    crate::downloads::cancel_token(&id).store(true, Ordering::SeqCst);
+
+    // A queued job has not written anything yet, so deleting the row is atomic
+    // and preserves the Task 1 semantics. Active jobs stay in the table: the
+    // worker observes the token, deletes its own partial/staging files, and
+    // records `cancelled` itself. That avoids a deleted row being updated to
+    // `done` by an in-flight worker.
+    let removed = if status == "queued" {
+        let conn = state.db.lock().map_err(|e| e.to_string())?;
+        crate::downloads::queue::cancel(&conn, &id).map_err(|e| e.to_string())?
+    } else {
+        false
+    };
+    if removed {
+        return Ok(true);
+    }
+
+    #[cfg(target_os = "android")]
+    if kind == "ytdlp" {
+        // The token cannot stop the native process; the plugin has to destroy
+        // it. The worker still owns the final `cancelled` status and cleanup.
+        let _ = android_download_cancel(app, id.clone());
+    }
+    #[cfg(not(target_os = "android"))]
+    let _ = (app, kind);
+
+    // A queued row deleted by a concurrent cancel leaves nothing to stop.
+    let still_there = {
+        let conn = state.db.lock().map_err(|e| e.to_string())?;
+        crate::downloads::queue::status_kind(&conn, &id).map_err(|e| e.to_string())?
+    };
+    if still_there.is_none() {
+        crate::downloads::forget_cancel_token(&id);
+        return Ok(false);
+    }
+    Ok(true)
 }
 
 #[tauri::command]
@@ -663,11 +744,17 @@ pub fn download_history_clear(state: State<'_, AppState>) -> Result<(), String> 
 }
 
 /// Called once on startup by Task 4. Rows a killed process left in
-/// `starting`/`downloading` go back to `queued` with their progress cleared.
+/// `starting`/`downloading` go back to `queued` with their progress cleared,
+/// and the queue is unpaused so the worker picks them up. This is also the
+/// native "resume queue" action in the UI.
 #[tauri::command]
-pub fn download_queue_resume(state: State<'_, AppState>) -> Result<(), String> {
-    let conn = state.db.lock().map_err(|e| e.to_string())?;
-    crate::downloads::queue::resume(&conn).map_err(|e| e.to_string())?;
+pub fn download_queue_resume(app: AppHandle, state: State<'_, AppState>) -> Result<(), String> {
+    {
+        let conn = state.db.lock().map_err(|e| e.to_string())?;
+        crate::downloads::queue::resume(&conn).map_err(|e| e.to_string())?;
+        crate::downloads::queue::set_paused(&conn, false).map_err(|e| e.to_string())?;
+    }
+    crate::downloads::start_worker(app);
     Ok(())
 }
 
@@ -1340,6 +1427,7 @@ pub async fn download_media(
         ytdlp_path,
         expected_artist,
         expected_title,
+        None,
     )
     .await
 }
@@ -1362,6 +1450,7 @@ pub async fn download_direct(
         file_name,
         expected_artist,
         expected_title,
+        None,
     )
     .await
 }

@@ -130,6 +130,9 @@ pub fn init(app_dir: &Path) -> Result<Connection, Box<dyn std::error::Error>> {
 
     let conn = Connection::open(app_dir.join("nova.db"))?;
     conn.execute_batch("PRAGMA journal_mode = WAL;")?;
+    // The queue worker writes through its own connection; wait for a short
+    // writer instead of failing a UI command with SQLITE_BUSY.
+    conn.busy_timeout(std::time::Duration::from_secs(5))?;
     apply_schema(&conn)?;
 
     #[cfg(debug_assertions)]

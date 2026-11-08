@@ -9,6 +9,8 @@ use std::collections::HashSet;
 use std::fs;
 use std::io::Write as _;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering as AtomicOrdering};
+use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 const BROWSER_UA: &str =
@@ -39,13 +41,39 @@ fn default_download_dir(app: &AppHandle) -> Result<PathBuf, String> {
 }
 
 fn resolve_output_dir(app: &AppHandle, output_dir: &str) -> Result<PathBuf, String> {
+    resolve_output_dir_optional(Some(app), output_dir)
+}
+
+/// `None` is used by the background worker in tests, where the task always
+/// carries an absolute output directory and no `AppHandle` exists.
+fn resolve_output_dir_optional(
+    app: Option<&AppHandle>,
+    output_dir: &str,
+) -> Result<PathBuf, String> {
     if output_dir.trim().is_empty() {
+        let app = app.ok_or_else(|| "Не указана папка для скачивания".to_string())?;
         default_download_dir(app)
     } else {
         let path = PathBuf::from(output_dir.trim());
         fs::create_dir_all(&path).map_err(|error| error.to_string())?;
         Ok(path)
     }
+}
+
+fn emit_progress_optional(app: Option<&AppHandle>, progress: DownloadProgress) {
+    if let Some(app) = app {
+        emit_progress(app, progress);
+    }
+}
+
+/// Stable error text for a cancelled direct transfer. The worker classifies
+/// cancellation by token, not by this string, but the UI shows it verbatim.
+pub(crate) const CANCELLED_MESSAGE: &str = "Загрузка отменена";
+
+fn is_cancelled(cancel: &Option<Arc<AtomicBool>>) -> bool {
+    cancel
+        .as_ref()
+        .is_some_and(|token| token.load(AtomicOrdering::Relaxed))
 }
 
 async fn run_ytdlp(
@@ -1541,6 +1569,7 @@ pub async fn download_media(
     ytdlp_path: Option<String>,
     expected_artist: Option<String>,
     expected_title: Option<String>,
+    cancel: Option<Arc<AtomicBool>>,
 ) -> Result<DownloadResult, String> {
     let preferred_name = query
         .as_deref()
@@ -1557,6 +1586,7 @@ pub async fn download_media(
             preferred_name,
             expected_artist,
             expected_title,
+            cancel,
         )
         .await;
     }
@@ -1700,11 +1730,38 @@ pub async fn download_direct(
     file_name: Option<String>,
     expected_artist: Option<String>,
     expected_title: Option<String>,
+    cancel: Option<Arc<AtomicBool>>,
+) -> Result<DownloadResult, String> {
+    download_direct_impl(
+        Some(app),
+        id,
+        url,
+        output_dir,
+        file_name,
+        expected_artist,
+        expected_title,
+        cancel,
+    )
+    .await
+}
+
+/// Shared direct-download implementation for the command and the native queue
+/// worker. `app` is `None` only for worker tests, where there is no webview to
+/// emit progress to; the task always carries an absolute output directory.
+pub(crate) async fn download_direct_impl(
+    app: Option<&AppHandle>,
+    id: String,
+    url: String,
+    output_dir: String,
+    file_name: Option<String>,
+    expected_artist: Option<String>,
+    expected_title: Option<String>,
+    cancel: Option<Arc<AtomicBool>>,
 ) -> Result<DownloadResult, String> {
     if !url.starts_with("http://") && !url.starts_with("https://") {
         return Err("Ссылка должна начинаться с http:// или https://".to_string());
     }
-    let directory = resolve_output_dir(app, &output_dir)?;
+    let directory = resolve_output_dir_optional(app, &output_dir)?;
     let client = crate::http::client_builder()
         .user_agent(BROWSER_UA)
         .timeout(Duration::from_secs(180))
@@ -1771,11 +1828,25 @@ pub async fn download_direct(
         counter += 1;
     }
 
+    // A cancel may arrive while the request headers are in flight; do not
+    // create a partial file just to remove it again.
+    if is_cancelled(&cancel) {
+        return Err(CANCELLED_MESSAGE.to_string());
+    }
+
     let mut file = fs::File::create(&path)
         .map_err(|error| format!("Не удалось создать файл: {error}"))?;
     let mut received = 0u64;
     let mut last_percent = -1.0f64;
     loop {
+        // Cancellation is checked between stream chunks. Direct downloads write
+        // into their final name, so the partial file must be removed here: only
+        // this job owns it.
+        if is_cancelled(&cancel) {
+            drop(file);
+            let _ = fs::remove_file(&path);
+            return Err(CANCELLED_MESSAGE.to_string());
+        }
         let chunk = match response.chunk().await {
             Ok(Some(chunk)) => chunk,
             Ok(None) => break,
@@ -1795,7 +1866,7 @@ pub async fn download_direct(
             let percent = (received as f64 / total as f64 * 100.0).clamp(0.0, 100.0);
             if percent - last_percent >= 2.0 || percent >= 99.9 {
                 last_percent = percent;
-                emit_progress(
+                emit_progress_optional(
                     app,
                     DownloadProgress {
                         id: id.clone(),
@@ -1809,6 +1880,11 @@ pub async fn download_direct(
             }
         }
     }
+    if is_cancelled(&cancel) {
+        drop(file);
+        let _ = fs::remove_file(&path);
+        return Err(CANCELLED_MESSAGE.to_string());
+    }
     if let Err(error) = file.flush() {
         drop(file);
         let _ = fs::remove_file(&path);
@@ -1820,10 +1896,10 @@ pub async fn download_direct(
         expected_artist.as_deref(),
         expected_title.as_deref(),
     ) {
-        emit_progress(
+        emit_progress_optional(
             app,
             DownloadProgress {
-                id,
+                id: id.clone(),
                 percent: 0.0,
                 line: error.clone(),
                 status: "error".to_string(),
@@ -1834,7 +1910,7 @@ pub async fn download_direct(
         return Err(error);
     }
     let path_string = path.to_string_lossy().to_string();
-    emit_progress(
+    emit_progress_optional(
         app,
         DownloadProgress {
             id,

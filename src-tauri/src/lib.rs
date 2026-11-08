@@ -20,7 +20,7 @@ pub struct AppState {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let app = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_shell::init())
@@ -43,6 +43,9 @@ pub fn run() {
                 db: Mutex::new(conn),
                 app_dir: app_dir.clone(),
             });
+            // Process rows persisted before a restart. The worker re-queues rows
+            // left in starting/downloading before its first pick.
+            downloads::start_worker(app.handle().clone());
             let scope = app.asset_protocol_scope();
             let _ = scope.allow_directory(&app_dir, true);
             for folder in folders {
@@ -76,6 +79,7 @@ pub fn run() {
             commands::download_queue_list,
             commands::download_history_list,
             commands::download_enqueue,
+            commands::download_queue_start,
             commands::download_queue_pause,
             commands::download_queue_cancel,
             commands::download_queue_move,
@@ -118,6 +122,12 @@ pub fn run() {
             commands::delete_lyrics,
             commands::clear_lyrics,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application");
+
+    app.run(|_app, event| {
+        if matches!(event, tauri::RunEvent::Exit) {
+            downloads::stop_worker();
+        }
+    });
 }

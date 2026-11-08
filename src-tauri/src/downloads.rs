@@ -5,9 +5,17 @@
 //! SQLite database without a running app.
 
 use crate::db::now_secs;
-use crate::models::{DownloadHistoryItem, DownloadQueueRow, DownloadTask};
+use crate::models::{
+    DownloadComplete, DownloadHistoryItem, DownloadProgress, DownloadQueueRow, DownloadResult,
+    DownloadTask,
+};
 use rusqlite::{params, Connection, OptionalExtension};
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::collections::HashMap;
+use std::path::Path;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::{Arc, Mutex, OnceLock};
+use std::time::Duration;
+use tauri::{AppHandle, Emitter, Manager};
 
 /// Settings key for the global queue pause flag. The queue table has no
 /// `paused` column because pause applies to the whole worker, not one row.
@@ -87,10 +95,9 @@ pub mod queue {
             "#,
         )?;
         let rows = stmt.query_map([], |row| {
-            let kind: String = row.get(1)?;
             Ok(DownloadQueueRow {
                 id: row.get(0)?,
-                kind: kind.clone(),
+                kind: row.get(1)?,
                 title: row.get(2)?,
                 percent: row.get(3)?,
                 line: row.get(4)?,
@@ -98,9 +105,10 @@ pub mod queue {
                 path: row.get(6)?,
                 error: row.get(7)?,
                 order_index: row.get(8)?,
-                // Mirrors the JS rule: only yt-dlp runs can be stopped by the
-                // Android plugin; direct HTTP downloads cannot.
-                cancellable: kind == "ytdlp",
+                // Direct Rust downloads are cancelled with a token, yt-dlp jobs
+                // with the embedded process id, so every queued row is
+                // cancellable now.
+                cancellable: true,
             })
         })?;
         rows.collect()
@@ -134,10 +142,52 @@ pub mod queue {
         tx.commit()
     }
 
+    /// Oldest row the worker should run. Rows a previous process left in
+    /// `starting`/`downloading` are re-queued by [`resume`] before the first
+    /// pick, so only `queued` rows are eligible here.
+    pub fn next_queued(conn: &Connection) -> rusqlite::Result<Option<DownloadTask>> {
+        conn.query_row(
+            r#"
+            SELECT id, kind, url, query, output_dir, file_name, expected_artist,
+                   expected_title, title
+            FROM download_queue
+            WHERE status = 'queued'
+            ORDER BY order_index ASC, created_at ASC, rowid ASC
+            LIMIT 1
+            "#,
+            [],
+            |row| {
+                Ok(DownloadTask {
+                    id: row.get(0)?,
+                    kind: row.get(1)?,
+                    url: row.get(2)?,
+                    query: row.get(3)?,
+                    output_dir: row.get(4)?,
+                    file_name: row.get(5)?,
+                    expected_artist: row.get(6)?,
+                    expected_title: row.get(7)?,
+                    title: row.get(8)?,
+                })
+            },
+        )
+        .optional()
+    }
+
+    /// Status and kind for one row, used by cancellation to distinguish a
+    /// queued row (safe to delete) from an active one (must be stopped by the
+    /// worker so it can clean its own files).
+    pub fn status_kind(conn: &Connection, id: &str) -> rusqlite::Result<Option<(String, String)>> {
+        conn.query_row(
+            "SELECT status, kind FROM download_queue WHERE id = ?1",
+            params![id],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .optional()
+    }
+
     /// Updates worker-owned columns. `None` keeps the stored value for percent,
     /// line and path; `error` is always written so a retry can clear it.
     /// Used by the native worker in Task 2.
-    #[allow(dead_code)]
     pub fn set_status(
         conn: &Connection,
         id: &str,
@@ -158,7 +208,7 @@ pub mod queue {
                 error = ?6,
                 updated_at = ?7,
                 finished_at = CASE
-                    WHEN ?2 IN ('done', 'error') THEN COALESCE(finished_at, ?7)
+                    WHEN ?2 IN ('done', 'error', 'cancelled') THEN COALESCE(finished_at, ?7)
                     ELSE finished_at
                 END
             WHERE id = ?1
@@ -176,8 +226,7 @@ pub mod queue {
         Ok(())
     }
 
-    /// Read by the worker in Task 4 before it picks the next row.
-    #[allow(dead_code)]
+    /// Read by the worker before it picks the next row.
     pub fn is_paused(conn: &Connection) -> rusqlite::Result<bool> {
         let value: Option<String> = conn
             .query_row(
@@ -221,9 +270,7 @@ pub mod history {
     use super::*;
 
     /// Records a finished download. A retry replaces the earlier entry with the
-    /// same download id so history shows one row per task. Called by the worker
-    /// in Task 2.
-    #[allow(dead_code)]
+    /// same download id so history shows one row per task.
     pub fn insert(conn: &Connection, item: &DownloadHistoryItem) -> rusqlite::Result<i64> {
         let finished_at = if item.finished_at > 0 {
             item.finished_at
@@ -297,10 +344,474 @@ pub mod history {
     }
 }
 
+/// Set when the background queue worker task is alive. Enqueue, resume and app
+/// startup all call [`start_worker`]; only the first call spawns a task.
+static WORKER_RUNNING: AtomicBool = AtomicBool::new(false);
+
+/// Set by [`stop_worker`]. The loop exits between items (a running download is
+/// allowed to finish so its files and queue row stay consistent).
+static WORKER_STOP: AtomicBool = AtomicBool::new(false);
+
+/// Cancellation flags by download id. `download_queue_cancel` sets the flag;
+/// `download_direct` polls it while streaming and the worker checks it before
+/// and after dispatch. Entries are removed on terminal status so the map does
+/// not grow for the life of the process.
+static CANCEL_TOKENS: OnceLock<Mutex<HashMap<String, Arc<AtomicBool>>>> = OnceLock::new();
+
+fn cancel_tokens() -> &'static Mutex<HashMap<String, Arc<AtomicBool>>> {
+    CANCEL_TOKENS.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+/// Token for one download. Returns the existing flag when a cancel request
+/// created it before the worker picked the row.
+pub fn cancel_token(id: &str) -> Arc<AtomicBool> {
+    let mut tokens = cancel_tokens()
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    tokens
+        .entry(id.to_string())
+        .or_insert_with(|| Arc::new(AtomicBool::new(false)))
+        .clone()
+}
+
+/// Drops the token for a finished download. Safe when no token exists.
+pub fn forget_cancel_token(id: &str) {
+    let mut tokens = cancel_tokens()
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    tokens.remove(id);
+}
+
+/// Whether the background queue task is alive. Task 3 uses it to decide when a
+/// foreground service can be stopped; unit tests assert it stays false.
+#[allow(dead_code)]
+pub fn is_running() -> bool {
+    WORKER_RUNNING.load(Ordering::SeqCst)
+}
+
+/// Starts the queue worker if it is not already running. Called from app setup,
+/// enqueue, queue start and resume.
+pub fn start_worker(app: AppHandle) {
+    if WORKER_RUNNING.swap(true, Ordering::SeqCst) {
+        return;
+    }
+    WORKER_STOP.store(false, Ordering::SeqCst);
+
+    let Some(state) = app.try_state::<crate::AppState>() else {
+        WORKER_RUNNING.store(false, Ordering::SeqCst);
+        eprintln!("download worker: AppState is not managed yet");
+        return;
+    };
+    let app_dir = state.app_dir.clone();
+    drop(state);
+
+    tauri::async_runtime::spawn(async move {
+        let db_path = app_dir.join("nova.db");
+        match open_worker_connection(&db_path) {
+            Ok(conn) => {
+                // Rows a killed process left in starting/downloading are safe to
+                // try again: direct writes delete their partial file, yt-dlp
+                // deletes its staging directory.
+                if let Err(error) = queue::resume(&conn) {
+                    eprintln!("download worker: cannot reset interrupted rows: {error}");
+                }
+                // A `Connection` is Send but not Sync, so the long-lived worker
+                // keeps it behind a mutex and only locks around short SQL
+                // sections. The guard is never held across an `.await`.
+                let db = Mutex::new(conn);
+                worker_loop(&db, Some(&app), Some(&app_dir), Some(&db_path)).await;
+            }
+            Err(error) => eprintln!(
+                "download worker: cannot open {}: {error}",
+                db_path.display()
+            ),
+        }
+        WORKER_RUNNING.store(false, Ordering::SeqCst);
+    });
+}
+
+/// Asks the worker to exit before picking the next row.
+pub fn stop_worker() {
+    WORKER_STOP.store(true, Ordering::SeqCst);
+}
+
+/// Dedicated connection for the worker. WAL matches `db::init`; the busy
+/// timeout lets the worker and UI commands share the database instead of
+/// failing with `SQLITE_BUSY` during a scan or a queue update.
+fn open_worker_connection(path: &Path) -> rusqlite::Result<Connection> {
+    let conn = Connection::open(path)?;
+    conn.execute_batch(
+        "PRAGMA journal_mode = WAL;
+         PRAGMA busy_timeout = 5000;
+         PRAGMA foreign_keys = ON;",
+    )?;
+    Ok(conn)
+}
+
+/// Runs `f` with the worker connection locked. Never call this around an
+/// `.await`: the guard makes the surrounding future non-`Send`.
+fn with_db<T>(db: &Mutex<Connection>, f: impl FnOnce(&Connection) -> T) -> T {
+    let conn = db
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    f(&conn)
+}
+
+async fn worker_loop(
+    db: &Mutex<Connection>,
+    app: Option<&AppHandle>,
+    app_dir: Option<&Path>,
+    db_path: Option<&Path>,
+) {
+    const IDLE_SLEEP: Duration = Duration::from_millis(250);
+
+    loop {
+        if WORKER_STOP.load(Ordering::SeqCst) {
+            break;
+        }
+        if with_db(db, |conn| queue::is_paused(conn).unwrap_or(false)) {
+            tokio::time::sleep(IDLE_SLEEP).await;
+            continue;
+        }
+        match worker_step(db, app, app_dir, db_path).await {
+            Ok(true) => {}
+            Ok(false) => tokio::time::sleep(IDLE_SLEEP).await,
+            Err(error) => {
+                eprintln!("download worker: {error}");
+                tokio::time::sleep(IDLE_SLEEP).await;
+            }
+        }
+    }
+}
+
+/// Picks the oldest queued row, marks it `starting` and returns its cancel
+/// token. The connection lock is dropped before the caller awaits.
+fn claim_next(
+    db: &Mutex<Connection>,
+    app: Option<&AppHandle>,
+) -> Result<Option<(DownloadTask, Arc<AtomicBool>)>, String> {
+    let task = {
+        let conn = db
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let Some(task) = queue::next_queued(&conn).map_err(|error| error.to_string())? else {
+            return Ok(None);
+        };
+        queue::set_status(
+            &conn,
+            &task.id,
+            "starting",
+            Some(0.0),
+            Some("Подготовка…"),
+            None,
+            None,
+        )
+        .map_err(|error| error.to_string())?;
+        task
+    };
+
+    // A cancel may have arrived while the row was queued; the token is the
+    // source of truth, not the row status.
+    let token = cancel_token(&task.id);
+    emit_progress(
+        app,
+        DownloadProgress {
+            id: task.id.clone(),
+            percent: 0.0,
+            line: "Подготовка…".to_string(),
+            status: "starting".to_string(),
+            path: None,
+            error: None,
+        },
+    );
+    Ok(Some((task, token)))
+}
+
+/// Runs the oldest queued row once. Returns `false` when the queue is empty.
+///
+/// Kept separate from [`worker_loop`] so tests can drive a single step against
+/// an in-memory database and a local HTTP server without a Tauri window.
+async fn worker_step(
+    db: &Mutex<Connection>,
+    app: Option<&AppHandle>,
+    app_dir: Option<&Path>,
+    db_path: Option<&Path>,
+) -> Result<bool, String> {
+    let Some((task, token)) = claim_next(db, app)? else {
+        return Ok(false);
+    };
+
+    if token.load(Ordering::Relaxed) {
+        with_db(db, |conn| finish_cancelled(conn, app, &task));
+        forget_cancel_token(&task.id);
+        return Ok(true);
+    }
+
+    with_db(db, |conn| {
+        queue::set_status(
+            conn,
+            &task.id,
+            "downloading",
+            Some(0.0),
+            Some("Скачивание…"),
+            None,
+            None,
+        )
+    })
+    .map_err(|error| error.to_string())?;
+
+    let result = dispatch(&task, app, Arc::clone(&token)).await;
+    let cancelled = token.load(Ordering::Relaxed);
+
+    with_db(db, |conn| match result {
+        Ok(result) => {
+            if cancelled {
+                // A cancel racing the last chunk must never leave a `done` row
+                // or a completed file behind.
+                let _ = std::fs::remove_file(&result.path);
+                finish_cancelled(conn, app, &task);
+            } else {
+                finish_done(conn, app, app_dir, db_path, &task, &result);
+            }
+        }
+        Err(error) => {
+            if cancelled {
+                finish_cancelled(conn, app, &task);
+            } else {
+                finish_error(conn, app, &task, &error);
+            }
+        }
+    });
+
+    forget_cancel_token(&task.id);
+    Ok(true)
+}
+
+async fn dispatch(
+    task: &DownloadTask,
+    app: Option<&AppHandle>,
+    cancel: Arc<AtomicBool>,
+) -> Result<DownloadResult, String> {
+    match task.kind.as_str() {
+        "ytdlp" => {
+            let app = app
+                .ok_or_else(|| "Загрузка yt-dlp недоступна без приложения".to_string())?;
+            crate::media::download_media(
+                app,
+                task.id.clone(),
+                task.url.clone(),
+                task.query.clone(),
+                task.output_dir.clone(),
+                None,
+                task.expected_artist.clone(),
+                task.expected_title.clone(),
+                Some(cancel),
+            )
+            .await
+        }
+        _ => {
+            crate::media::download_direct_impl(
+                app,
+                task.id.clone(),
+                task.url.clone(),
+                task.output_dir.clone(),
+                task.file_name.clone(),
+                task.expected_artist.clone(),
+                task.expected_title.clone(),
+                Some(cancel),
+            )
+            .await
+        }
+    }
+}
+
+fn finish_done(
+    conn: &Connection,
+    app: Option<&AppHandle>,
+    app_dir: Option<&Path>,
+    db_path: Option<&Path>,
+    task: &DownloadTask,
+    result: &DownloadResult,
+) {
+    let changed = queue::set_status(
+        conn,
+        &task.id,
+        "done",
+        Some(100.0),
+        Some("Готово"),
+        Some(&result.path),
+        None,
+    )
+    .unwrap_or(0);
+    if changed == 0 {
+        // The row was removed by a queued-cancel race: do not record a phantom
+        // history entry or announce completion, and do not leave the orphan file.
+        let _ = std::fs::remove_file(&result.path);
+        return;
+    }
+
+    let line = "Готово".to_string();
+    let _ = history::insert(
+        conn,
+        &DownloadHistoryItem {
+            id: task.id.clone(),
+            title: history_title(task),
+            line: line.clone(),
+            status: "done".to_string(),
+            path: Some(result.path.clone()),
+            error: None,
+            finished_at: now_secs(),
+        },
+    );
+
+    emit_progress(
+        app,
+        DownloadProgress {
+            id: task.id.clone(),
+            percent: 100.0,
+            line,
+            status: "done".to_string(),
+            path: Some(result.path.clone()),
+            error: None,
+        },
+    );
+
+    // Native scan on completion: make the output directory part of the library
+    // and rescan it with a short-lived connection so a slow scan never blocks a
+    // UI command on the worker connection. The foreground service is Task 3.
+    if let (Some(app), Some(app_dir), Some(db_path)) = (app, app_dir, db_path) {
+        match open_worker_connection(db_path) {
+            Ok(scan_conn) => {
+                let _ = scan_conn.execute(
+                    "INSERT OR IGNORE INTO folders (path, recursive, added_at)
+                     VALUES (?1, 1, ?2)",
+                    params![result.directory, now_secs()],
+                );
+                if let Err(error) = crate::scanner::scan(app, &scan_conn, app_dir) {
+                    eprintln!("download worker: scan failed: {error}");
+                }
+            }
+            Err(error) => eprintln!("download worker: scan connection failed: {error}"),
+        }
+        let _ = app.emit(
+            "download-complete",
+            DownloadComplete {
+                id: task.id.clone(),
+                path: result.path.clone(),
+            },
+        );
+    }
+}
+
+fn finish_error(conn: &Connection, app: Option<&AppHandle>, task: &DownloadTask, error: &str) {
+    let changed = queue::set_status(
+        conn,
+        &task.id,
+        "error",
+        None,
+        Some(error),
+        None,
+        Some(error),
+    )
+    .unwrap_or(0);
+    if changed > 0 {
+        let _ = history::insert(
+            conn,
+            &DownloadHistoryItem {
+                id: task.id.clone(),
+                title: history_title(task),
+                line: error.to_string(),
+                status: "error".to_string(),
+                path: None,
+                error: Some(error.to_string()),
+                finished_at: now_secs(),
+            },
+        );
+    }
+
+    emit_progress(
+        app,
+        DownloadProgress {
+            id: task.id.clone(),
+            percent: 0.0,
+            line: error.to_string(),
+            status: "error".to_string(),
+            path: None,
+            error: Some(error.to_string()),
+        },
+    );
+}
+
+fn finish_cancelled(conn: &Connection, app: Option<&AppHandle>, task: &DownloadTask) {
+    const CANCELLED: &str = "Загрузка отменена";
+
+    let changed = queue::set_status(
+        conn,
+        &task.id,
+        "cancelled",
+        None,
+        Some(CANCELLED),
+        None,
+        None,
+    )
+    .unwrap_or(0);
+    if changed > 0 {
+        let _ = history::insert(
+            conn,
+            &DownloadHistoryItem {
+                id: task.id.clone(),
+                title: history_title(task),
+                line: CANCELLED.to_string(),
+                status: "cancelled".to_string(),
+                path: None,
+                error: None,
+                finished_at: now_secs(),
+            },
+        );
+    }
+
+    // The webview has no dedicated cancelled status yet (Task 4 adds it), so
+    // reuse the error shape it already renders for a cancelled transfer.
+    emit_progress(
+        app,
+        DownloadProgress {
+            id: task.id.clone(),
+            percent: 0.0,
+            line: CANCELLED.to_string(),
+            status: "error".to_string(),
+            path: None,
+            error: Some(CANCELLED.to_string()),
+        },
+    );
+}
+
+fn history_title(task: &DownloadTask) -> String {
+    task.title
+        .clone()
+        .or_else(|| task.query.clone())
+        .or_else(|| task.file_name.clone())
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| task.url.clone())
+}
+
+fn emit_progress(app: Option<&AppHandle>, progress: DownloadProgress) {
+    if let Some(app) = app {
+        let _ = app.emit("download-progress", progress);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use rusqlite::Connection;
+    use std::fs;
+    use std::io::{Read, Write};
+    use std::net::{TcpListener, TcpStream};
+    use std::path::PathBuf;
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::Arc;
+    use std::time::Duration;
 
     fn task(id: &str, url: &str) -> DownloadTask {
         DownloadTask {
@@ -406,7 +917,7 @@ mod tests {
         assert_eq!(items[2].kind, "direct");
         assert_eq!(items[2].title.as_deref(), Some("direct title"));
         assert_eq!(items[2].order_index, 2);
-        assert!(!items[2].cancellable);
+        assert!(items[2].cancellable);
     }
 
     #[test]
@@ -546,5 +1057,191 @@ mod tests {
         let items = history::list(&conn).unwrap();
         assert_eq!(items.len() as i64, HISTORY_LIMIT);
         assert_eq!(items[0].id, format!("bulk-{}", HISTORY_LIMIT + 4));
+    }
+
+    fn temp_dir(name: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!(
+            "nova-worker-{name}-{}-{}",
+            std::process::id(),
+            crate::db::now_millis()
+        ));
+        fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    fn read_request(stream: &mut TcpStream) {
+        stream
+            .set_read_timeout(Some(Duration::from_secs(5)))
+            .ok();
+        let mut buffer = [0u8; 1024];
+        let mut received = Vec::new();
+        loop {
+            match stream.read(&mut buffer) {
+                Ok(0) => break,
+                Ok(count) => {
+                    received.extend_from_slice(&buffer[..count]);
+                    if received.windows(4).any(|window| window == b"\r\n\r\n") {
+                        break;
+                    }
+                }
+                Err(_) => break,
+            }
+        }
+    }
+
+    /// Serves one request and closes the connection.
+    fn serve_once(content_type: &'static str, body: Vec<u8>) -> String {
+        let listener = TcpListener::bind(("127.0.0.1", 0)).unwrap();
+        let address = listener.local_addr().unwrap();
+        std::thread::spawn(move || {
+            if let Ok((mut stream, _)) = listener.accept() {
+                read_request(&mut stream);
+                let header = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Type: {content_type}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                    body.len()
+                );
+                let _ = stream.write_all(header.as_bytes());
+                let _ = stream.write_all(&body);
+                let _ = stream.flush();
+            }
+        });
+        format!("http://{address}")
+    }
+
+    /// Sends a large body slowly so a test can cancel mid-stream.
+    fn serve_slowly(chunk_size: usize, chunks: usize) -> String {
+        let listener = TcpListener::bind(("127.0.0.1", 0)).unwrap();
+        let address = listener.local_addr().unwrap();
+        std::thread::spawn(move || {
+            if let Ok((mut stream, _)) = listener.accept() {
+                read_request(&mut stream);
+                let total = chunk_size * chunks;
+                let header = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Type: audio/mpeg\r\nContent-Length: {total}\r\nConnection: close\r\n\r\n"
+                );
+                let _ = stream.write_all(header.as_bytes());
+                let chunk = vec![0u8; chunk_size];
+                for _ in 0..chunks {
+                    if stream.write_all(&chunk).is_err() || stream.flush().is_err() {
+                        return;
+                    }
+                    std::thread::sleep(Duration::from_millis(20));
+                }
+            }
+        });
+        format!("http://{address}")
+    }
+
+    fn direct_task(id: &str, url: &str, directory: &Path) -> DownloadTask {
+        let mut task = task(id, url);
+        task.kind = "direct".to_string();
+        task.query = None;
+        task.output_dir = directory.to_string_lossy().to_string();
+        task.title = Some(format!("title {id}"));
+        task
+    }
+
+    #[test]
+    fn worker_downloads_direct_task_and_records_done() {
+        let db = Mutex::new(conn());
+        let directory = temp_dir("direct-done");
+        let base = serve_once("audio/mpeg", b"ID3-test-body".to_vec());
+        let queued = direct_task("direct-1", &format!("{base}/track.mp3"), &directory);
+        {
+            let conn = db.lock().unwrap();
+            queue::enqueue(&conn, &queued).unwrap();
+        }
+
+        let processed = tauri::async_runtime::block_on(worker_step(&db, None, None, None))
+            .expect("worker step");
+        assert!(processed);
+
+        let conn = db.lock().unwrap();
+        let rows = queue::list(&conn).unwrap();
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].status, "done");
+        assert_eq!(rows[0].percent, 100.0);
+        let path = rows[0].path.clone().expect("path");
+        assert!(Path::new(&path).is_file());
+        assert_eq!(fs::read(&path).unwrap(), b"ID3-test-body");
+
+        let history = history::list(&conn).unwrap();
+        assert_eq!(history.len(), 1);
+        assert_eq!(history[0].id, "direct-1");
+        assert_eq!(history[0].status, "done");
+        assert_eq!(history[0].path.as_deref(), Some(path.as_str()));
+        drop(conn);
+
+        // Nothing left to do: the next step reports an empty queue.
+        let processed = tauri::async_runtime::block_on(worker_step(&db, None, None, None))
+            .expect("empty worker step");
+        assert!(!processed);
+
+        let _ = fs::remove_dir_all(&directory);
+    }
+
+    #[test]
+    fn worker_marks_pre_cancelled_task_without_touching_files() {
+        let db = Mutex::new(conn());
+        let directory = temp_dir("pre-cancel");
+        let queued = direct_task("cancel-1", "http://127.0.0.1:9/track.mp3", &directory);
+        {
+            let conn = db.lock().unwrap();
+            queue::enqueue(&conn, &queued).unwrap();
+        }
+
+        cancel_token("cancel-1").store(true, Ordering::SeqCst);
+        let processed = tauri::async_runtime::block_on(worker_step(&db, None, None, None))
+            .expect("worker step");
+        assert!(processed);
+
+        let conn = db.lock().unwrap();
+        let rows = queue::list(&conn).unwrap();
+        assert_eq!(rows[0].status, "cancelled");
+        assert!(rows[0].path.is_none());
+        assert_eq!(fs::read_dir(&directory).unwrap().count(), 0);
+
+        let history = history::list(&conn).unwrap();
+        assert_eq!(history[0].status, "cancelled");
+        assert!(history[0].path.is_none());
+        drop(conn);
+
+        let _ = fs::remove_dir_all(&directory);
+    }
+
+    #[test]
+    fn direct_download_cancel_stops_stream_and_removes_partial_file() {
+        let directory = temp_dir("cancel-stream");
+        let bystander = directory.join("bystander.mp3");
+        fs::write(&bystander, b"other job").unwrap();
+
+        let base = serve_slowly(64 * 1024, 128);
+        let token = Arc::new(AtomicBool::new(false));
+        let flag = Arc::clone(&token);
+        std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_millis(120));
+            flag.store(true, Ordering::SeqCst);
+        });
+
+        let result = tauri::async_runtime::block_on(crate::media::download_direct_impl(
+            None,
+            "cancel-stream".to_string(),
+            format!("{base}/big.mp3"),
+            directory.to_string_lossy().to_string(),
+            None,
+            None,
+            None,
+            Some(token),
+        ));
+        assert!(result.is_err(), "cancelled download must not succeed");
+
+        let names: Vec<String> = fs::read_dir(&directory)
+            .unwrap()
+            .map(|entry| entry.unwrap().file_name().to_string_lossy().to_string())
+            .collect();
+        assert_eq!(names, vec!["bystander.mp3".to_string()]);
+        assert_eq!(fs::read(&bystander).unwrap(), b"other job");
+
+        let _ = fs::remove_dir_all(&directory);
     }
 }
