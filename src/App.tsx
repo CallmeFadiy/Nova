@@ -180,8 +180,9 @@ export default function App() {
         ui.openLyrics(null);
         return;
       }
-      if (useSelectionStore.getState().selected.size > 0) {
-        useSelectionStore.getState().clear();
+      const selection = useSelectionStore.getState();
+      if (selection.selected.size > 0 || selection.selecting) {
+        selection.clear();
         return;
       }
       const hash = window.location.hash;

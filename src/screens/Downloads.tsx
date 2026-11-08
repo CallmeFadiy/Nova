@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { formatDuration } from "../lib/format";
+import { errorText } from "../lib/errors";
 import {
   api,
   openExternal,
@@ -152,10 +153,7 @@ export function Downloads() {
       setDownloadDir(path);
       notify("Папка загрузок обновлена", "success");
     } catch (error) {
-      notify(
-        error instanceof Error ? error.message : "Не удалось выбрать папку",
-        "error",
-      );
+      notify(errorText(error), "error");
     }
   };
 

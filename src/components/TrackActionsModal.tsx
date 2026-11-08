@@ -10,6 +10,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { pickImage, revealInFolder } from "../lib/tauri";
+import { errorText } from "../lib/errors";
 import { useConfirmStore } from "../store/confirm";
 import { groupAlbums, useLibraryStore } from "../store/library";
 import { usePlayerStore } from "../store/player";
@@ -23,6 +24,7 @@ export function TrackActionsModal() {
   const openLyrics = useUiStore((state) => state.openLyrics);
   const openEditTrack = useUiStore((state) => state.openEditTrack);
   const openMergeAlbums = useUiStore((state) => state.openMergeAlbums);
+  const notify = useUiStore((state) => state.notify);
   const tracks = useLibraryStore((state) => state.tracks);
   const toggleFavorite = useLibraryStore((state) => state.toggleFavorite);
   const hideTrack = useLibraryStore((state) => state.hideTrack);
@@ -124,9 +126,17 @@ export function TrackActionsModal() {
             <button
               className="action-row"
               onClick={async () => {
-                const path = await pickImage();
-                if (path) await setTrackCover(track.id, path);
-                close();
+                try {
+                  const path = await pickImage();
+                  if (!path) {
+                    notify("Выбор отменён", "info");
+                    return;
+                  }
+                  await setTrackCover(track.id, path);
+                  close();
+                } catch (error) {
+                  notify(errorText(error), "error");
+                }
               }}
             >
               <Image size={16} />

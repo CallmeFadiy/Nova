@@ -43,7 +43,9 @@ export function TrackTable({
   const openAddToPlaylist = useUiStore((state) => state.openAddToPlaylist);
   const confirm = useConfirmStore((state) => state.confirm);
   const selected = useSelectionStore((state) => state.selected);
+  const selecting = useSelectionStore((state) => state.selecting);
   const anchorIndex = useSelectionStore((state) => state.anchorIndex);
+  const startSelecting = useSelectionStore((state) => state.startSelecting);
   const selectOnly = useSelectionStore((state) => state.selectOnly);
   const toggleSelection = useSelectionStore((state) => state.toggle);
   const selectRange = useSelectionStore((state) => state.selectRange);
@@ -83,15 +85,17 @@ export function TrackTable({
       toggleSelection(track.id, index);
       return;
     }
-    if (isAndroid && selected.size > 0) {
-      // Touch-first behaviour: once a selection exists, a tap extends it
-      // instead of starting playback.
-      toggleSelection(track.id, index);
+    if (isAndroid && (selecting || selected.size > 0)) {
+      // Touch-first behaviour: «Выбрать» (or an existing selection) turns a
+      // tap into selection instead of playback. The first tap picks a row,
+      // later taps toggle.
+      if (selected.size === 0) selectOnly(track.id, index);
+      else toggleSelection(track.id, index);
       return;
     }
     // On Android a play tap must not enter selection mode, otherwise the next
-    // tap would toggle selection instead of playing. Long-press is the only
-    // way into selection on touch; desktop keeps select-on-click.
+    // tap would toggle selection instead of playing. «Выбрать» and long-press
+    // are the ways into selection on touch; desktop keeps select-on-click.
     if (!isAndroid) selectOnly(track.id, index);
     if (track.id === currentId) {
       togglePlay();
@@ -144,6 +148,17 @@ export function TrackTable({
 
   return (
     <>
+      <div className="track-select-toolbar">
+        <button
+          className="secondary-button"
+          onClick={() => {
+            if (selecting) clearSelection();
+            else startSelecting();
+          }}
+        >
+          {selecting ? "Отменить" : "Выбрать"}
+        </button>
+      </div>
       {selected.size > 0 ? (
         <div className="selection-bar">
           <span>

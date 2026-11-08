@@ -15,6 +15,7 @@ import {
   pluralRu,
   trackCountLabel,
 } from "../lib/format";
+import { errorText } from "../lib/errors";
 import { pickFolder } from "../lib/tauri";
 import { isAndroid } from "../lib/platform";
 import { groupAlbums, useLibraryStore, visibleTracks } from "../store/library";
@@ -117,10 +118,7 @@ export function Home() {
       }
       await addFolder(path);
     } catch (error) {
-      notify(
-        error instanceof Error ? error.message : "Не удалось добавить папку",
-        "error",
-      );
+      notify(errorText(error), "error");
     }
   };
 

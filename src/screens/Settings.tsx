@@ -21,6 +21,7 @@ import {
   Undo2,
 } from "lucide-react";
 import { ScanButton } from "../components/ScanButton";
+import { errorText } from "../lib/errors";
 import { api, backgroundUrl, pickFolder, pickImage } from "../lib/tauri";
 import { isAndroid } from "../lib/platform";
 import {
@@ -184,10 +185,7 @@ export function Settings() {
       setDownloadDir(path);
       notify("Папка загрузок обновлена", "success");
     } catch (error) {
-      notify(
-        error instanceof Error ? error.message : "Не удалось выбрать папку",
-        "error",
-      );
+      notify(errorText(error), "error");
     }
   };
 
@@ -333,10 +331,7 @@ export function Settings() {
       }
       await addFolder(path);
     } catch (error) {
-      notify(
-        error instanceof Error ? error.message : "Не удалось добавить папку",
-        "error",
-      );
+      notify(errorText(error), "error");
     }
   };
 
@@ -357,10 +352,7 @@ export function Settings() {
       else setNowBackground(stored);
       notify("Фон обновлён", "success");
     } catch (error) {
-      notify(
-        error instanceof Error ? error.message : "Не удалось обновить фон",
-        "error",
-      );
+      notify(errorText(error), "error");
     }
   };
 

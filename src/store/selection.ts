@@ -3,6 +3,8 @@ import { create } from "zustand";
 interface SelectionState {
   selected: Set<number>;
   anchorIndex: number | null;
+  selecting: boolean;
+  startSelecting: () => void;
   selectOnly: (id: number, index: number) => void;
   toggle: (id: number, index: number) => void;
   selectRange: (ids: number[], anchorIndex: number) => void;
@@ -17,16 +19,19 @@ interface SelectionState {
 export const useSelectionStore = create<SelectionState>((set) => ({
   selected: new Set<number>(),
   anchorIndex: null,
+  selecting: false,
+
+  startSelecting: () => set({ selecting: true }),
 
   selectOnly: (id, index) =>
-    set({ selected: new Set([id]), anchorIndex: index }),
+    set({ selected: new Set([id]), anchorIndex: index, selecting: true }),
 
   toggle: (id, index) =>
     set((state) => {
       const next = new Set(state.selected);
       if (next.has(id)) next.delete(id);
       else next.add(id);
-      return { selected: next, anchorIndex: index };
+      return { selected: next, anchorIndex: index, selecting: true };
     }),
 
   selectRange: (ids, anchorIndex) =>
@@ -42,7 +47,12 @@ export const useSelectionStore = create<SelectionState>((set) => ({
       return { selected: next };
     }),
 
-  clear: () => set({ selected: new Set<number>(), anchorIndex: null }),
+  clear: () =>
+    set({
+      selected: new Set<number>(),
+      anchorIndex: null,
+      selecting: false,
+    }),
 }));
 
 if (import.meta.env.DEV && typeof window !== "undefined") {

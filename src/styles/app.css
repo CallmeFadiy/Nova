@@ -5047,6 +5047,9 @@ body {
 }
 
 /* shift-selection */
+.track-select-toolbar {
+  display: none;
+}
 .selection-bar {
   position: sticky;
   top: 0;
@@ -6616,8 +6619,8 @@ body {
     height: 44px;
   }
 
-  /* Playlist rows have four 44 px actions (up/down/favorite/menu). A 2x2
-     grid keeps them tappable without squeezing the title to a few glyphs. */
+  /* Playlist rows have five 44 px actions (up/down/favorite/«Убрать»/menu);
+     a 3x44 grid wraps them to two rows and keeps the title readable. */
   .page .track-row.is-reorderable {
     min-height: 96px;
     padding-top: 4px;
@@ -6631,9 +6634,28 @@ body {
 
   .page .track-row.is-reorderable .track-actions {
     display: grid;
-    grid-template-columns: repeat(2, 44px);
+    grid-template-columns: repeat(3, 44px);
     grid-auto-rows: 44px;
     gap: 0;
+  }
+
+  /* «Убрать» removes the track from the playlist (the file stays on disk),
+     so it must stay visible and tappable on the phone. */
+  .page .track-row.is-reorderable .track-actions .text-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    padding: 0;
+    font-size: 9.5px;
+  }
+
+  .track-select-toolbar {
+    display: flex;
+    justify-content: flex-end;
+    margin: 0 0 6px;
   }
 
   .settings-page .recognition-source-switch button {
