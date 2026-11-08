@@ -26,6 +26,7 @@ import {
 import { useSettingsStore } from "../store/settings";
 import { useUiStore } from "../store/ui";
 import type {
+  DownloadProgress,
   DownloadResult,
   ImportPlaylist,
   ImportTrack,
@@ -513,9 +514,18 @@ export function Import() {
           </div>
           {playlist.tracks.map((track, index) => {
             const isSelected = selected.has(index);
-            const progress = Object.values(items).find((item) =>
-              item.id.startsWith(`import-${index}-`),
-            );
+            // A retry or a second batch keeps the old item for the same index
+            // in the shared store. Render the newest attempt (largest order),
+            // otherwise an earlier error shadows a later successful download.
+            const progress = Object.values(items)
+              .filter((item) => item.id.startsWith(`import-${index}-`))
+              .reduce<DownloadProgress | undefined>(
+                (newest, item) =>
+                  !newest || (item.order ?? 0) >= (newest.order ?? 0)
+                    ? item
+                    : newest,
+                undefined,
+              );
             return (
               <div
                 className={`import-track${isSelected ? " is-selected" : ""}`}

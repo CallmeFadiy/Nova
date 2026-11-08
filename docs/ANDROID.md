@@ -30,15 +30,16 @@ SQLite, foreground-сервис и полный паритет с Windows доб
 - Удаление трека вместе с файлом, поиск дубликатов по SHA-1, исправление
   кодировки, скрытые треки и их восстановление.
 - Загрузки и импорт на Android: встроенный `youtubedl-android:library:0.18.1`
-  с ffmpeg, прямые источники Zaycev/Muzofond/DriveMusic и прямые ссылки,
-  разбор плейлистов и одиночных видео YouTube (скачивание зависит от
-  доступности сети), прогресс, история, повтор ошибок и добавление
-  скачанного в библиотеку.
+  с ffmpeg, прямые источники Zaycev/Muzofond/DriveMusic (сквозная загрузка
+  проверена только на Muzofond) и прямые ссылки, разбор плейлистов и
+  одиночных видео YouTube (скачивание зависит от доступности сети), прогресс,
+  история, повтор ошибок и добавление скачанного в библиотеку.
 - Отмена работает для загрузок через встроенный yt-dlp; прямые загрузки Rust
-  пока не отменяются, и кнопка отмены для них скрыта. Очередь и история
-  хранятся в `localStorage`; SQLite-очередь и foreground-сервис — phase 2B-2.
+  пока не отменяются, и кнопка отмены для них скрыта. История загрузок
+  хранится в `localStorage`; очередь — только в памяти и теряется при
+  перезапуске. SQLite-очередь и foreground-сервис — phase 2B-2.
 - В настройках Android поле «Путь к yt-dlp» скрыто, показана заметка
-  «Встроенный yt-dlp входит в приложение».
+  «Встроенный yt-dlp входит в приложение, путь указывать не нужно.»
 - Мобильная оболочка: нижняя навигация, компактный player bar, полноэкранный
   «Сейчас играет», очередь, drawer, back по Android.
 - Нативный ExoPlayer: play/pause, seek, next/prev, очередь, repeat, shuffle,
@@ -246,26 +247,30 @@ adb -s emulator-5554 shell dumpsys notification --noredact
 ## Приёмка phase 2B-1 (2026-11-08)
 
 Устройство: POCO F4 GT `21121210G`, serial `7ac47954`, Android 13, arm64-v8a,
-392 CSS px. APK собран из `feat/android-downloads` (HEAD `27d34fb`) в Task 3 и
-установлен поверх phase 2A. Повторный `npm.cmd run build:web` дал те же
-asset-имена (`index-B7lDbHkt.js`), поэтому пересборка не потребовалась.
+392 CSS px. APK пересобран из `feat/android-downloads` после правки строки
+импорта и установлен поверх phase 2A. В debug-APK встроен debug-бандл
+фронтенда (`index-BUKJ2s8O.js`, с source map), поэтому его имя не совпадает с
+production-сборкой `build:web`.
 
 - В APK встроены `io.github.junkfood02.youtubedl-android:library:0.18.1` и
   `:ffmpeg:0.18.1`. `jniLibs.useLegacyPackaging = true` обязателен: иначе
   Python/ffmpeg-payload не распаковывается в `nativeLibraryDir` и
   `YoutubeDL.init` падает.
-- Размер arm64 debug APK: 157 043 697 байт (149.3 MB). Сборка — обычный
-  workaround: `tauri android build --debug --apk --target aarch64` собирает
-  Rust-библиотеку, затем `libnova_lib.so` копируется в `jniLibs/arm64-v8a`,
-  а `gradlew :app:assembleArm64Debug` запускается без rust-задач; `.so`
-  после сборки удаляется из `jniLibs`.
+- Размер arm64 debug APK: 156 902 812 байт ≈ 156.9 MB (149.6 MiB). Сборка —
+  обычный workaround: `tauri android build --debug --apk --target aarch64`
+  собирает Rust-библиотеку, затем `libnova_lib.so` копируется в
+  `jniLibs/arm64-v8a`, а `gradlew :app:assembleArm64Debug` запускается без
+  rust-задач; `.so` после сборки удаляется из `jniLibs`. Чистый
+  `:app:clean` перед упаковкой обязателен: инкрементальная упаковка один раз
+  дала APK с 78 MB пустого padding.
 - Прямые источники: поиск «Morandi Samba» вернул кандидатов Muzofond.fm
   (320 kbps). Скачан `Morandi – Samba` по реальному `downloadUrl`
   (4 723 983 байта, 3:16), прогресс шёл 0–100 %, файл появился в
   `/sdcard/Download/NovaDownloads`, история получила статус `done`, сканер
   добавил трек в библиотеку. Кнопка отмены для прямой загрузки не
-  показывалась. Отдельный probe-поиск «Norma Tale» вернул и Zaycev.net;
-  DriveMusic для этих запросов кандидатов не вернул.
+  показывалась. Сквозная загрузка проверена только на Muzofond; Zaycev.net
+  вернул кандидатов в отдельном probe-поиске, DriveMusic кандидатов не вернул.
+  Скачивание с Zaycev/DriveMusic в этом прогоне не проверялось.
 - YouTube: плейлист `phonk? - single` (2 трека) разобрался в `/import`,
   выбран 1 трек. Скачивание вернуло
   `YoutubeDLException: ERROR: unable to download video data: HTTP Error 403:
@@ -281,15 +286,26 @@ asset-имена (`index-B7lDbHkt.js`), поэтому пересборка не
   для `cancellable` загрузок.
 - Ошибка и повтор: `https://invalid.nova.test/audio.mp3` дал реальный текст
   `Не удалось скачать файл: error sending request for url (...)`, запись
-  `error` в истории и кнопку «Повторить» (44 px).
+  `error` в истории и кнопку «Повторить» (44 px). Нажатие «Повторить» создало
+  новую попытку с новым id и новую запись `error` (для недоступного URL это
+  ожидаемо). Восстанавливаемый повтор проверен на локальном HTTP-сервере
+  через `adb reverse`: первый ответ `HTTP 500` → `error`, «Повторить» →
+  `downloading` → `done`, файл `retry.mp3` сохранён и добавлен сканером.
+- Импорт и повтор: на прямом `track.mp3` первая попытка дала `HTTP 500` и
+  строку «Ошибка», повторная загрузка того же трека — «Готово», без
+  оставшейся ошибки в строке. Строка импорта теперь берёт самую новую попытку
+  для индекса (по `order`), а не первую запись из store.
 - 392 CSS px: `innerWidth = scrollWidth = 392` на «Загрузках», истории,
   запущенной отмене, «Импорте» и «Настройках»; горизонтального overflow нет,
   кнопки и поля 44×44 (чекбоксы — внутри кликабельной строки 50 px).
-  Скриншоты в `.superpowers/sdd/2026-11-08-android-downloads/screens-task4/`:
+  Скриншоты (локально, вне Git, каталог в `.gitignore`):
+  `.superpowers/sdd/2026-11-08-android-downloads/screens-task4/` —
   `01-settings-392.png`, `02-downloads-392.png`,
   `03-search-results-392.png`, `04-import-playlist-392.png`,
   `05-import-single-392.png`, `06-import-done-392.png`,
-  `07-cancel-running.png`, `08-error-history-392.png`.
+  `07-cancel-running.png`, `08-error-history-392.png`,
+  `09-downloads-retry-error-392.png`, `10-downloads-retry-done-392.png`,
+  `11-import-error-row-392.png`, `12-import-retry-done-392.png`.
 - Финал: SQLite `integrity_check = ok`, `foreign_key_check` пуст, 78 записей
   `tracks`, все 78 — Music, тестовых строк и папки NovaDownloads нет, таблиц
   `download_queue`/`download_history` нет (2B-2 ещё не реализована).
@@ -309,15 +325,13 @@ asset-имена (`index-B7lDbHkt.js`), поэтому пересборка не
 
 - Прямые загрузки Rust (`download_direct`) нельзя отменить: кнопка отмены
   скрыта, а `android_download_cancel` знает только процессы yt-dlp.
-- Очередь и история загрузок по-прежнему в `localStorage`, не в SQLite;
-  после перезапуска приложения незавершённая очередь не восстанавливается.
+- История загрузок хранится в `localStorage`; очередь — только в памяти и
+  теряется при перезапуске приложения. SQLite-очередь и история
+  (`download_queue`, `download_history`) — 2B-2.
 - Нет foreground-сервиса `NovaTaskService` с `dataSync` и уведомлением о
   прогрессе: загрузка живёт, пока жив процесс приложения.
 - Пользовательские CA не доверяются в Android HTTP-клиенте: Rust использует
   корни webpki, поэтому TLS-инспекция и самоподписанные прокси не работают.
-- Строка импорта берёт первый прогресс-элемент с тем же индексом: после
-  ошибки и повторного импорта в той же сессии может остаться «Ошибка», хотя
-  новая загрузка уже завершилась (`Готово` в тосте). Полировка — 2B-2.
 
 ## Известные ограничения phase 2A
 
