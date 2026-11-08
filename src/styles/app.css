@@ -3114,10 +3114,17 @@ p {
   }
 
   .folder-row {
-    grid-template-columns: 40px minmax(0, 1fr) auto;
+    grid-template-columns: 40px minmax(0, 1fr) auto auto;
+    gap: 10px;
   }
 
   .folder-meta {
+    display: block;
+    font-size: 9.5px;
+    text-align: right;
+  }
+
+  .folder-meta span {
     display: none;
   }
 
@@ -6523,6 +6530,101 @@ body {
   .android-gate {
     padding: calc(20px + env(safe-area-inset-top)) 16px
       calc(var(--player-height) + var(--mobile-nav-height) + 16px);
+  }
+}
+
+/* Phase 2A: library, playlist and settings screens on a phone. */
+@media (max-width: 900px) {
+  /* Every tappable control in the page body and in bottom sheets is at
+     least 44x44 CSS px. The player bar is handled separately. */
+  .page .primary-button,
+  .page .secondary-button,
+  .page .ghost-button,
+  .page .toggle-button,
+  .modal .primary-button,
+  .modal .secondary-button,
+  .modal .ghost-button,
+  .modal .danger-button,
+  .modal .toggle-button {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  .page .icon-button,
+  .modal .icon-button {
+    width: 44px;
+    height: 44px;
+  }
+
+  .page .track-row .icon-button.tiny {
+    width: 44px;
+    height: 44px;
+  }
+
+  .page .text-input,
+  .page .select-input,
+  .modal .text-input,
+  .modal .select-input {
+    height: 44px;
+  }
+
+  .modal .action-row {
+    min-height: 44px;
+  }
+
+  .library-tab {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  .page .back-button {
+    min-height: 44px;
+    min-width: 44px;
+    margin-bottom: 10px;
+  }
+
+  .library-toolbar .search-field {
+    height: 44px;
+    min-height: 44px;
+  }
+
+  .settings-page .recognition-source-switch button {
+    min-height: 44px;
+  }
+
+  /* Android edge-to-edge does not resize the layout viewport when the IME
+     opens. A sheet with a text field is anchored to the top on phones so the
+     field and its submit button stay above the keyboard. Keeping it there for
+     the whole lifetime avoids the sheet moving when a button takes focus. */
+  .modal-backdrop:has(.modal input) {
+    align-items: start;
+    padding-top: calc(12px + env(safe-area-inset-top));
+  }
+
+  .modal-backdrop:has(.modal input) .modal {
+    border-radius: 18px;
+  }
+
+  .mobile-menu {
+    width: 44px;
+    height: 44px;
+  }
+}
+
+@media (max-width: 620px) {
+  /* The cover and the metadata share the row on tablets, but on a phone
+     the two-column header pushes the cover down beside the action buttons. */
+  .album-detail-head,
+  .playlist-detail-head {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+    align-items: start;
+  }
+
+  .album-detail-cover,
+  .playlist-detail-mosaic {
+    width: 150px;
+    height: 150px;
   }
 }
 
