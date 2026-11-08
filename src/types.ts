@@ -121,6 +121,8 @@ export interface DownloadProgress {
   path: string | null;
   error: string | null;
   networkLimited?: boolean;
+  /** True only for downloads the Android plugin can stop (yt-dlp processes). */
+  cancellable?: boolean;
   order?: number;
   title?: string;
   retry?: () => void;

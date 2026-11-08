@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { formatDuration, trackCountLabel } from "../lib/format";
 import { errorText } from "../lib/errors";
+import { isDirectDownloadUrl } from "../lib/download";
 import { pickBestCandidate } from "../lib/match";
 import { api, openExternal } from "../lib/tauri";
 import { DuplicateDownloadModal } from "../components/DuplicateDownloadModal";
@@ -124,6 +125,8 @@ export function Import() {
       status: "starting",
       path: null,
       error: null,
+      // The provider search itself and the Rust download cannot be cancelled.
+      cancellable: false,
     });
     const found = await api.searchMedia(track.query, 8);
     if (isDownloadCancelled(id)) return null;
@@ -136,6 +139,17 @@ export function Import() {
       found,
     );
     if (!candidate) return null;
+    if (!candidate.downloadUrl) {
+      setProgress({
+        id,
+        percent: 0,
+        line: "Скачивание через yt-dlp…",
+        status: "starting",
+        path: null,
+        error: null,
+        cancellable: true,
+      });
+    }
     const result = candidate.downloadUrl
       ? await api.downloadDirect({
           id,
@@ -193,10 +207,25 @@ export function Import() {
       }
     }
 
+    // A cancelled provider attempt must not start a fresh yt-dlp download under
+    // the same id.
+    if (isDownloadCancelled(id)) return null;
+
+    const target = track.downloadUrl || track.sourceUrl;
+    setProgress({
+      id,
+      percent: 0,
+      line: `Скачивание: ${track.artist} – ${track.title}`,
+      status: "starting",
+      path: null,
+      error: null,
+      cancellable: !isDirectDownloadUrl(target),
+    });
+
     try {
       const result = await api.downloadMedia({
         id,
-        url: track.downloadUrl || track.sourceUrl,
+        url: target,
         query: isYoutube ? undefined : track.query,
         outputDir: downloadDir,
         ytdlpPath,
@@ -230,6 +259,7 @@ export function Import() {
           status: "starting",
           path: null,
           error: null,
+          cancellable: false,
         });
         const result = await api.downloadDirect({
           id,

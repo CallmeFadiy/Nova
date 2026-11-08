@@ -20,6 +20,7 @@ import {
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { formatDuration } from "../lib/format";
 import { errorText } from "../lib/errors";
+import { isDirectDownloadUrl } from "../lib/download";
 import {
   api,
   openExternal,
@@ -212,6 +213,8 @@ export function Downloads() {
       error: null,
       order: Date.now(),
       title: `${candidate.artist} – ${candidate.title}`,
+      // Direct downloads run in Rust and cannot be stopped by the plugin.
+      cancellable: !candidate.downloadUrl,
     });
     try {
       const result = candidate.downloadUrl
@@ -251,6 +254,7 @@ export function Downloads() {
             status: "starting",
             path: null,
             error: null,
+            cancellable: true,
           });
           const result = await api.downloadMedia({
             id,
@@ -293,6 +297,10 @@ export function Downloads() {
     setStartingLink(true);
     const id = `link-${Date.now()}`;
     clearDownloadCancelled(id);
+    const direct = isDirectDownloadUrl(target);
+    const isZaycevPage = /zaycev\.net\/pages\/[^/]+\/\d+\.shtml/i.test(
+      target,
+    );
     setProgress({
       id,
       percent: 0,
@@ -302,16 +310,13 @@ export function Downloads() {
       error: null,
       order: Date.now(),
       title: target,
+      // Direct links (audio file / Zaycev page) go through Rust and cannot be
+      // cancelled; only the yt-dlp branch is stoppable.
+      cancellable: !direct,
     });
     try {
-      const isDirectAudio = /\.(mp3|m4a|aac|ogg|opus|wav|flac|webm)(\?|$)/i.test(
-        target,
-      );
-      const isZaycevPage = /zaycev\.net\/pages\/[^/]+\/\d+\.shtml/i.test(
-        target,
-      );
       const result =
-        isDirectAudio || isZaycevPage
+        direct || isZaycevPage
           ? await api.downloadDirect({
               id,
               url: target,
@@ -650,6 +655,7 @@ export function Downloads() {
                         </button>
                       </div>
                     ) : isAndroid &&
+                      item.cancellable &&
                       (item.status === "starting" ||
                         item.status === "downloading") ? (
                       <div className="download-row-actions">
