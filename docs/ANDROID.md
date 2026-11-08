@@ -387,9 +387,12 @@ SHA-256 `48E69E78C820BBA75E7F1F4BC3D4B446C26FD61B00F9E86FAFADA24A30287A8A`,
 - Распознавание на Android идёт через AudD: `RECORD_AUDIO` запрашивается
   runtime-разрешением; микрофон пишет Rust/cpal, файл уходит в
   `recognize_audd_file`, системный звук — через `NovaProjectionService`
-  (`MediaProjection` + `AudioPlaybackCapture`, 16 кГц mono WAV). Встроенный
-  `songrec` на Android падает, поэтому UI переключает провайдера на AudD и
-  показывает ошибку Windows-версии, если вызвать builtin напрямую.
+  (`MediaProjection` + `AudioPlaybackCapture`, 16 кГц mono WAV). Загрузка
+  проверена публичным токеном `test`: AudD принимает файл и отвечает
+  fingerprint/no-match (не «файл не отправлен») для файла, микрофона и
+  системного звука; для успешного совпадения нужен реальный API-ключ.
+  Встроенный `songrec` на Android падает, поэтому UI переключает провайдера на
+  AudD и показывает ошибку Windows-версии, если вызвать builtin напрямую.
 - Тексты: Genius, при 403 — LRCLIB (`syncedLyrics` LRC или plain). На треке
   Kosandra получено 2953 символа LRC; кэш и редактор работают.
 - Share/Open with: FileProvider, `ACTION_VIEW` audio/video, импорт в
@@ -398,8 +401,8 @@ SHA-256 `48E69E78C820BBA75E7F1F4BC3D4B446C26FD61B00F9E86FAFADA24A30287A8A`,
   «Поделиться» и «Открыть в другом приложении» показываются.
 - MIUI: состояние `PowerManager.isIgnoringBatteryOptimizations`, запрос
   исключения, настройки батареи и автозапуска в Settings.
-- Release: `release/Android/Nova-0.1.0-arm64-release.apk`, 66 861 927 байт,
-  SHA-256 `A7525B2C8FDC5C61CA82B54D929F540AEA589ACE852EBA2AD414956F50C7A6C9`,
+- Release: `release/Android/Nova-0.1.0-arm64-release.apk`, 66 866 991 байт,
+  SHA-256 `22017EF0F5FCE1A6C444AD8492349C8420710487B619CABC27C4869C253E85A9`,
   arm64-v8a, подписан локальным `nova-release.jks` (CN=Nova Local, cert
   SHA-256 `b4ec51312f56ae3cfd4c76912b7cf9aa41a24776301ef7715883eecd1e584958`).
   Финальный APK установлен начисто (`adb uninstall` → install): 78 треков
@@ -416,6 +419,8 @@ SHA-256 `48E69E78C820BBA75E7F1F4BC3D4B446C26FD61B00F9E86FAFADA24A30287A8A`,
 ## Известные ограничения phase 2C–2D
 
 - AudD требует API-ключ; без ключа распознавание показывает подсказку.
+- AudD принимает файл до 10 МБ; большие треки отклоняются с понятным
+  сообщением (полноценное извлечение 12-секундного фрагмента — следующий шаг).
 - Встроенный Shazam доступен только в Windows; на Android он отключён.
 - `AudioPlaybackCapture` не захватывает звук самого Nova (ограничение Android);
   для проверки нужен другой плеер/видео.

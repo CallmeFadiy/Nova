@@ -8,6 +8,8 @@ import android.media.projection.MediaProjectionManager
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
+import android.os.Handler
+import android.os.Looper
 import android.os.PowerManager
 import android.provider.Settings
 import android.webkit.MimeTypeMap
@@ -42,22 +44,22 @@ class NovaMobilePlugin(private val activity: Activity) : Plugin(activity) {
         importExecutor.shutdownNow()
     }
 
-    private var lastOpenIntent: String? = null
+    private var coldIntentHandled = false
 
     override fun onNewIntent(intent: Intent) {
+        activity.intent = intent
         handleOpenIntent(intent)
     }
 
     override fun onResume(activity: AppCompatActivity) {
+        if (coldIntentHandled) return
+        coldIntentHandled = true
         handleOpenIntent(activity.intent)
     }
 
     private fun handleOpenIntent(intent: Intent?) {
         if (intent?.action != Intent.ACTION_VIEW) return
         val uri = intent.data ?: return
-        val key = uri.toString()
-        if (key == lastOpenIntent) return
-        lastOpenIntent = key
         importExecutor.execute {
             try {
                 val inbox = File(
@@ -72,10 +74,13 @@ class NovaMobilePlugin(private val activity: Activity) : Plugin(activity) {
                 val payload = JSObject()
                 payload.put("path", file.absolutePath)
                 pendingOpenPath = file.absolutePath
+                pendingOpenError = null
                 trigger("open-file", payload)
             } catch (error: Exception) {
+                val message = error.message ?: "Не удалось открыть файл"
+                pendingOpenError = message
                 val payload = JSObject()
-                payload.put("error", error.message ?: "Не удалось открыть файл")
+                payload.put("error", message)
                 trigger("open-file-error", payload)
             }
         }
@@ -208,11 +213,12 @@ class NovaMobilePlugin(private val activity: Activity) : Plugin(activity) {
 
     @Command
     fun shareFile(invoke: Invoke) {
-        val file = File(invoke.parseArgs(FilePathArgs::class.java).path)
-        if (!file.isFile) {
+        val original = File(invoke.parseArgs(FilePathArgs::class.java).path)
+        if (!original.isFile) {
             invoke.reject("Файл не найден")
             return
         }
+        val file = shareableFile(original)
         try {
             val intent = Intent(Intent.ACTION_SEND).apply {
                 type = mimeType(file.name)
@@ -228,17 +234,18 @@ class NovaMobilePlugin(private val activity: Activity) : Plugin(activity) {
 
     @Command
     fun openFile(invoke: Invoke) {
-        val file = File(invoke.parseArgs(FilePathArgs::class.java).path)
-        if (!file.isFile) {
+        val original = File(invoke.parseArgs(FilePathArgs::class.java).path)
+        if (!original.isFile) {
             invoke.reject("Файл не найден")
             return
         }
+        val file = shareableFile(original)
         try {
             val intent = Intent(Intent.ACTION_VIEW).apply {
                 setDataAndType(contentUri(file), mimeType(file.name))
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
-            activity.startActivity(Intent.createChooser(intent, "Открыть"))
+            activity.startActivity(intent)
             invoke.resolve()
         } catch (error: Exception) {
             invoke.reject(error.message ?: "Не удалось открыть файл")
@@ -261,11 +268,18 @@ class NovaMobilePlugin(private val activity: Activity) : Plugin(activity) {
     fun takeOpenedFile(invoke: Invoke) {
         val result = JSObject()
         val path = pendingOpenPath
+        val error = pendingOpenError
         pendingOpenPath = null
+        pendingOpenError = null
         if (path == null) {
             result.put("path", JSONObject.NULL)
         } else {
             result.put("path", path)
+        }
+        if (error == null) {
+            result.put("error", JSONObject.NULL)
+        } else {
+            result.put("error", error)
         }
         invoke.resolve(result)
     }
@@ -327,21 +341,59 @@ class NovaMobilePlugin(private val activity: Activity) : Plugin(activity) {
             file,
         )
 
+    /**
+     * FileProvider only exposes external/files/cache roots. A track downloaded
+     * into the app-private `downloads` directory is copied to cache first.
+     */
+    private fun shareableFile(file: File): File {
+        val roots = listOf(
+            Environment.getExternalStorageDirectory().absolutePath,
+            activity.filesDir.absolutePath,
+            activity.cacheDir.absolutePath,
+        )
+        if (roots.any { root ->
+                file.absolutePath == root ||
+                    file.absolutePath.startsWith("$root${File.separator}")
+            }
+        ) {
+            return file
+        }
+        val target = File(activity.cacheDir, "share/${file.name}")
+        target.parentFile?.mkdirs()
+        file.copyTo(target, overwrite = true)
+        return target
+    }
+
     private fun mimeType(name: String): String {
         val extension = name.substringAfterLast('.', "").lowercase()
         return MimeTypeMap.getSingleton()
             .getMimeTypeFromExtension(extension) ?: "audio/*"
     }
 
+    private var projectionPending: Invoke? = null
+
     @Command
     fun captureSystemAudio(invoke: Invoke) {
+        if (activity.checkSelfPermission(Manifest.permission.RECORD_AUDIO) !=
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            invoke.reject("Разрешите доступ к микрофону: он нужен и для системного звука")
+            return
+        }
+        if (projectionPending != null) {
+            invoke.reject("Запись системного звука уже идёт")
+            return
+        }
         val manager = activity.getSystemService(MediaProjectionManager::class.java)
         if (manager == null) {
             invoke.reject("MediaProjection недоступен на этом устройстве")
             return
         }
+        projectionPending = invoke
         systemAudioResult = { path, error ->
             activity.runOnUiThread {
+                if (projectionPending !== invoke) return@runOnUiThread
+                projectionPending = null
                 if (error != null) {
                     invoke.reject(error)
                 } else {
@@ -358,6 +410,7 @@ class NovaMobilePlugin(private val activity: Activity) : Plugin(activity) {
                 "systemAudioConsent",
             )
         } catch (error: Exception) {
+            projectionPending = null
             systemAudioResult = null
             invoke.reject(error.message ?: "Не удалось запросить захват экрана")
         }
@@ -365,11 +418,22 @@ class NovaMobilePlugin(private val activity: Activity) : Plugin(activity) {
 
     @ActivityCallback
     fun systemAudioConsent(invoke: Invoke, result: ActivityResult) {
+        if (projectionPending !== invoke) {
+            return
+        }
         if (result.resultCode != Activity.RESULT_OK || result.data == null) {
+            projectionPending = null
             systemAudioResult = null
             invoke.reject("Захват системного звука отменён")
             return
         }
+        Handler(Looper.getMainLooper()).postDelayed({
+            if (projectionPending === invoke) {
+                projectionPending = null
+                systemAudioResult = null
+                invoke.reject("Запись системного звука не завершилась. Попробуйте ещё раз.")
+            }
+        }, 30_000)
         val intent = Intent(activity, NovaProjectionService::class.java).apply {
             action = NovaProjectionService.ACTION_CAPTURE
             putExtra(NovaProjectionService.EXTRA_RESULT_CODE, result.resultCode)
@@ -379,6 +443,7 @@ class NovaMobilePlugin(private val activity: Activity) : Plugin(activity) {
         try {
             activity.startForegroundService(intent)
         } catch (error: Exception) {
+            projectionPending = null
             systemAudioResult = null
             invoke.reject(error.message ?: "Не удалось запустить запись системного звука")
         }
@@ -417,6 +482,8 @@ class NovaMobilePlugin(private val activity: Activity) : Plugin(activity) {
                     "audio/mp4",
                     "audio/aac",
                     "audio/webm",
+                    "audio/x-ms-wma",
+                    "audio/aiff",
                 ),
             )
         }
@@ -518,6 +585,9 @@ class NovaMobilePlugin(private val activity: Activity) : Plugin(activity) {
 
         @Volatile
         private var pendingOpenPath: String? = null
+
+        @Volatile
+        private var pendingOpenError: String? = null
 
         /** Called by [NovaProjectionService] after the WAV is written. */
         fun deliverSystemAudio(path: String?, error: String?) {

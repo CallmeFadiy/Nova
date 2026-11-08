@@ -219,9 +219,14 @@ export const api = {
     );
   },
 
-  androidTakeOpenedFile(): Promise<string | null> {
-    if (!isTauri) return Promise.resolve(null);
-    return call<string | null>("android_take_opened_file");
+  androidTakeOpenedFile(): Promise<{
+    path: string | null;
+    error: string | null;
+  }> {
+    if (!isTauri) return Promise.resolve({ path: null, error: null });
+    return call<{ path: string | null; error: string | null }>(
+      "android_take_opened_file",
+    );
   },
 
   androidRequestIgnoreBattery(): Promise<void> {

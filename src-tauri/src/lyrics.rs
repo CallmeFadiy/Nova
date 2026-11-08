@@ -164,7 +164,7 @@ async fn genius_lookup(
 ) -> Result<(String, Option<String>), String> {
     let client = crate::http::client_builder()
         .user_agent(BROWSER_UA)
-        .timeout(Duration::from_secs(28))
+        .timeout(Duration::from_secs(15))
         .build()
         .map_err(|error| error.to_string())?;
 
@@ -313,7 +313,7 @@ async fn lrclib_lookup(
             .map(|value| !value.trim().is_empty())
             .unwrap_or(false)
     });
-    let (text, synced) = if let Some(entry) = candidate {
+    let (text, _synced) = if let Some(entry) = candidate {
         (
             entry
                 .get("syncedLyrics")
@@ -339,11 +339,7 @@ async fn lrclib_lookup(
     };
 
     let text = normalize_lyrics(&text);
-    let source = if synced {
-        "https://lrclib.net/ (LRC)"
-    } else {
-        "https://lrclib.net/"
-    };
+    let source = "https://lrclib.net/";
     Ok((text, Some(source.to_string())))
 }
 

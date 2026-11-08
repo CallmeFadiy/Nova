@@ -955,7 +955,9 @@ export function Settings() {
           <Mic size={15} />
           <span>
             {recognitionSource === "system"
-              ? "Nova захватывает звук текущего устройства вывода Windows через WASAPI loopback. Запись длится 12 секунд и не сохраняется."
+              ? isAndroid
+                ? "Nova захватывает системный звук через MediaProjection и AudioPlaybackCapture. Запись длится 12 секунд; временный WAV удаляется после отправки в AudD."
+                : "Nova захватывает звук текущего устройства вывода Windows через WASAPI loopback. Запись длится 12 секунд и не сохраняется."
               : "Микрофон запрашивается только при нажатии «Распознать». Запись длится 12 секунд и не сохраняется."}
           </span>
         </div>

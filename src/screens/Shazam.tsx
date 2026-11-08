@@ -98,7 +98,7 @@ export function Shazam() {
       notify("Добавьте API-ключ AudD в настройках", "info");
       return;
     }
-    if (isAndroid && recognitionSource === "microphone") {
+    if (isAndroid) {
       const granted = await api.androidRequestMicrophone();
       if (!granted) {
         notify("Разрешите доступ к микрофону в настройках Android", "info");

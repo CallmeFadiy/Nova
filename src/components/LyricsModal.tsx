@@ -204,7 +204,7 @@ export function LyricsModal() {
         {loading ? (
           <div className="lyrics-loading">
             <Loader2 size={18} className="spin" />
-            <span>Ищу текст на Genius…</span>
+            <span>Ищу текст…</span>
           </div>
         ) : error ? (
           <div className="lyrics-empty">
@@ -222,7 +222,11 @@ export function LyricsModal() {
             <div className="lyrics-toolbar">
               <span>
                 <FileText size={14} />
-                {result.cached ? "Из кэша" : "Загружено с Genius"}
+                {result.cached
+                  ? "Из кэша"
+                  : result.sourceUrl?.includes("lrclib")
+                    ? "Загружено с LRCLIB"
+                    : "Загружено с Genius"}
               </span>
               <span className="lyrics-path" title={result.path}>
                 {result.fileName}
@@ -271,7 +275,7 @@ export function LyricsModal() {
                       onClick={() => void openExternal(result.sourceUrl ?? "")}
                     >
                       <ExternalLink size={13} />
-                      Genius
+                      {result.sourceUrl?.includes("lrclib") ? "LRCLIB" : "Genius"}
                     </button>
                   ) : null}
                 </>

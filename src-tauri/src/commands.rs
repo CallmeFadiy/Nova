@@ -363,19 +363,18 @@ pub fn android_battery_state(app: AppHandle) -> Result<serde_json::Value, String
 }
 
 #[tauri::command]
-pub fn android_take_opened_file(app: AppHandle) -> Result<Option<String>, String> {
+pub fn android_take_opened_file(app: AppHandle) -> Result<serde_json::Value, String> {
     #[cfg(target_os = "android")]
     {
-        let value: serde_json::Value = run_mobile_command(&app, "takeOpenedFile", ())?;
-        return Ok(value
-            .get("path")
-            .and_then(|value| value.as_str())
-            .map(str::to_string));
+        return run_mobile_command(&app, "takeOpenedFile", ());
     }
     #[cfg(not(target_os = "android"))]
     {
         let _ = app;
-        Ok(None)
+        Ok(serde_json::json!({
+            "path": serde_json::Value::Null,
+            "error": serde_json::Value::Null,
+        }))
     }
 }
 

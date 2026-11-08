@@ -16,11 +16,14 @@ import android.media.AudioRecord
 import android.media.projection.MediaProjection
 import android.media.projection.MediaProjectionManager
 import android.os.Build
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
 import android.util.Log
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.concurrent.thread
 
 /**
@@ -42,14 +45,24 @@ class NovaProjectionService : Service() {
 
         ensureChannel()
         val notification = buildNotification()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            startForeground(
-                NOTIFICATION_ID,
-                notification,
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION,
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                startForeground(
+                    NOTIFICATION_ID,
+                    notification,
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION,
+                )
+            } else {
+                startForeground(NOTIFICATION_ID, notification)
+            }
+        } catch (error: Exception) {
+            Log.w(TAG, "cannot enter mediaProjection foreground", error)
+            NovaMobilePlugin.deliverSystemAudio(
+                null,
+                "Не удалось запустить foreground-сервис записи: ${error.message}",
             )
-        } else {
-            startForeground(NOTIFICATION_ID, notification)
+            stopSelf(startId)
+            return START_NOT_STICKY
         }
 
         val resultCode = intent.getIntExtra(EXTRA_RESULT_CODE, Activity.RESULT_CANCELED)
@@ -80,6 +93,16 @@ class NovaProjectionService : Service() {
             ?: throw IllegalStateException("MediaProjection недоступен")
         val projection = manager.getMediaProjection(resultCode, data)
             ?: throw IllegalStateException("Не удалось получить MediaProjection")
+
+        val stopped = AtomicBoolean(false)
+        projection.registerCallback(
+            object : MediaProjection.Callback() {
+                override fun onStop() {
+                    stopped.set(true)
+                }
+            },
+            Handler(Looper.getMainLooper()),
+        )
 
         try {
             val config = AudioPlaybackCaptureConfiguration.Builder(projection)
@@ -113,6 +136,9 @@ class NovaProjectionService : Service() {
                 val deadline = System.currentTimeMillis() + seconds * 1000L
                 var total = 0L
                 while (System.currentTimeMillis() < deadline) {
+                    if (stopped.get()) {
+                        throw IllegalStateException("Проекция экрана остановлена")
+                    }
                     val read = record.read(buffer, 0, buffer.size)
                     if (read > 0) {
                         output.write(buffer, 0, read)

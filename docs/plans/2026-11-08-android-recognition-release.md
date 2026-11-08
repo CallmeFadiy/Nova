@@ -36,8 +36,10 @@ uploads to AudD. Share/open uses `FileProvider`; `ACTION_VIEW` imports into
   capture (works on Android).
 - [x] Lyrics (`get_lyrics`, cache, editor) verified on the phone; Genius 403
   falls back to LRCLIB with synced LRC.
-- [x] Device checks: microphone permission dialog, AudD auth error with a fake
-  key, file upload, projection consent/capture, lyrics.
+- [x] Device checks: microphone permission, AudD upload with the public `test`
+  token (file, microphone and system capture return AudD fingerprint/no-match,
+  proving the file is received), projection consent/capture, lyrics.
+- [x] 10 MB AudD file cap guard and projection watchdog/revocation handling.
 
 ## 2D — Polish and release
 
@@ -45,7 +47,9 @@ uploads to AudD. Share/open uses `FileProvider`; `ACTION_VIEW` imports into
 - [x] `ACTION_VIEW` audio/video intent filter and import to `NovaInbox`.
 - [x] MIUI battery optimization/autostart controls in Settings.
 - [x] Release signing config (`keystore.properties`, local keystore ignored).
-- [ ] Build/verify a signed release APK.
-- [x] 392 px/44 px/safe-area audit across all screens (26 checks; one Shazam
-  source-switch fix, needs the final APK rebuild).
-- [ ] Final device acceptance and docs.
+- [x] Build/verify a signed release APK (`Nova-0.1.0-arm64-release.apk`,
+  SHA-256 `22017EF0…3E85A9`, arm64-v8a, clean install).
+- [x] 392 px/44 px/safe-area audit across all screens (26 checks; Shazam
+  source-switch CSS included in the final APK).
+- [x] Final device acceptance and docs: 78 tracks, playback/background/lockscreen,
+  notification actions, `/sdcard/Music` 104 files, Windows smoke.

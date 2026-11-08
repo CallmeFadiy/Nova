@@ -152,7 +152,7 @@ fn capture_microphone(app: &AppHandle, seconds: u64) -> Result<(Vec<f32>, u32), 
     let host = cpal::default_host();
     let device = host
         .default_input_device()
-        .ok_or_else(|| "Микрофон не найден. Проверьте, что он подключён и разрешён Windows.".to_string())?;
+        .ok_or_else(|| "Микрофон не найден. Проверьте, что он подключён и разрешён.".to_string())?;
     let supported = device.default_input_config().map_err(|error| {
         format!(
             "Не удалось открыть микрофон «{}»: {error}",
@@ -443,10 +443,7 @@ fn songrec_file(path: String) -> Result<RecognitionResult, String> {
             .map_err(|error| error.to_string())
     })
     .join()
-    .map_err(|_| {
-        "Встроенный Shazam недоступен на этом устройстве. Используйте AudD (нужен API-ключ)."
-            .to_string()
-    })?
+    .map_err(|_| "Ошибка встроенного распознавания (songrec).".to_string())?
 }
 
 fn songrec_samples(samples: Vec<i16>) -> Result<RecognitionResult, String> {
@@ -458,10 +455,7 @@ fn songrec_samples(samples: Vec<i16>) -> Result<RecognitionResult, String> {
             .map_err(|error| error.to_string())
     })
     .join()
-    .map_err(|_| {
-        "Встроенный Shazam недоступен на этом устройстве. Используйте AudD (нужен API-ключ)."
-            .to_string()
-    })?
+    .map_err(|_| "Ошибка встроенного распознавания (songrec).".to_string())?
 }
 
 pub async fn recognize_shazam(
@@ -519,7 +513,9 @@ pub async fn recognize_audd(
     #[cfg(target_os = "android")]
     if source == RecognitionSource::System {
         let path = crate::commands::android_capture_system_audio(&app).await?;
-        return recognize_audd_file(path, token).await;
+        let result = recognize_audd_file(path.clone(), token).await;
+        let _ = tokio::fs::remove_file(&path).await;
+        return result;
     }
     let samples = capture_16k(&app, source, CAPTURE_SECONDS).await?;
     let wav = tauri::async_runtime::spawn_blocking(move || wav_bytes(&samples))
@@ -548,8 +544,21 @@ pub async fn recognize_audd_file(
         "flac" => "audio/flac",
         "ogg" | "opus" => "audio/ogg",
         "m4a" | "aac" | "mp4" => "audio/mp4",
+        "webm" => "audio/webm",
+        "wma" => "audio/x-ms-wma",
+        "aiff" | "aif" => "audio/aiff",
         _ => "audio/wav",
     };
+    let metadata = tokio::fs::metadata(&path)
+        .await
+        .map_err(|error| format!("Не удалось прочитать файл: {error}"))?;
+    const MAX_AUDD_BYTES: u64 = 10 * 1024 * 1024;
+    if metadata.len() > MAX_AUDD_BYTES {
+        return Err(format!(
+            "Файл больше 10 МБ ({}). AudD принимает файл до 10 МБ: выберите короткий фрагмент или mp3 меньшего размера.",
+            metadata.len()
+        ));
+    }
     let bytes = tokio::fs::read(&path)
         .await
         .map_err(|error| format!("Не удалось прочитать файл: {error}"))?;
@@ -573,7 +582,7 @@ async fn audd_send(
     let form = reqwest::multipart::Form::new()
         .text("api_token", token.to_string())
         .text("return", "apple_music,spotify")
-        .part("audio", part);
+        .part("file", part);
 
     let response = client
         .post("https://api.audd.io/")

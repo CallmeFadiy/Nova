@@ -22,7 +22,8 @@ import {
   backgroundUrl,
   isTauri,
   listenScanProgress,
-} from "./lib/tauri";import { isAndroid } from "./lib/platform";
+} from "./lib/tauri";
+import { isAndroid } from "./lib/platform";
 import { Downloads } from "./screens/Downloads";
 import { Favorites } from "./screens/Favorites";
 import { Home } from "./screens/Home";
@@ -50,12 +51,16 @@ export default function App() {
     const handled = new Set<string>();
     const importOpened = async () => {
       if (document.visibilityState !== "visible") return;
-      const path = await api.androidTakeOpenedFile();
-      if (!path || handled.has(path)) return;
-      handled.add(path);
-      const directory = path.substring(0, path.lastIndexOf("/"));
+      const opened = await api.androidTakeOpenedFile();
+      if (opened.error) {
+        useUiStore.getState().notify(opened.error, "error");
+        return;
+      }
+      if (!opened.path || handled.has(opened.path)) return;
+      handled.add(opened.path);
+      const directory = opened.path.substring(0, opened.path.lastIndexOf("/"));
       await useLibraryStore.getState().addFolder(directory);
-      const name = path.split("/").pop() ?? "файл";
+      const name = opened.path.split("/").pop() ?? "файл";
       useUiStore.getState().notify(`Добавлено в библиотеку: ${name}`, "success");
       window.location.hash = "#/library";
     };
