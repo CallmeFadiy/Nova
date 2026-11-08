@@ -53,7 +53,7 @@ export function TrackRow({
     <div
       className={`track-row${active ? " is-active" : ""}${
         selected ? " is-selected" : ""
-      }`}
+      }${onMoveUp || onMoveDown ? " is-reorderable" : ""}`}
       role="button"
       tabIndex={0}
       onClick={(event) => {

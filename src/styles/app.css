@@ -6584,8 +6584,35 @@ body {
   }
 
   .library-toolbar .search-field {
+    /* 1 px border on each side: a 46 px wrapper gives the input a real
+       44 px hit area instead of the previous content-sized 17 px box. */
+    height: 46px;
+    min-height: 46px;
+  }
+
+  .library-toolbar .search-field input {
+    align-self: stretch;
     height: 44px;
-    min-height: 44px;
+  }
+
+  /* Playlist rows have four 44 px actions (up/down/favorite/menu). A 2x2
+     grid keeps them tappable without squeezing the title to a few glyphs. */
+  .page .track-row.is-reorderable {
+    min-height: 96px;
+    padding-top: 4px;
+    padding-bottom: 4px;
+  }
+
+  .page .track-row.is-reorderable .track-index,
+  .page .track-row.is-reorderable .track-cover {
+    display: none;
+  }
+
+  .page .track-row.is-reorderable .track-actions {
+    display: grid;
+    grid-template-columns: repeat(2, 44px);
+    grid-auto-rows: 44px;
+    gap: 0;
   }
 
   .settings-page .recognition-source-switch button {
