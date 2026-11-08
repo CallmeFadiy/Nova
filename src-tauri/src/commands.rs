@@ -1,7 +1,7 @@
 use crate::models::{
-    DeleteTracksResult, DownloadHistoryItem, DownloadQueueRow, DownloadResult, DownloadTask, Folder,
-    ImportPlaylist, LyricsFile, LyricsResult, MediaCandidate, Playlist, RecognitionResult,
-    ScanResult, Snapshot, TagEncodingIssue, TagEncodingResult, Track, TrackHash,
+    DeleteTracksResult, DownloadHistoryItem, DownloadQueueRow, DownloadQueueState, DownloadResult,
+    DownloadTask, Folder, ImportPlaylist, LyricsFile, LyricsResult, MediaCandidate, Playlist,
+    RecognitionResult, ScanResult, Snapshot, TagEncodingIssue, TagEncodingResult, Track, TrackHash,
 };
 use crate::text_encoding::repair_mojibake;
 use crate::{lyrics, media, recognition, scanner, AppState};
@@ -698,9 +698,13 @@ pub(crate) fn android_task_service_stop(app: &AppHandle) {
 }
 
 /// Debug-only hook: exercises the real `NovaTaskService.onTimeout` path on
-/// devices below API 35 (the phone is Android 13). Not used by the UI.
+/// devices below API 35 (the phone is Android 13). Not used by the UI and
+/// disabled in release builds.
 #[tauri::command]
 pub fn android_download_simulate_timeout(app: AppHandle) -> Result<bool, String> {
+    if !cfg!(debug_assertions) {
+        return Err("Simulated timeout is only available in debug builds".to_string());
+    }
     #[cfg(target_os = "android")]
     {
         let value: serde_json::Value = run_download_command(&app, "simulateTaskTimeout", ())?;
@@ -740,10 +744,14 @@ pub fn download_enqueue(
     state: State<'_, AppState>,
     task: DownloadTask,
 ) -> Result<String, String> {
+    // Read the title before the task is moved into `enqueue`; the foreground
+    // service claims its slot while the activity is still visible.
+    let title = crate::downloads::task_title(&task);
     let id = {
         let conn = state.db.lock().map_err(|e| e.to_string())?;
         crate::downloads::queue::enqueue(&conn, &task).map_err(|e| e.to_string())?
     };
+    crate::downloads::ensure_task_service(&app, &title);
     crate::downloads::start_worker(app);
     Ok(id)
 }
@@ -751,6 +759,7 @@ pub fn download_enqueue(
 /// Explicit worker start, used on restart after `download_queue_resume`.
 #[tauri::command]
 pub fn download_queue_start(app: AppHandle) -> Result<(), String> {
+    crate::downloads::ensure_task_service(&app, "");
     crate::downloads::start_worker(app);
     Ok(())
 }
@@ -768,6 +777,7 @@ pub fn download_queue_pause(
     // Resuming must also revive a worker that exited earlier; pausing keeps it
     // alive but idle (Task 3's service owns the foreground notification).
     if !paused {
+        crate::downloads::ensure_task_service(&app, "");
         crate::downloads::start_worker(app);
     }
     Ok(())
@@ -859,6 +869,37 @@ pub fn download_history_clear(state: State<'_, AppState>) -> Result<(), String> 
     Ok(())
 }
 
+/// Drops queue rows whose terminal state is already in `download_history`.
+/// The UI calls this after hydrate and after a terminal progress event so the
+/// table does not grow with every finished download.
+#[tauri::command]
+pub fn download_queue_clear_finished(state: State<'_, AppState>) -> Result<usize, String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    crate::downloads::queue::clear_finished(&conn).map_err(|e| e.to_string())
+}
+
+/// Global queue flags (`paused`) for the UI startup state.
+#[tauri::command]
+pub fn download_queue_state(state: State<'_, AppState>) -> Result<DownloadQueueState, String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    let paused = crate::downloads::queue::is_paused(&conn).map_err(|e| e.to_string())?;
+    Ok(DownloadQueueState { paused })
+}
+
+/// One-time migration of the pre-2B-2 `localStorage` history into SQLite.
+/// `finishedAt` is milliseconds in JS; the DB stores seconds.
+#[tauri::command]
+pub fn download_history_import(
+    state: State<'_, AppState>,
+    items: Vec<DownloadHistoryItem>,
+) -> Result<(), String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    for item in items {
+        crate::downloads::history::insert(&conn, &item).map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
 /// Called once on startup by Task 4. Rows a killed process left in
 /// `starting`/`downloading` go back to `queued` with their progress cleared.
 /// The pause flag is deliberately left alone: a user-paused queue stays paused,
@@ -867,8 +908,15 @@ pub fn download_history_clear(state: State<'_, AppState>) -> Result<(), String> 
 pub fn download_queue_resume(app: AppHandle, state: State<'_, AppState>) -> Result<(), String> {
     {
         let conn = state.db.lock().map_err(|e| e.to_string())?;
-        crate::downloads::queue::resume(&conn).map_err(|e| e.to_string())?;
+        crate::downloads::queue::resume_except(
+            &conn,
+            crate::downloads::active_task_id().as_deref(),
+        )
+        .map_err(|e| e.to_string())?;
     }
+    // Startup runs while the activity is foreground: claim the service before
+    // the worker picks a re-queued row after a possible background switch.
+    crate::downloads::ensure_task_service(&app, "");
     crate::downloads::start_worker(app);
     Ok(())
 }

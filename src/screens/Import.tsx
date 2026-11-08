@@ -19,15 +19,12 @@ import { api, openExternal } from "../lib/tauri";
 import { DuplicateDownloadModal } from "../components/DuplicateDownloadModal";
 import { useDownloadProgress } from "../hooks/useDownloadProgress";
 import { findDuplicateTrack, useLibraryStore } from "../store/library";
-import {
-  clearDownloadCancelled,
-  isDownloadCancelled,
-} from "../store/downloads";
+import { registerDownloadDone } from "../store/downloads";
 import { useSettingsStore } from "../store/settings";
 import { useUiStore } from "../store/ui";
 import type {
   DownloadProgress,
-  DownloadResult,
+  DownloadTask,
   ImportPlaylist,
   ImportTrack,
   Track,
@@ -45,12 +42,10 @@ const SOURCES = [
 export function Import() {
   const downloadDir = useSettingsStore((state) => state.downloadDir);
   const ytdlpPath = useSettingsStore((state) => state.ytdlpPath);
-  const addFolder = useLibraryStore((state) => state.addFolder);
-  const scan = useLibraryStore((state) => state.scan);
   const tracks = useLibraryStore((state) => state.tracks);
   const deleteTrack = useLibraryStore((state) => state.deleteTrack);
   const notify = useUiStore((state) => state.notify);
-  const { items, setProgress, enqueue, nextQueued, resumeQueue } =
+  const { items, history, setProgress, enqueue, recordFailure } =
     useDownloadProgress();
 
   const [url, setUrl] = useState("");
@@ -118,192 +113,178 @@ export function Import() {
     setPreviewing(index);
   };
 
-  const downloadFromProviders = async (id: string, track: ImportTrack) => {
-    setProgress({
-      id,
-      percent: 0,
-      line: "Ищу на Zaycev, Muzofond и DriveMusic…",
-      status: "starting",
-      path: null,
-      error: null,
-      // The provider search itself and the Rust download cannot be cancelled.
-      cancellable: false,
-    });
-    const found = await api.searchMedia(track.query, 8);
-    if (isDownloadCancelled(id)) return null;
-    const candidate = pickBestCandidate(
-      {
-        artist: track.artist,
-        title: track.title,
-        durationMs: track.durationMs,
-      },
-      found,
-    );
-    if (!candidate) return null;
-    if (!candidate.downloadUrl) {
-      setProgress({
-        id,
-        percent: 0,
-        line: "Скачивание через yt-dlp…",
-        status: "starting",
-        path: null,
-        error: null,
-        cancellable: true,
-      });
-    }
-    const result = candidate.downloadUrl
-      ? await api.downloadDirect({
-          id,
-          url: candidate.downloadUrl,
-          outputDir: downloadDir,
-          fileName: `${track.artist} - ${track.title}`,
-          expectedArtist: track.artist,
-          expectedTitle: track.title,
-        })
-      : await api.downloadMedia({
-          id,
-          url: candidate.webpageUrl,
-          query: candidate.query,
-          outputDir: downloadDir,
-          ytdlpPath,
-          expectedArtist: track.artist,
-          expectedTitle: track.title,
-        });
-    return result;
+  /** Shared task fields for every source resolution. */
+  const baseTask = (
+    id: string,
+    track: ImportTrack,
+  ): Omit<DownloadTask, "kind" | "url" | "query" | "fileName"> => ({
+    id,
+    outputDir: downloadDir,
+    expectedArtist: track.artist,
+    expectedTitle: track.title,
+    title: `${track.artist} – ${track.title}`,
+  });
+
+  const directTask = (
+    id: string,
+    track: ImportTrack,
+    url: string,
+    fileName?: string | null,
+  ): DownloadTask => ({
+    ...baseTask(id, track),
+    kind: "direct",
+    url,
+    query: null,
+    fileName:
+      fileName === undefined
+        ? `${track.artist} - ${track.title}`
+        : fileName,
+  });
+
+  const ytdlpTask = (
+    id: string,
+    track: ImportTrack,
+    url: string,
+    query?: string | null,
+  ): DownloadTask => ({
+    ...baseTask(id, track),
+    kind: "ytdlp",
+    url,
+    query: query ?? null,
+    fileName: null,
+  });
+
+  const primaryTask = (id: string, track: ImportTrack): DownloadTask | null => {
+    const target = track.downloadUrl || track.sourceUrl;
+    if (!target) return null;
+    if (isDirectDownloadUrl(target)) return directTask(id, track, target);
+    const isYoutube = playlist?.source === "YouTube";
+    return ytdlpTask(id, track, target, isYoutube ? null : track.query);
   };
 
-  const downloadOne = async (id: string, track: ImportTrack) => {
-    if (isDownloadCancelled(id)) return null;
-    setProgress({
-      id,
-      percent: 0,
-      line: `Подготовка: ${track.artist} – ${track.title}`,
-      status: "starting",
-      path: null,
-      error: null,
-    });
-    const isYoutube = playlist?.source === "YouTube";
-    const isYandex = playlist?.source === "Яндекс Музыка";
+  const providerTask = async (
+    id: string,
+    track: ImportTrack,
+  ): Promise<DownloadTask | null> => {
+    try {
+      const found = await api.searchMedia(track.query, 8);
+      const candidate = pickBestCandidate(
+        {
+          artist: track.artist,
+          title: track.title,
+          durationMs: track.durationMs,
+        },
+        found,
+      );
+      if (!candidate) return null;
+      if (candidate.downloadUrl) {
+        return directTask(id, track, candidate.downloadUrl);
+      }
+      if (candidate.webpageUrl) {
+        return ytdlpTask(id, track, candidate.webpageUrl, candidate.query);
+      }
+    } catch {
+      // Fall through to the original source.
+    }
+    return null;
+  };
 
-    const markDone = (result: DownloadResult): DownloadResult | null => {
-      if (isDownloadCancelled(id)) return null;
-      setProgress({
-        id,
-        percent: 100,
-        line: `Готово: ${track.title}`,
-        status: "done",
-        path: result.path,
-        error: null,
-      });
-      return result;
+  /** Adds an optimistic queue row, persists the task and wires replacement. */
+  const enqueueImportTask = async (
+    index: number,
+    id: string,
+    track: ImportTrack,
+    task: DownloadTask | null,
+    existing: Track | undefined,
+    mode: ConflictMode,
+  ): Promise<boolean> => {
+    const title = `${track.artist} – ${track.title}`;
+    const retry = () => {
+      void retryImportTrack(index, track, existing, mode);
     };
 
-    if (isYandex) {
-      try {
-        const result = await downloadFromProviders(id, track);
-        if (result) return markDone(result);
-      } catch {
-        // Fall back to yt-dlp search if the providers did not help.
-        if (isDownloadCancelled(id)) return null;
-      }
+    if (!task) {
+      const message = "Не удалось найти источник для скачивания";
+      await recordFailure(id, title, message, retry);
+      return false;
     }
 
-    // A cancelled provider attempt must not start a fresh yt-dlp download under
-    // the same id.
-    if (isDownloadCancelled(id)) return null;
-
-    const target = track.downloadUrl || track.sourceUrl;
     setProgress({
       id,
       percent: 0,
-      line: `Скачивание: ${track.artist} – ${track.title}`,
-      status: "starting",
+      line: `В очереди: ${title}`,
+      status: "queued",
       path: null,
       error: null,
-      cancellable: !isDirectDownloadUrl(target),
+      order: Date.now(),
+      title,
+      kind: task.kind,
+      cancellable: true,
+      retry,
     });
 
     try {
-      const result = await api.downloadMedia({
-        id,
-        url: target,
-        query: isYoutube ? undefined : track.query,
-        outputDir: downloadDir,
-        ytdlpPath,
-        expectedArtist: track.artist,
-        expectedTitle: track.title,
-      });
-      return markDone(result);
+      await enqueue(task);
+      if (mode === "replace" && existing) {
+        registerDownloadDone(id, () => {
+          void deleteTrack(existing.id, true);
+        });
+      }
+      return true;
     } catch (error) {
-      // A cancelled download rejects here; do not fall back to another source
-      // or a preview after the user has already cancelled it.
-      if (isDownloadCancelled(id)) return null;
-      // If the original source cannot provide audio, search the same three
-      // providers as the Downloads screen and take the best match.
-      try {
-        if (!isYandex) {
-          const result = await downloadFromProviders(id, track);
-          if (result) return markDone(result);
-        }
-      } catch {
-        // Fall through to the original preview/error handling.
-        if (isDownloadCancelled(id)) return null;
-      }
-
-      if (isDownloadCancelled(id)) return null;
-
-      if (track.previewUrl) {
-        setProgress({
-          id,
-          percent: 0,
-          line: "Полный трек недоступен – качаю превью",
-          status: "starting",
-          path: null,
-          error: null,
-          cancellable: false,
-        });
-        const result = await api.downloadDirect({
-          id,
-          url: track.previewUrl,
-          outputDir: downloadDir,
-          fileName: `${track.artist} - ${track.title} (preview)`,
-          expectedArtist: track.artist,
-          expectedTitle: track.title,
-        });
-        if (isDownloadCancelled(id)) return null;
-        setProgress({
-          id,
-          percent: 100,
-          line: `Превью: ${track.title}`,
-          status: "done",
-          path: result.path,
-          error: null,
-        });
-        return result;
-      }
       const message = errorText(error);
-      setProgress({
-        id,
-        percent: 0,
-        line: message,
-        status: "error",
-        path: null,
-        error: message,
-        retry: () => {
-          void retryImportDownload(id, track);
-        },
-      });
-      return null;
+      await recordFailure(id, title, message, retry);
+      return false;
     }
   };
 
-  const retryImportDownload = async (id: string, track: ImportTrack) => {
-    clearDownloadCancelled(id);
-    const result = await downloadOne(id, track);
-    if (result) {
-      if (result.directory) await addFolder(result.directory);
-      else await scan();
+  const retryImportTrack = async (
+    index: number,
+    track: ImportTrack,
+    existing: Track | undefined,
+    mode: ConflictMode,
+  ) => {
+    const id = `import-${index}-${Date.now()}-retry`;
+    setProgress({
+      id,
+      percent: 0,
+      line: `Ищу источник: ${track.artist} – ${track.title}`,
+      status: "starting",
+      path: null,
+      error: null,
+      order: Date.now(),
+      title: `${track.artist} – ${track.title}`,
+    });
+
+    // Retry follows the 2B-1 fallback chain: provider search, then a legal
+    // preview, then the original playlist source.
+    let task = await providerTask(id, track);
+    if (!task && track.previewUrl) {
+      task = directTask(
+        id,
+        track,
+        track.previewUrl,
+        `${track.artist} - ${track.title} (preview)`,
+      );
     }
+    if (!task) task = primaryTask(id, track);
+    await enqueueImportTask(index, id, track, task, existing, mode);
+  };
+
+  const queueSelectedTrack = async (
+    index: number,
+    track: ImportTrack,
+    duplicate: Track | undefined,
+    mode: ConflictMode,
+  ): Promise<boolean> => {
+    const id = `import-${index}-${Date.now()}`;
+    let task: DownloadTask | null = null;
+    // Yandex pages often need the provider search first (same as 2B-1).
+    if (playlist?.source === "Яндекс Музыка") {
+      task = await providerTask(id, track);
+    }
+    if (!task) task = primaryTask(id, track);
+    return enqueueImportTask(index, id, track, task, duplicate, mode);
   };
 
   const duplicateMap = (): Map<number, Track> => {
@@ -336,13 +317,7 @@ export function Import() {
     if (!playlist || selected.size === 0) return;
     setDownloading(true);
     const duplicates = duplicateMap();
-    const orderBase = Date.now();
-    const pending: Array<{
-      id: string;
-      index: number;
-      track: ImportTrack;
-      order: number;
-    }> = [];
+    let queued = 0;
     let skipped = 0;
 
     for (const index of [...selected].sort((a, b) => a - b)) {
@@ -352,92 +327,21 @@ export function Import() {
         skipped += 1;
         continue;
       }
-      const position = pending.length;
-      pending.push({
-        id: `import-${index}-${orderBase}-${position}`,
-        index,
-        track,
-        order: orderBase + position,
-      });
-    }
-
-    // Register every selected track before the first network request so the
-    // Current downloads section shows both the active item and the queue.
-    for (const item of pending) {
-      setProgress({
-        id: item.id,
-        percent: 0,
-        line: `В очереди: ${item.track.artist} – ${item.track.title}`,
-        status: "queued",
-        path: null,
-        error: null,
-        order: item.order,
-        title: `${item.track.artist} – ${item.track.title}`,
-      });
-    }
-
-    let directory: string | null = null;
-    let succeeded = 0;
-    const replacedIds: number[] = [];
-    const pendingById = new Map(pending.map((item) => [item.id, item]));
-    enqueue(pending.map((item) => item.id));
-
-    for (;;) {
-      const id = await nextQueued();
-      if (!id) break;
-      const item = pendingById.get(id);
-      if (!item) continue;
-      try {
-        const result = await downloadOne(item.id, item.track);
-        if (result) {
-          succeeded += 1;
-          directory = result.directory;
-          const existing = duplicates.get(item.index);
-          if (mode === "replace" && existing) {
-            replacedIds.push(existing.id);
-          }
-        }
-      } catch (error) {
-        if (isDownloadCancelled(item.id)) continue;
-        const message = errorText(error);
-        setProgress({
-          id: item.id,
-          percent: 0,
-          line: message,
-          status: "error",
-          path: null,
-          error: message,
-          order: item.order,
-          title: `${item.track.artist} – ${item.track.title}`,
-          retry: () => {
-            void retryImportDownload(item.id, item.track);
-          },
-        });
-      }
-    }
-
-    resumeQueue();
-
-    if (directory) {
-      await addFolder(directory);
-    } else {
-      await scan();
-    }
-
-    if (mode === "replace") {
-      for (const id of replacedIds) {
-        await deleteTrack(id, true);
+      if (await queueSelectedTrack(index, track, duplicates.get(index), mode)) {
+        queued += 1;
+      } else {
+        skipped += 1;
       }
     }
 
     setDownloading(false);
     notify(
-      succeeded > 0
-        ? `Загружено ${succeeded} из ${selected.size}${
+      queued > 0
+        ? `Добавлено в очередь: ${queued} из ${selected.size}${
             skipped > 0 ? `, пропущено ${skipped}` : ""
           }`
-        : "Ни один трек не удалось загрузить",
-      succeeded > 0 ? "success" : "error",
+        : "Ни один трек не удалось поставить в очередь",
+      queued > 0 ? "success" : "error",
     );
   };
 
@@ -514,9 +418,8 @@ export function Import() {
           </div>
           {playlist.tracks.map((track, index) => {
             const isSelected = selected.has(index);
-            // A retry or a second batch keeps the old item for the same index
-            // in the shared store. Render the newest attempt (largest order),
-            // otherwise an earlier error shadows a later successful download.
+            // Active rows live in `items`; finished rows are in the native
+            // history. Prefer an active retry over an older terminal record.
             const progress = Object.values(items)
               .filter((item) => item.id.startsWith(`import-${index}-`))
               .reduce<DownloadProgress | undefined>(
@@ -526,6 +429,17 @@ export function Import() {
                     : newest,
                 undefined,
               );
+            const finished = history
+              .filter((entry) => entry.id.startsWith(`import-${index}-`))
+              .sort((a, b) => b.finishedAt - a.finishedAt)[0];
+            const shown = progress
+              ? { status: progress.status, percent: progress.percent }
+              : finished
+                ? {
+                    status: finished.status,
+                    percent: finished.status === "done" ? 100 : 0,
+                  }
+                : undefined;
             return (
               <div
                 className={`import-track${isSelected ? " is-selected" : ""}`}
@@ -578,25 +492,28 @@ export function Import() {
                   </button>
                 </span>
                 <span className="import-status">
-                  {progress ? (
-                    progress.status === "done" ? (
+                  {shown ? (
+                    shown.status === "done" ? (
                       <span className="status-done">Готово</span>
-                    ) : progress.status === "error" ? (
-                      <span className="status-error">Ошибка</span>
-                    ) : progress.status === "queued" ? (
+                    ) : shown.status === "error" ||
+                      shown.status === "cancelled" ? (
+                      <span className="status-error">
+                        {shown.status === "cancelled" ? "Отменено" : "Ошибка"}
+                      </span>
+                    ) : shown.status === "queued" ? (
                       <span className="status-queued">В очереди</span>
-                    ) : progress.status === "starting" ? (
+                    ) : shown.status === "starting" ? (
                       <span className="status-queued">Подготовка</span>
                     ) : (
                       <span className="import-progress-status">
                         <span>
                           <Loader2 size={12} className="spin" />
-                          {Math.round(progress.percent)}%
+                          {Math.round(shown.percent ?? 0)}%
                         </span>
                         <span className="import-mini-bar">
                           <i
                             style={{
-                              width: `${Math.max(3, progress.percent)}%`,
+                              width: `${Math.max(3, shown.percent ?? 0)}%`,
                             }}
                           />
                         </span>

@@ -91,7 +91,15 @@ class NovaTaskService : Service() {
      * exhausted. Pause the queue through the marker file, drop the foreground
      * notification, and stop without throwing: the process may stay alive and
      * the worker applies the pause on its next tick.
+     *
+     * Android 15 uses the two-argument overload for `dataSync`; the single-arg
+     * one below stays for API 34 `shortService` and the debug simulation.
      */
+    override fun onTimeout(startId: Int, fgsType: Int) {
+        handleTimeout()
+        stopSelf(startId)
+    }
+
     override fun onTimeout(startId: Int) {
         handleTimeout()
         stopSelf(startId)

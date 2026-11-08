@@ -1,34 +1,61 @@
 import { create } from "zustand";
 import { api } from "../lib/tauri";
-import type { DownloadHistoryItem, DownloadProgress, DownloadTask } from "../types";
+import type {
+  DownloadHistoryItem,
+  DownloadProgress,
+  DownloadQueueRow,
+  DownloadTask,
+  DownloadStatus,
+} from "../types";
 
 const HISTORY_KEY = "nova.download.history.v1";
 const HISTORY_LIMIT = 80;
 
-/**
- * Downloads the user cancelled. Cancellation rejects the in-flight command, and
- * the screens check this set before writing a result so a cancelled item can
- * never be recorded as done (or silently re-queued by an import fallback).
- */
-const cancelledIds = new Set<string>();
+/** Callbacks that should run once a queue row finishes successfully. */
+const doneCallbacks = new Map<string, () => void>();
 
-export function markDownloadCancelled(id: string) {
-  cancelledIds.add(id);
-  if (cancelledIds.size > 200) {
-    cancelledIds.clear();
-    cancelledIds.add(id);
+/** In-session retry actions, re-attached when native history is reloaded. */
+const retryById = new Map<string, () => void>();
+
+export function registerDownloadDone(id: string, callback: () => void) {
+  doneCallbacks.set(id, callback);
+}
+
+function fireDoneCallback(id: string) {
+  const callback = doneCallbacks.get(id);
+  if (!callback) return;
+  doneCallbacks.delete(id);
+  try {
+    callback();
+  } catch {
+    // A failed post-download action (for example a duplicate replacement) must
+    // not break the queue UI.
   }
 }
 
-export function isDownloadCancelled(id: string) {
-  return cancelledIds.has(id);
+function isActiveStatus(status: DownloadStatus) {
+  return (
+    status === "queued" || status === "starting" || status === "downloading"
+  );
 }
 
-export function clearDownloadCancelled(id: string) {
-  cancelledIds.delete(id);
+function pendingFromItems(
+  items: Record<string, DownloadProgress>,
+): string[] {
+  return Object.values(items)
+    .filter((item) => item.status === "queued")
+    .sort(
+      (a, b) => (a.order ?? 0) - (b.order ?? 0) ||
+        a.id.localeCompare(b.id),
+    )
+    .map((item) => item.id);
 }
 
-function readHistory(): DownloadHistoryItem[] {
+/**
+ * Reads the pre-2B-2 localStorage history once, so upgrading users keep their
+ * records after the native SQLite history becomes the source of truth.
+ */
+function readLegacyHistory(): DownloadHistoryItem[] {
   try {
     if (typeof window === "undefined") return [];
     const raw = window.localStorage.getItem(HISTORY_KEY);
@@ -41,22 +68,35 @@ function readHistory(): DownloadHistoryItem[] {
   }
 }
 
-function writeHistory(items: DownloadHistoryItem[]) {
+function clearLegacyHistory() {
   try {
     if (typeof window === "undefined") return;
-    const serializable = items.slice(0, HISTORY_LIMIT).map((item) => ({
-      id: item.id,
-      title: item.title,
-      line: item.line,
-      status: item.status,
-      path: item.path,
-      error: item.error,
-      finishedAt: item.finishedAt,
-    }));
-    window.localStorage.setItem(HISTORY_KEY, JSON.stringify(serializable));
+    window.localStorage.removeItem(HISTORY_KEY);
   } catch {
     // ignore storage errors
   }
+}
+
+/** Rust stores seconds; the UI works with JavaScript milliseconds. */
+function toMillis(value: number) {
+  if (!Number.isFinite(value) || value <= 0) return Date.now();
+  return value < 1_000_000_000_000 ? value * 1000 : value;
+}
+
+function rowToProgress(row: DownloadQueueRow): DownloadProgress {
+  return {
+    id: row.id,
+    percent: row.percent,
+    line: row.line,
+    status: row.status,
+    path: row.path,
+    error: row.error,
+    kind: row.kind,
+    cancellable: row.cancellable,
+    order: row.orderIndex,
+    title: row.title ?? undefined,
+    retry: retryById.get(row.id),
+  };
 }
 
 interface DownloadStore {
@@ -65,231 +105,233 @@ interface DownloadStore {
   paused: boolean;
   history: DownloadHistoryItem[];
   hydrated: boolean;
+  /** Mirrors a native `download-progress` event; terminal rows are removed. */
   upsert: (progress: DownloadProgress) => void;
-  enqueue: (ids: string[]) => void;
-  nextQueued: () => Promise<string | null>;
-  pauseQueue: () => void;
-  resumeQueue: () => void;
-  cancelQueued: (id: string) => void;
+  /** Persists a task and lets the native worker run it. */
+  enqueue: (task: DownloadTask) => Promise<string>;
+  pauseQueue: () => Promise<void>;
+  resumeQueue: () => Promise<void>;
+  /** Stops an active row or deletes a queued one. */
+  cancelQueued: (id: string) => Promise<boolean>;
   removeDownload: (id: string) => void;
-  moveQueued: (id: string, direction: -1 | 1) => void;
-  clearHistory: () => void;
-  /** Loads the persisted queue/history once. Safe to call repeatedly. */
+  moveQueued: (id: string, direction: -1 | 1) => Promise<void>;
+  clearHistory: () => Promise<void>;
+  /** Loads persisted queue/history once and resumes interrupted rows. */
   hydrate: () => Promise<void>;
-  // Native actions backed by SQLite. The Downloads/Import UI still uses the
-  // local queue loop above until Task 4 switches it over.
-  enqueueNative: (task: DownloadTask) => Promise<string>;
-  pauseNative: (paused: boolean) => Promise<void>;
-  resumeNative: () => Promise<void>;
-  cancelNative: (id: string) => Promise<boolean>;
-  moveNative: (id: string, direction: -1 | 1) => Promise<void>;
-  clearHistoryNative: () => Promise<void>;
+  refreshQueue: () => Promise<void>;
+  refreshHistory: () => Promise<void>;
+  /** Records a failure that happened before the native worker saw the task. */
+  recordFailure: (
+    id: string,
+    title: string,
+    message: string,
+    retry?: () => void,
+  ) => Promise<void>;
 }
 
 export const useDownloadStore = create<DownloadStore>((set, get) => ({
   items: {},
   pending: [],
   paused: false,
-  history: readHistory(),
+  history: [],
   hydrated: false,
 
-  upsert: (progress) =>
+  upsert: (progress) => {
+    const terminal =
+      progress.status === "done" ||
+      progress.status === "error" ||
+      progress.status === "cancelled";
+
     set((state) => {
       const previous = state.items[progress.id];
+
+      if (terminal) {
+        if (progress.retry) retryById.set(progress.id, progress.retry);
+        else if (previous?.retry) retryById.set(progress.id, previous.retry);
+        const items = { ...state.items };
+        delete items[progress.id];
+        return { items, pending: pendingFromItems(items) };
+      }
+
       const item: DownloadProgress = {
         ...previous,
         ...progress,
         order: progress.order ?? previous?.order ?? 0,
         title: progress.title ?? previous?.title,
-        retry:
-          progress.status === "done"
-            ? undefined
-            : (progress.retry ?? previous?.retry),
+        retry: progress.retry ?? previous?.retry,
       };
-      const terminal =
-        item.status === "done" || item.status === "error";
-      let history = state.history;
+      if (item.retry) retryById.set(item.id, item.retry);
+      const items = { ...state.items, [item.id]: item };
+      return { items, pending: pendingFromItems(items) };
+    });
 
-      if (terminal) {
-        const entry: DownloadHistoryItem = {
-          id: item.id,
-          title: item.title || item.line || "Загрузка",
-          line: item.line,
-          status: item.status === "done" ? "done" : "error",
-          path: item.path,
-          error: item.error,
-          finishedAt: Date.now(),
-          retry: item.retry,
-        };
-        history = [
-          entry,
-          ...state.history.filter((existing) => existing.id !== item.id),
-        ].slice(0, HISTORY_LIMIT);
-        writeHistory(history);
-      } else if (state.history.some((existing) => existing.id === item.id)) {
-        history = state.history.filter((existing) => existing.id !== item.id);
-        writeHistory(history);
-      }
-
-      return {
-        items: { ...state.items, [progress.id]: item },
-        pending:
-          terminal
-            ? state.pending.filter((id) => id !== progress.id)
-            : state.pending,
-        history,
-      };
-    }),
-
-  enqueue: (ids) =>
-    set((state) => {
-      const queued = ids.filter(
-        (id) => state.items[id]?.status === "queued",
-      );
-      return {
-        pending: [...new Set([...state.pending, ...queued])],
-        paused: false,
-      };
-    }),
-
-  nextQueued: async () => {
-    for (;;) {
-      const state = get();
-      const queued = state.pending.filter(
-        (id) => state.items[id]?.status === "queued",
-      );
-      if (queued.length === 0) {
-        if (state.pending.length > 0) set({ pending: [] });
-        return null;
-      }
-      if (state.paused) {
-        await new Promise((resolve) => window.setTimeout(resolve, 150));
-        continue;
-      }
-      const [id, ...rest] = queued;
-      set({ pending: rest });
-      return id;
-    }
+    if (!terminal) return;
+    if (progress.status === "done") fireDoneCallback(progress.id);
+    // History is written by the worker before it emits the terminal event.
+    void get().refreshHistory();
+    void api.downloadQueueClearFinished().catch(() => undefined);
   },
 
-  pauseQueue: () => set({ paused: true }),
-  resumeQueue: () => set({ paused: false }),
+  enqueue: (task) => api.downloadEnqueue(task),
 
-  cancelQueued: (id) =>
-    set((state) => {
-      if (state.items[id]?.status !== "queued") return state;
-      const items = { ...state.items };
-      delete items[id];
-      return {
-        items,
-        pending: state.pending.filter((pendingId) => pendingId !== id),
-      };
-    }),
+  pauseQueue: async () => {
+    await api.downloadQueuePause(true);
+    set({ paused: true });
+  },
+
+  resumeQueue: async () => {
+    await api.downloadQueuePause(false);
+    set({ paused: false });
+  },
+
+  cancelQueued: async (id) => {
+    const status = get().items[id]?.status;
+    const cancelled = await api.downloadQueueCancel(id);
+    if (cancelled && status === "queued") {
+      set((state) => {
+        const items = { ...state.items };
+        delete items[id];
+        return { items, pending: pendingFromItems(items) };
+      });
+    }
+    return cancelled;
+  },
 
   removeDownload: (id) =>
     set((state) => {
       const items = { ...state.items };
       delete items[id];
-      const history = state.history.filter((entry) => entry.id !== id);
-      if (history.length !== state.history.length) writeHistory(history);
-      return {
-        items,
-        history,
-        pending: state.pending.filter((pendingId) => pendingId !== id),
-      };
+      return { items, pending: pendingFromItems(items) };
     }),
 
-  moveQueued: (id, direction) =>
-    set((state) => {
-      const pending = [...state.pending];
-      const index = pending.indexOf(id);
-      if (index < 0) return state;
-      const target = index + direction;
-      if (target < 0 || target >= pending.length) return state;
-      [pending[index], pending[target]] = [pending[target], pending[index]];
-      const base = Date.now();
-      const items = { ...state.items };
-      pending.forEach((pendingId, position) => {
-        const item = items[pendingId];
-        if (item) {
-          items[pendingId] = { ...item, order: base + position };
-        }
-      });
-      return { pending, items };
-    }),
+  moveQueued: async (id, direction) => {
+    await api.downloadQueueMove(id, direction);
+    await get().refreshQueue();
+  },
 
-  clearHistory: () => {
-    writeHistory([]);
+  clearHistory: async () => {
+    await api.downloadHistoryClear();
+    retryById.clear();
     set({ history: [] });
-    // Native rows must go too, otherwise the next hydrate() brings them back.
-    void api.downloadHistoryClear().catch(() => undefined);
   },
 
   hydrate: async () => {
     if (get().hydrated) return;
 
     try {
-      const [queue, history] = await Promise.all([
+      // Re-queue rows left in starting/downloading by a killed process and
+      // claim the foreground service while the activity is still visible.
+      await api.downloadQueueResume();
+
+      const legacy = readLegacyHistory();
+      if (legacy.length > 0) {
+        await api.downloadHistoryImport(
+          legacy.map((entry) => ({
+            ...entry,
+            finishedAt: Math.max(1, Math.round(entry.finishedAt / 1000)),
+          })),
+        );
+        clearLegacyHistory();
+      }
+
+      // Terminal rows have already been copied to download_history.
+      await api.downloadQueueClearFinished().catch(() => undefined);
+
+      const [rows, history, state] = await Promise.all([
         api.downloadQueueList(),
         api.downloadHistoryList(),
+        api.downloadQueueState(),
       ]);
 
-      // Merge rows for display only. The legacy `pending` loop stays JS-owned
-      // until Task 4 switches downloads over to the native worker.
-      set((state) => {
-        const items = { ...state.items };
+      const items: Record<string, DownloadProgress> = {};
+      for (const row of rows) {
+        if (!isActiveStatus(row.status)) continue;
+        items[row.id] = rowToProgress(row);
+      }
 
-        for (const row of queue) {
-          const { orderIndex, title, kind, ...progress } = row;
-          const previous = state.items[row.id];
-          items[row.id] = {
-            ...previous,
-            ...progress,
-            title: title ?? previous?.title,
-            kind,
-            order: orderIndex,
-          };
-        }
-
-        // Native and localStorage history both exist on upgraded installs.
-        // Union by id, native wins, newest first, capped like the DB table.
-        const byId = new Map<string, DownloadHistoryItem>();
-        for (const entry of state.history) byId.set(entry.id, entry);
-        for (const entry of history) byId.set(entry.id, entry);
-        const merged = [...byId.values()]
+      set({
+        items,
+        pending: pendingFromItems(items),
+        history: history
+          .map((entry) => ({
+            ...entry,
+            finishedAt: toMillis(entry.finishedAt),
+            retry: retryById.get(entry.id),
+          }))
           .sort((a, b) => b.finishedAt - a.finishedAt)
-          .slice(0, HISTORY_LIMIT);
-        writeHistory(merged);
-
-        return { items, history: merged, hydrated: true };
+          .slice(0, HISTORY_LIMIT),
+        paused: state.paused,
+        hydrated: true,
       });
+
+      // Drop any terminal row written between the list and this call.
+      void api.downloadQueueClearFinished().catch(() => undefined);
     } catch {
       // Let the next mount retry after a transient DB error.
       set({ hydrated: false });
     }
   },
 
-  enqueueNative: (task) => api.downloadEnqueue(task),
-
-  pauseNative: async (paused) => {
-    await api.downloadQueuePause(paused);
-    set({ paused });
+  refreshQueue: async () => {
+    const rows = await api.downloadQueueList();
+    const items: Record<string, DownloadProgress> = {};
+    for (const row of rows) {
+      if (!isActiveStatus(row.status)) continue;
+      items[row.id] = rowToProgress(row);
+    }
+    set({ items, pending: pendingFromItems(items) });
   },
 
-  resumeNative: () => api.downloadQueueResume(),
-
-  cancelNative: async (id) => {
-    const removed = await api.downloadQueueCancel(id);
-    if (removed) get().removeDownload(id);
-    return removed;
+  refreshHistory: async () => {
+    const history = await api.downloadHistoryList();
+    set({
+      history: history
+        .map((entry) => ({
+          ...entry,
+          finishedAt: toMillis(entry.finishedAt),
+          retry: retryById.get(entry.id),
+        }))
+        .sort((a, b) => b.finishedAt - a.finishedAt)
+        .slice(0, HISTORY_LIMIT),
+    });
   },
 
-  moveNative: (id, direction) => api.downloadQueueMove(id, direction),
+  recordFailure: async (id, title, message, retry) => {
+    if (retry) retryById.set(id, retry);
+    const entry: DownloadHistoryItem = {
+      id,
+      title,
+      line: message,
+      status: "error",
+      path: null,
+      error: message,
+      finishedAt: Date.now(),
+      retry,
+    };
 
-  clearHistoryNative: async () => {
-    await api.downloadHistoryClear();
-    writeHistory([]);
-    set({ history: [] });
+    set((state) => {
+      const items = { ...state.items };
+      delete items[id];
+      return { items, pending: pendingFromItems(items) };
+    });
+
+    try {
+      await api.downloadHistoryImport([
+        {
+          ...entry,
+          finishedAt: Math.max(1, Math.round(entry.finishedAt / 1000)),
+        },
+      ]);
+      await get().refreshHistory();
+    } catch {
+      // Keep the error visible even if SQLite is temporarily unavailable.
+      set((state) => ({
+        history: [
+          entry,
+          ...state.history.filter((existing) => existing.id !== id),
+        ].slice(0, HISTORY_LIMIT),
+      }));
+    }
   },
 }));
 

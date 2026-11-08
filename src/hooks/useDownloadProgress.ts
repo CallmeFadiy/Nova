@@ -1,21 +1,21 @@
 import { useEffect } from "react";
-import { listenDownloadProgress } from "../lib/tauri";
 import {
-  isDownloadCancelled,
-  useDownloadStore,
-} from "../store/downloads";
+  listenDownloadComplete,
+  listenDownloadProgress,
+} from "../lib/tauri";
+import { useDownloadStore } from "../store/downloads";
+import { useLibraryStore } from "../store/library";
 
-let listenerStarted = false;
-let hydrationStarted = false;
+let started = false;
 
 export function useDownloadProgress() {
   const items = useDownloadStore((state) => state.items);
   const pending = useDownloadStore((state) => state.pending);
   const paused = useDownloadStore((state) => state.paused);
   const history = useDownloadStore((state) => state.history);
+  const hydrated = useDownloadStore((state) => state.hydrated);
   const setProgress = useDownloadStore((state) => state.upsert);
   const enqueue = useDownloadStore((state) => state.enqueue);
-  const nextQueued = useDownloadStore((state) => state.nextQueued);
   const pauseQueue = useDownloadStore((state) => state.pauseQueue);
   const resumeQueue = useDownloadStore((state) => state.resumeQueue);
   const cancelQueued = useDownloadStore((state) => state.cancelQueued);
@@ -23,26 +23,25 @@ export function useDownloadProgress() {
   const removeDownload = useDownloadStore((state) => state.removeDownload);
   const clearHistory = useDownloadStore((state) => state.clearHistory);
   const hydrate = useDownloadStore((state) => state.hydrate);
+  const recordFailure = useDownloadStore((state) => state.recordFailure);
 
   useEffect(() => {
-    if (hydrationStarted) return;
-    hydrationStarted = true;
-    // Pull the persisted queue once at startup. Until Task 3 starts writing
-    // rows this is a harmless empty read on an empty phone.
-    void useDownloadStore.getState().hydrate();
-  }, []);
+    if (started) return;
+    started = true;
 
-  useEffect(() => {
-    if (listenerStarted) return;
-    listenerStarted = true;
-    // Keep this listener for the lifetime of the window: an import batch
-    // continues after the user navigates away from the Import screen.
+    // Keep these listeners for the lifetime of the window: a batch continues
+    // after the user navigates away from Downloads/Import.
     void listenDownloadProgress((progress) => {
-      // A cancelled yt-dlp run still publishes one last error snapshot while the
-      // command unwinds; ignore it so the cancelled row stays removed.
-      if (isDownloadCancelled(progress.id)) return;
       useDownloadStore.getState().upsert(progress);
     });
+    void listenDownloadComplete(() => {
+      // The worker already scanned the output folder; reload the snapshot
+      // instead of running a second scan.
+      void useLibraryStore.getState().refresh();
+    });
+    // Pull the persisted queue once at startup; this also re-queues rows left
+    // in starting/downloading and claims the foreground service.
+    void useDownloadStore.getState().hydrate();
   }, []);
 
   return {
@@ -50,15 +49,16 @@ export function useDownloadProgress() {
     pending,
     paused,
     history,
+    hydrated,
     setProgress,
     enqueue,
-    nextQueued,
     pauseQueue,
     resumeQueue,
     cancelQueued,
-    removeDownload,
     moveQueued,
+    removeDownload,
     clearHistory,
     hydrate,
+    recordFailure,
   };
 }

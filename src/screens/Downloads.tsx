@@ -31,21 +31,18 @@ import { isAndroid } from "../lib/platform";
 import { DuplicateDownloadModal } from "../components/DuplicateDownloadModal";
 import { useDownloadProgress } from "../hooks/useDownloadProgress";
 import { findDuplicateTrack, useLibraryStore } from "../store/library";
-import {
-  clearDownloadCancelled,
-  isDownloadCancelled,
-  markDownloadCancelled,
-} from "../store/downloads";
+import { registerDownloadDone } from "../store/downloads";
 import { useSettingsStore } from "../store/settings";
 import { useUiStore } from "../store/ui";
-import type { DownloadResult, MediaCandidate, Track } from "../types";
+import type {
+  DownloadTask,
+  MediaCandidate,
+  Track,
+} from "../types";
 
 export function Downloads() {
   const downloadDir = useSettingsStore((state) => state.downloadDir);
   const setDownloadDir = useSettingsStore((state) => state.setDownloadDir);
-  const ytdlpPath = useSettingsStore((state) => state.ytdlpPath);
-  const addFolder = useLibraryStore((state) => state.addFolder);
-  const scan = useLibraryStore((state) => state.scan);
   const tracks = useLibraryStore((state) => state.tracks);
   const deleteTrack = useLibraryStore((state) => state.deleteTrack);
   const notify = useUiStore((state) => state.notify);
@@ -58,12 +55,13 @@ export function Downloads() {
     paused,
     history,
     setProgress,
+    enqueue,
     pauseQueue,
     resumeQueue,
     cancelQueued,
-    removeDownload,
     moveQueued,
     clearHistory,
+    recordFailure,
   } = useDownloadProgress();
 
   const [query, setQuery] = useState(seedQuery);
@@ -125,42 +123,42 @@ export function Downloads() {
     setPreviewing(candidate.id);
   };
 
-  const finishDownload = async (id: string, result: DownloadResult) => {
-    if (isDownloadCancelled(id)) return;
-    setProgress({
-      id,
-      percent: 100,
-      line: "Готово",
-      status: "done",
-      path: result.path,
-      error: null,
-    });
-    if (result.directory) {
-      await addFolder(result.directory);
-    } else {
-      await scan();
-    }
-    notify(`Скачано: ${result.title}`, "success");
-  };
-
   const cancelDownload = async (id: string) => {
-    // Mark before awaiting the command: the in-flight promise rejects while the
-    // cancellation is still travelling through the plugin.
-    markDownloadCancelled(id);
     try {
-      const cancelled = await api.cancelDownload(id);
+      const cancelled = await cancelQueued(id);
       if (!cancelled) {
-        clearDownloadCancelled(id);
-        notify("Эту загрузку нельзя отменить", "info");
+        notify("Эту загрузку уже нельзя отменить", "info");
         return;
       }
+      notify("Загрузка отменяется", "info");
     } catch (error) {
-      clearDownloadCancelled(id);
       notify(errorText(error), "error");
-      return;
     }
-    removeDownload(id);
-    notify("Загрузка отменена", "info");
+  };
+
+  const toggleQueue = async () => {
+    try {
+      if (paused) await resumeQueue();
+      else await pauseQueue();
+    } catch (error) {
+      notify(errorText(error), "error");
+    }
+  };
+
+  const moveDownload = async (id: string, direction: -1 | 1) => {
+    try {
+      await moveQueued(id, direction);
+    } catch (error) {
+      notify(errorText(error), "error");
+    }
+  };
+
+  const clearDownloadHistory = async () => {
+    try {
+      await clearHistory();
+    } catch (error) {
+      notify(errorText(error), "error");
+    }
   };
 
   const chooseDownloadDir = async () => {
@@ -201,93 +199,115 @@ export function Downloads() {
   const startCandidate = async (
     candidate: MediaCandidate,
     replace?: Track | null,
+    preferYtdlp = false,
   ) => {
     const id = `${candidate.id}-${Date.now()}`;
-    clearDownloadCancelled(id);
+    const title = `${candidate.artist} – ${candidate.title}`;
+    const direct = !preferYtdlp && Boolean(candidate.downloadUrl);
+    const url = direct
+      ? candidate.downloadUrl ?? ""
+      : candidate.webpageUrl || candidate.downloadUrl || "";
+    if (!url) {
+      notify("У этого варианта нет ссылки для скачивания", "error");
+      return;
+    }
+
+    const task: DownloadTask = {
+      id,
+      kind: direct ? "direct" : "ytdlp",
+      url,
+      query: direct ? null : candidate.query,
+      outputDir: downloadDir,
+      fileName: direct ? `${candidate.artist} - ${candidate.title}` : null,
+      expectedArtist: candidate.artist,
+      expectedTitle: candidate.title,
+      title,
+    };
+    const retry = () => {
+      // A failed direct URL falls back to the webpage through yt-dlp.
+      if (direct && candidate.webpageUrl) {
+        void startCandidate(candidate, replace, true);
+      } else {
+        void startCandidate(candidate, replace, preferYtdlp);
+      }
+    };
+
     setProgress({
       id,
       percent: 0,
-      line: `Подготовка: ${candidate.artist} – ${candidate.title} (${candidate.quality})`,
-      status: "starting",
+      line: `В очереди: ${title}`,
+      status: "queued",
       path: null,
       error: null,
       order: Date.now(),
-      title: `${candidate.artist} – ${candidate.title}`,
-      // Direct downloads run in Rust and cannot be stopped by the plugin.
-      cancellable: !candidate.downloadUrl,
+      title,
+      kind: task.kind,
+      cancellable: true,
+      retry,
     });
+
     try {
-      const result = candidate.downloadUrl
-        ? await api.downloadDirect({
-            id,
-            url: candidate.downloadUrl,
-            outputDir: downloadDir,
-            fileName: `${candidate.artist} - ${candidate.title}`,
-            expectedArtist: candidate.artist,
-            expectedTitle: candidate.title,
-          })
-        : await api.downloadMedia({
-            id,
-            url: candidate.webpageUrl || "",
-            query: candidate.query,
-            outputDir: downloadDir,
-            ytdlpPath,
-            expectedArtist: candidate.artist,
-            expectedTitle: candidate.title,
-          });
-      await finishDownload(id, result);
+      await enqueue(task);
       if (replace) {
-        await deleteTrack(replace.id, true);
+        registerDownloadDone(id, () => {
+          void deleteTrack(replace.id, true);
+        });
       }
     } catch (error) {
-      if (isDownloadCancelled(id)) return;
-      if (
-        candidate.downloadUrl &&
-        candidate.webpageUrl &&
-        candidate.webpageUrl !== candidate.downloadUrl
-      ) {
-        try {
-          setProgress({
-            id,
-            percent: 0,
-            line: "Прямая ссылка не сработала – пробую yt-dlp…",
-            status: "starting",
-            path: null,
-            error: null,
-            cancellable: true,
-          });
-          const result = await api.downloadMedia({
-            id,
-            url: candidate.webpageUrl,
-            query: candidate.query,
-            outputDir: downloadDir,
-            ytdlpPath,
-            expectedArtist: candidate.artist,
-            expectedTitle: candidate.title,
-          });
-          await finishDownload(id, result);
-          return;
-        } catch {
-          // show the original direct-download error below
-          if (isDownloadCancelled(id)) return;
-        }
-      }
-      if (isDownloadCancelled(id)) return;
       const message = errorText(error);
-      setProgress({
-        id,
-        percent: 0,
-        line: message,
-        status: "error",
-        path: null,
-        error: message,
-        title: `${candidate.artist} – ${candidate.title}`,
-        retry: () => {
-          clearDownloadCancelled(id);
-          void startCandidate(candidate, replace);
-        },
-      });
+      await recordFailure(id, title, message, retry);
       notify(message, "error");
+    }
+  };
+
+  const queueLink = async (target: string) => {
+    const id = `link-${Date.now()}`;
+    const direct = isDirectDownloadUrl(target);
+    const isZaycevPage = /zaycev\.net\/pages\/[^/]+\/\d+\.shtml/i.test(
+      target,
+    );
+    const fileName = isZaycevPage
+      ? null
+      : direct
+        ? (target.split("/").pop()?.split("?")[0] ?? "track")
+        : null;
+    const task: DownloadTask = {
+      id,
+      kind: direct || isZaycevPage ? "direct" : "ytdlp",
+      url: target,
+      query: null,
+      outputDir: downloadDir,
+      fileName,
+      expectedArtist: null,
+      expectedTitle: null,
+      title: target,
+    };
+    const retry = () => {
+      void queueLink(target);
+    };
+
+    setProgress({
+      id,
+      percent: 0,
+      line: "В очереди…",
+      status: "queued",
+      path: null,
+      error: null,
+      order: Date.now(),
+      title: target,
+      kind: task.kind,
+      cancellable: true,
+      retry,
+    });
+
+    try {
+      await enqueue(task);
+      return true;
+    } catch (error) {
+      const message = errorText(error);
+      await recordFailure(id, target, message, retry);
+      notify(message, "error");
+      return false;
     }
   };
 
@@ -295,63 +315,9 @@ export function Downloads() {
     const target = link.trim();
     if (!target) return;
     setStartingLink(true);
-    const id = `link-${Date.now()}`;
-    clearDownloadCancelled(id);
-    const direct = isDirectDownloadUrl(target);
-    const isZaycevPage = /zaycev\.net\/pages\/[^/]+\/\d+\.shtml/i.test(
-      target,
-    );
-    setProgress({
-      id,
-      percent: 0,
-      line: "Подготовка загрузки…",
-      status: "starting",
-      path: null,
-      error: null,
-      order: Date.now(),
-      title: target,
-      // Direct links (audio file / Zaycev page) go through Rust and cannot be
-      // cancelled; only the yt-dlp branch is stoppable.
-      cancellable: !direct,
-    });
-    try {
-      const result =
-        direct || isZaycevPage
-          ? await api.downloadDirect({
-              id,
-              url: target,
-              outputDir: downloadDir,
-              fileName: isZaycevPage
-                ? undefined
-                : (target.split("/").pop()?.split("?")[0] ?? "track"),
-            })
-          : await api.downloadMedia({
-              id,
-              url: target,
-              outputDir: downloadDir,
-              ytdlpPath,
-            });
-      await finishDownload(id, result);
-      setLink("");
-    } catch (error) {
-      if (isDownloadCancelled(id)) return;
-      const message = errorText(error);
-      setProgress({
-        id,
-        percent: 0,
-        line: message,
-        status: "error",
-        path: null,
-        error: message,
-        title: target,
-        retry: () => {
-          void downloadLink();
-        },
-      });
-      notify(message, "error");
-    } finally {
-      setStartingLink(false);
-    }
+    const queued = await queueLink(target);
+    if (queued) setLink("");
+    setStartingLink(false);
   };
 
   const statusRank: Record<string, number> = {
@@ -561,10 +527,10 @@ export function Downloads() {
             </button>
           </div>
           <div className="downloads-head-actions">
-            {tab === "active" && pending.length > 0 ? (
+            {tab === "active" && downloads.length > 0 ? (
               <button
                 className="ghost-button"
-                onClick={paused ? resumeQueue : pauseQueue}
+                onClick={() => void toggleQueue()}
                 title={
                   paused
                     ? "Продолжить очередь"
@@ -576,7 +542,10 @@ export function Downloads() {
               </button>
             ) : null}
             {tab === "history" && history.length > 0 ? (
-              <button className="text-button" onClick={clearHistory}>
+              <button
+                className="text-button"
+                onClick={() => void clearDownloadHistory()}
+              >
                 Очистить
               </button>
             ) : null}
@@ -629,7 +598,7 @@ export function Downloads() {
                       <div className="download-row-actions">
                         <button
                           className="icon-button tiny"
-                          onClick={() => moveQueued(item.id, -1)}
+                          onClick={() => void moveDownload(item.id, -1)}
                           disabled={pendingIndex === 0}
                           title="Выше"
                           aria-label="Выше"
@@ -638,7 +607,7 @@ export function Downloads() {
                         </button>
                         <button
                           className="icon-button tiny"
-                          onClick={() => moveQueued(item.id, 1)}
+                          onClick={() => void moveDownload(item.id, 1)}
                           disabled={pendingIndex === pending.length - 1}
                           title="Ниже"
                           aria-label="Ниже"
@@ -647,17 +616,15 @@ export function Downloads() {
                         </button>
                         <button
                           className="icon-button tiny danger"
-                          onClick={() => cancelQueued(item.id)}
+                          onClick={() => void cancelDownload(item.id)}
                           title="Отменить"
                           aria-label="Отменить"
                         >
                           <X size={13} />
                         </button>
                       </div>
-                    ) : isAndroid &&
-                      item.cancellable &&
-                      (item.status === "starting" ||
-                        item.status === "downloading") ? (
+                    ) : item.status === "starting" ||
+                      item.status === "downloading" ? (
                       <div className="download-row-actions">
                         <button
                           className="icon-button tiny danger"
@@ -688,13 +655,19 @@ export function Downloads() {
                 >
                   {entry.status === "done" ? (
                     <Download size={14} />
+                  ) : entry.status === "cancelled" ? (
+                    <X size={14} />
                   ) : (
                     <Pause size={14} />
                   )}
                 </div>
                 <div className="download-info">
                   <strong>{entry.title}</strong>
-                  <small>{entry.status === "done" ? entry.path : entry.error}</small>
+                  <small>
+                    {entry.status === "done"
+                      ? entry.path
+                      : (entry.error ?? entry.line)}
+                  </small>
                   <div className="download-history-meta">
                     <span>
                       {new Date(entry.finishedAt).toLocaleString("ru-RU", {

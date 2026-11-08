@@ -14,6 +14,8 @@ interface LibraryState {
   lastScan: ScanResult | null;
   error: string | null;
   load: () => Promise<void>;
+  /** Refresh tracks/folders without the full-screen loading flag. */
+  refresh: () => Promise<void>;
   scan: () => Promise<void>;
   setScanProgress: (progress: ScanProgress | null) => void;
   addFolder: (path: string) => Promise<void>;
@@ -77,6 +79,15 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
         loading: false,
         error: error instanceof Error ? error.message : String(error),
       });
+    }
+  },
+
+  refresh: async () => {
+    try {
+      const snapshot = await api.getSnapshot();
+      set(applySnapshot(snapshot));
+    } catch (error) {
+      set({ error: error instanceof Error ? error.message : String(error) });
     }
   },
 

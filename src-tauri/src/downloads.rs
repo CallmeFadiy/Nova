@@ -163,6 +163,15 @@ pub mod queue {
         )
     }
 
+    /// Deletes rows whose terminal state has already been recorded in
+    /// `download_history`. Keeps the queue table bounded across restarts.
+    pub fn clear_finished(conn: &Connection) -> rusqlite::Result<usize> {
+        conn.execute(
+            "DELETE FROM download_queue WHERE status IN ('done', 'error', 'cancelled')",
+            [],
+        )
+    }
+
     /// Oldest row the worker should run. Rows a previous process left in
     /// `starting`/`downloading` are re-queued by [`resume`] before the first
     /// pick, so only `queued` rows are eligible here.
@@ -272,7 +281,12 @@ pub mod queue {
     }
 
     /// Re-queues rows a previous process left mid-flight. Called on startup.
-    pub fn resume(conn: &Connection) -> rusqlite::Result<usize> {
+    /// `active` is the row the live worker already owns; a startup command that
+    /// races the worker must not put that row back in the queue.
+    pub fn resume_except(
+        conn: &Connection,
+        active: Option<&str>,
+    ) -> rusqlite::Result<usize> {
         conn.execute(
             r#"
             UPDATE download_queue SET
@@ -283,9 +297,14 @@ pub mod queue {
                 error = NULL,
                 updated_at = ?1
             WHERE status IN ('starting', 'downloading')
+              AND (?2 IS NULL OR id != ?2)
             "#,
-            params![now_secs()],
+            params![now_secs(), active],
         )
+    }
+
+    pub fn resume(conn: &Connection) -> rusqlite::Result<usize> {
+        resume_except(conn, None)
     }
 }
 
@@ -481,6 +500,15 @@ fn set_active_task(id: Option<&str>) {
     *active = id.map(str::to_string);
 }
 
+/// Id of the row the worker currently owns. Startup resume uses it to avoid
+/// re-queueing a row that a live worker is already downloading.
+pub fn active_task_id() -> Option<String> {
+    ACTIVE_TASK_ID
+        .lock()
+        .map(|active| active.clone())
+        .unwrap_or(None)
+}
+
 /// Whether `id` is the queue row currently running. Used by `media` progress
 /// callbacks so a legacy JS download cannot overwrite the queue notification.
 #[cfg(target_os = "android")]
@@ -527,6 +555,78 @@ fn service_stop(app: Option<&AppHandle>) {
     #[cfg(not(target_os = "android"))]
     let _ = app;
     PAUSED_SHOWN.store(false, Ordering::SeqCst);
+}
+
+/// Claims `NovaTaskService` from a foreground Rust command (enqueue/start/
+/// resume). Android 12+ rejects a foreground-service start once the app is in
+/// the background, so the worker's lazy start on claim can be too late; these
+/// commands start it while the activity is still foreground and the worker only
+/// refreshes the running service afterwards.
+pub fn ensure_task_service(app: &AppHandle, title: &str) -> bool {
+    #[cfg(target_os = "android")]
+    {
+        let Some(state) = app.try_state::<crate::AppState>() else {
+            return false;
+        };
+        let (paused, active, queued, live, next_title) = {
+            let Ok(conn) = state.db.lock() else {
+                return false;
+            };
+            let paused = queue::is_paused(&conn).unwrap_or(false);
+            let (active, queued) = queue::counts(&conn).unwrap_or((0, 0));
+            let rows = queue::list(&conn).unwrap_or_default();
+            // Prefer the row the worker already owns: enqueueing another task
+            // must not overwrite the notification title of the live download.
+            let live = rows
+                .iter()
+                .find(|row| matches!(row.status.as_str(), "starting" | "downloading"))
+                .or_else(|| rows.iter().find(|row| row.status == "queued"))
+                .map(|row| {
+                    (
+                        row.title.clone().unwrap_or_default(),
+                        row.percent,
+                        row.status.clone(),
+                    )
+                });
+            let next_title = rows
+                .iter()
+                .find(|row| row.status == "queued")
+                .and_then(|task| task.title.clone())
+                .unwrap_or_default();
+            (paused, active, queued, live, next_title)
+        };
+        if paused || active + queued == 0 {
+            return false;
+        }
+        let (title, percent, status) = match live {
+            Some((live_title, percent, status)) if !live_title.trim().is_empty() => {
+                (live_title, percent, status)
+            }
+            Some((_, percent, status)) => {
+                let title = if title.trim().is_empty() {
+                    next_title
+                } else {
+                    title.to_string()
+                };
+                (title, percent, status)
+            }
+            None => (title.to_string(), 0.0, "starting".to_string()),
+        };
+        let started =
+            crate::commands::android_task_service_start(app, &title, percent, &status);
+        if started {
+            // Keep the worker-side flags in sync: `service_after_step` must be
+            // able to update and stop a service that this command started.
+            SERVICE_ACTIVE.store(true, Ordering::SeqCst);
+            PAUSED_SHOWN.store(false, Ordering::SeqCst);
+        }
+        started
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        let _ = (app, title);
+        false
+    }
 }
 
 /// Applies the Android 15 `dataSync` timeout marker written by the service.
@@ -664,7 +764,7 @@ fn claim_next(
     // source of truth, not the row status.
     let token = cancel_token(&task.id);
     set_active_task(Some(&task.id));
-    service_start(app, &history_title(&task));
+    service_start(app, &task_title(&task));
     emit_progress(
         app,
         DownloadProgress {
@@ -852,7 +952,7 @@ fn finish_done(
             conn,
             &DownloadHistoryItem {
                 id: task.id.clone(),
-                title: history_title(task),
+                title: task_title(task),
                 line: line.clone(),
                 status: "done".to_string(),
                 path: Some(result.path.clone()),
@@ -924,7 +1024,7 @@ fn finish_error(conn: &Connection, app: Option<&AppHandle>, task: &DownloadTask,
             conn,
             &DownloadHistoryItem {
                 id: task.id.clone(),
-                title: history_title(task),
+                title: task_title(task),
                 line: error.to_string(),
                 status: "error".to_string(),
                 path: None,
@@ -965,7 +1065,7 @@ fn finish_cancelled(conn: &Connection, app: Option<&AppHandle>, task: &DownloadT
             conn,
             &DownloadHistoryItem {
                 id: task.id.clone(),
-                title: history_title(task),
+                title: task_title(task),
                 line: CANCELLED.to_string(),
                 status: "cancelled".to_string(),
                 path: None,
@@ -975,22 +1075,24 @@ fn finish_cancelled(conn: &Connection, app: Option<&AppHandle>, task: &DownloadT
         );
     }
 
-    // The webview has no dedicated cancelled status yet (Task 4 adds it), so
-    // reuse the error shape it already renders for a cancelled transfer.
+    // `cancelled` is terminal for the UI, which drops the row and refreshes
+    // history instead of keeping an "error" row in the active list.
     emit_progress(
         app,
         DownloadProgress {
             id: task.id.clone(),
             percent: 0.0,
             line: CANCELLED.to_string(),
-            status: "error".to_string(),
+            status: "cancelled".to_string(),
             path: None,
             error: Some(CANCELLED.to_string()),
         },
     );
 }
 
-fn history_title(task: &DownloadTask) -> String {
+/// Human-readable queue/history title, also used for the foreground
+/// notification before the worker claims the row.
+pub(crate) fn task_title(task: &DownloadTask) -> String {
     task.title
         .clone()
         .or_else(|| task.query.clone())
@@ -1086,6 +1188,25 @@ mod tests {
     }
 
     #[test]
+    fn clear_finished_keeps_active_rows() {
+        let conn = conn();
+        queue::enqueue(&conn, &task("queued", "https://example/q.mp3")).unwrap();
+        queue::enqueue(&conn, &task("done", "https://example/d.mp3")).unwrap();
+        queue::enqueue(&conn, &task("error", "https://example/e.mp3")).unwrap();
+        queue::enqueue(&conn, &task("cancelled", "https://example/c.mp3")).unwrap();
+        for (id, status) in [
+            ("done", "done"),
+            ("error", "error"),
+            ("cancelled", "cancelled"),
+        ] {
+            queue::set_status(&conn, id, status, None, None, None, None).unwrap();
+        }
+
+        assert_eq!(queue::clear_finished(&conn).unwrap(), 3);
+        assert_eq!(queue::ids(&conn).unwrap(), vec!["queued".to_string()]);
+    }
+
+    #[test]
     fn list_returns_queue_rows_with_order_and_metadata() {
         let conn = conn();
         queue::enqueue(&conn, &task("a", "https://example/a.mp3")).unwrap();
@@ -1144,6 +1265,24 @@ mod tests {
         let items = queue::list(&conn).unwrap();
         assert_eq!(items.len(), 1);
         assert_eq!(items[0].id, "b");
+    }
+
+    #[test]
+    fn resume_except_keeps_the_live_worker_row_downloading() {
+        let conn = conn();
+        queue::enqueue(&conn, &task("live", "https://example/live.mp3")).unwrap();
+        queue::enqueue(&conn, &task("dead", "https://example/dead.mp3")).unwrap();
+        queue::set_status(&conn, "live", "downloading", Some(10.0), None, None, None)
+            .unwrap();
+        queue::set_status(&conn, "dead", "starting", Some(0.0), None, None, None).unwrap();
+
+        assert_eq!(queue::resume_except(&conn, Some("live")).unwrap(), 1);
+        let rows = queue::list(&conn).unwrap();
+        assert_eq!(rows[0].id, "live");
+        assert_eq!(rows[0].status, "downloading");
+        assert_eq!(rows[0].percent, 10.0);
+        assert_eq!(rows[1].id, "dead");
+        assert_eq!(rows[1].status, "queued");
     }
 
     #[test]

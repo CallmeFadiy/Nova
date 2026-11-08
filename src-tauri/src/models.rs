@@ -198,6 +198,13 @@ pub struct DownloadHistoryItem {
     pub finished_at: i64,
 }
 
+/// Global queue flags read by the UI on startup.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DownloadQueueState {
+    pub paused: bool,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DownloadResult {

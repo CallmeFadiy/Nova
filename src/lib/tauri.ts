@@ -5,9 +5,11 @@ import { openUrl, revealItemInDir } from "@tauri-apps/plugin-opener";
 import { isAndroid } from "./platform";
 import type {
   DeleteTracksResult,
+  DownloadComplete,
   DownloadHistoryItem,
   DownloadProgress,
   DownloadQueueRow,
+  DownloadQueueState,
   DownloadResult,
   DownloadTask,
   Folder,
@@ -675,8 +677,8 @@ export const api = {
     return call<boolean>("android_download_cancel", { id });
   },
 
-  // Persistent queue/history (phase 2B-2). The native worker and the UI switch
-  // arrive in Tasks 2-4; until then these only back the store's hydrate().
+  // Persistent queue/history (phase 2B-2). Rust owns the queue; the UI only
+  // hydrates from these commands and mirrors `download-progress` events.
   async downloadQueueList(): Promise<DownloadQueueRow[]> {
     if (!isTauri) return [];
     return call<DownloadQueueRow[]>("download_queue_list");
@@ -685,6 +687,11 @@ export const api = {
   async downloadHistoryList(): Promise<DownloadHistoryItem[]> {
     if (!isTauri) return [];
     return call<DownloadHistoryItem[]>("download_history_list");
+  },
+
+  async downloadQueueState(): Promise<DownloadQueueState> {
+    if (!isTauri) return { paused: false };
+    return call<DownloadQueueState>("download_queue_state");
   },
 
   async downloadEnqueue(task: DownloadTask): Promise<string> {
@@ -707,9 +714,19 @@ export const api = {
     await call<void>("download_queue_move", { id, direction });
   },
 
+  async downloadQueueClearFinished(): Promise<number> {
+    if (!isTauri) return 0;
+    return call<number>("download_queue_clear_finished");
+  },
+
   async downloadHistoryClear(): Promise<void> {
     if (!isTauri) return;
     await call<void>("download_history_clear");
+  },
+
+  async downloadHistoryImport(items: DownloadHistoryItem[]): Promise<void> {
+    if (!isTauri) return;
+    await call<void>("download_history_import", { items });
   },
 
   async downloadQueueResume(): Promise<void> {
@@ -909,6 +926,15 @@ export async function listenDownloadProgress(
 ): Promise<UnlistenFn> {
   if (!isTauri) return () => undefined;
   return listen<DownloadProgress>("download-progress", (event) =>
+    callback(event.payload),
+  );
+}
+
+export async function listenDownloadComplete(
+  callback: (complete: DownloadComplete) => void,
+): Promise<UnlistenFn> {
+  if (!isTauri) return () => undefined;
+  return listen<DownloadComplete>("download-complete", (event) =>
     callback(event.payload),
   );
 }
