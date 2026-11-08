@@ -6307,6 +6307,10 @@ body {
     z-index: 70;
   }
 
+  .nav-item {
+    height: 44px;
+  }
+
   .mobile-nav-open .mobile-menu {
     left: calc(min(82vw, 320px) - 52px);
   }
@@ -6353,13 +6357,13 @@ body {
   }
 
   .player-controls .control {
-    width: 34px;
-    height: 38px;
+    width: 44px;
+    height: 44px;
   }
 
   .play-button {
-    width: 40px;
-    height: 40px;
+    width: 44px;
+    height: 44px;
   }
 
   .player-right {
@@ -6372,8 +6376,8 @@ body {
   }
 
   .player-right .icon-button {
-    width: 38px;
-    height: 40px;
+    width: 44px;
+    height: 44px;
   }
 
   .mobile-nav {
