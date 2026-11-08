@@ -206,7 +206,7 @@ pub async fn search(query: &str, limit: usize) -> Result<Vec<MediaCandidate>, St
         return Err("Введите название или исполнителя".to_string());
     }
     let limit = limit.clamp(1, 30);
-    let client = http_client_builder()
+    let client = crate::http::client_builder()
         .user_agent(BROWSER_UA)
         .timeout(Duration::from_secs(22))
         .build()
@@ -274,32 +274,11 @@ pub async fn search(query: &str, limit: usize) -> Result<Vec<MediaCandidate>, St
 }
 
 fn media_client() -> Result<reqwest::Client, String> {
-    http_client_builder()
+    crate::http::client_builder()
         .user_agent(BROWSER_UA)
         .timeout(Duration::from_secs(22))
         .build()
         .map_err(|error| error.to_string())
-}
-
-/// reqwest's `rustls` feature uses `rustls-platform-verifier` on Android, which
-/// panics unless the app initializes it with a JVM context. Nova does not ship
-/// the required Kotlin verifier component, so Android media clients use the
-/// bundled Mozilla root store instead; desktop keeps the platform defaults.
-fn http_client_builder() -> reqwest::ClientBuilder {
-    #[cfg(target_os = "android")]
-    {
-        if rustls::crypto::CryptoProvider::get_default().is_none() {
-            let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
-        }
-        let mut roots = rustls::RootCertStore::empty();
-        roots.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
-        let config = rustls::ClientConfig::builder()
-            .with_root_certificates(roots)
-            .with_no_client_auth();
-        return reqwest::Client::builder().use_preconfigured_tls(config);
-    }
-    #[cfg(not(target_os = "android"))]
-    reqwest::Client::builder()
 }
 
 async fn search_zaycev(
@@ -880,7 +859,7 @@ async fn resolve_deezer(url: &str) -> Result<ImportPlaylist, String> {
     }
 
     let api = format!("https://api.deezer.com/{kind}/{id}");
-    let client = http_client_builder()
+    let client = crate::http::client_builder()
         .user_agent("Nova/0.1")
         .timeout(Duration::from_secs(18))
         .build()
@@ -1726,7 +1705,7 @@ pub async fn download_direct(
         return Err("Ссылка должна начинаться с http:// или https://".to_string());
     }
     let directory = resolve_output_dir(app, &output_dir)?;
-    let client = http_client_builder()
+    let client = crate::http::client_builder()
         .user_agent(BROWSER_UA)
         .timeout(Duration::from_secs(180))
         .build()
@@ -1779,10 +1758,16 @@ pub async fn download_direct(
                 .to_string()
         });
     let base_name = sanitize_filename(&base_name);
-    let mut path = directory.join(format!("{base_name}.{extension}"));
+    let file_stem = audio_file_stem(&base_name).trim_end_matches('.').trim().to_string();
+    let file_stem = if file_stem.is_empty() {
+        "track".to_string()
+    } else {
+        file_stem
+    };
+    let mut path = directory.join(audio_file_name(&file_stem, &extension));
     let mut counter = 1;
     while path.exists() {
-        path = directory.join(format!("{base_name} ({counter}).{extension}"));
+        path = directory.join(format!("{file_stem} ({counter}).{extension}"));
         counter += 1;
     }
 
@@ -1862,7 +1847,7 @@ pub async fn download_direct(
     );
     Ok(DownloadResult {
         path: path_string,
-        title: base_name,
+        title: file_stem,
         directory: directory.to_string_lossy().to_string(),
     })
 }
@@ -1985,6 +1970,34 @@ fn guess_extension(url: &str, content_type: &str) -> String {
     }
 }
 
+const AUDIO_EXTENSIONS: &[&str] = &["mp3", "m4a", "aac", "ogg", "opus", "wav", "flac", "webm"];
+
+/// Strips one trailing known audio extension so the downloader never produces
+/// names like `sample-3s.mp3.mp3` when the URL (or file name) already has one.
+fn audio_file_stem(base_name: &str) -> &str {
+    let trimmed = base_name.trim();
+    let lower = trimmed.to_lowercase();
+    for extension in AUDIO_EXTENSIONS {
+        let suffix = format!(".{extension}");
+        if lower.ends_with(&suffix) {
+            let stem = &trimmed[..trimmed.len() - suffix.len()];
+            if !stem.trim().is_empty() {
+                return stem;
+            }
+        }
+    }
+    trimmed
+}
+
+fn audio_file_name(stem: &str, extension: &str) -> String {
+    let stem = stem.trim().trim_end_matches('.');
+    if stem.is_empty() {
+        format!("track.{extension}")
+    } else {
+        format!("{stem}.{extension}")
+    }
+}
+
 fn sanitize_filename(name: &str) -> String {
     let mut value: String = name
         .chars()
@@ -2020,6 +2033,15 @@ mod tests {
         assert!(is_direct_source("https://zaycev.net/pages/123"));
         assert!(is_direct_source("https://www.muzofond.fm/track/1"));
         assert!(!is_direct_source("https://soundcloud.com/artist/track"));
+    }
+
+    #[test]
+    fn builds_audio_file_names_without_double_extensions() {
+        assert_eq!(audio_file_name(audio_file_stem("sample-3s.mp3"), "mp3"), "sample-3s.mp3");
+        assert_eq!(audio_file_name(audio_file_stem("sample-3s.mp3"), "m4a"), "sample-3s.m4a");
+        assert_eq!(audio_file_name("track", "mp3"), "track.mp3");
+        assert_eq!(audio_file_name(audio_file_stem("Song.FLAC"), "mp3"), "Song.mp3");
+        assert_eq!(audio_file_name("", "mp3"), "track.mp3");
     }
 
     #[test]

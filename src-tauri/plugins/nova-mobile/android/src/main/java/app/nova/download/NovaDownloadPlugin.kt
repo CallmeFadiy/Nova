@@ -254,21 +254,22 @@ class NovaDownloadPlugin(private val activity: Activity) : Plugin(activity) {
             request.addOption("-o", template)
             request.addOption("--print", "after_move:filepath")
 
-            var lastPercent = -1.0
+            var lastPercent = 0.0
             val response = YoutubeDL.execute(request, id, false) { percent, _, line ->
                 val text = line?.trim().orEmpty()
-                val clamped = if (percent.isFinite()) {
+                val reported = if (percent.isFinite() && percent >= 0f) {
                     percent.toDouble().coerceIn(0.0, 100.0)
                 } else {
                     lastPercent
                 }
-                val changed = clamped < 0.0 || clamped - lastPercent >= 0.5 || clamped >= 99.9
+                val monotonic = reported.coerceAtLeast(lastPercent)
+                val changed = monotonic - lastPercent >= 0.5 || monotonic >= 99.9
                 if (text.isNotEmpty() || changed) {
-                    lastPercent = clamped
+                    lastPercent = monotonic
                     publish(
                         DownloadSnapshot(
                             id = id,
-                            percent = if (clamped < 0.0) 0.0 else clamped,
+                            percent = monotonic,
                             line = text.ifEmpty { "Скачивание…" },
                             status = "downloading",
                         ),
@@ -314,7 +315,7 @@ class NovaDownloadPlugin(private val activity: Activity) : Plugin(activity) {
             publish(
                 DownloadSnapshot(
                     id = id,
-                    percent = 0.0,
+                    percent = snapshots[id]?.percent ?: 0.0,
                     line = message,
                     status = "error",
                     error = message,

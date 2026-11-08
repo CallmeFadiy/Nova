@@ -477,7 +477,7 @@ pub async fn recognize_audd(
         .await
         .map_err(|error| format!("Не удалось подготовить WAV: {error}"))??;
 
-    let client = reqwest::Client::builder()
+    let client = crate::http::client_builder()
         .timeout(Duration::from_secs(45))
         .build()
         .map_err(|error| error.to_string())?;

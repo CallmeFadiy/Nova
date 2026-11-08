@@ -1,5 +1,6 @@
 mod commands;
 mod db;
+mod http;
 mod legacy_migration;
 mod lyrics;
 mod media;

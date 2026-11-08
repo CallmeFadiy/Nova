@@ -151,7 +151,7 @@ async fn genius_lookup(
     artist: &str,
     title: &str,
 ) -> Result<(String, Option<String>), String> {
-    let client = reqwest::Client::builder()
+    let client = crate::http::client_builder()
         .user_agent(BROWSER_UA)
         .timeout(Duration::from_secs(28))
         .build()
