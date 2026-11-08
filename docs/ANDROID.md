@@ -327,19 +327,63 @@ production-сборкой `build:web`.
   `cargo test --manifest-path src-tauri/Cargo.toml --lib`: 15 тестов passed
   (в плане ожидалось 13; набор вырос после phase 2A/2B-1).
 
-## Известные ограничения phase 2B-1
+## Приёмка phase 2B-2 (2026-11-08)
 
-Перечисленное входит в phase 2B-2, а не в 2B-1:
+Устройство: POCO F4 GT `21121210G`, serial `7ac47954`, Android 13, arm64-v8a,
+392 CSS px. APK собран из `feat/android-download-queue` (commit `8ebeced`):
+`app-universal-debug.apk` (внутри только arm64-v8a), 236 282 981 байт,
+SHA-256 `F57FFC8029BB534903B2BE3A618B1BA9C43FA64BF8E96BA3AA105A2CD56B77C4`,
+установлен поверх 2B-1.
 
-- Прямые загрузки Rust (`download_direct`) нельзя отменить: кнопка отмены
-  скрыта, а `android_download_cancel` знает только процессы yt-dlp.
-- История загрузок хранится в `localStorage`; очередь — только в памяти и
-  теряется при перезапуске приложения. SQLite-очередь и история
-  (`download_queue`, `download_history`) — 2B-2.
-- Нет foreground-сервиса `NovaTaskService` с `dataSync` и уведомлением о
-  прогрессе: загрузка живёт, пока жив процесс приложения.
+- Очередь и история: `download_queue`/`download_history` в `nova.db` (WAL),
+  команды `download_queue_list/history_list/state/clear_finished` и
+  `download_history_import` для одноразовой миграции `localStorage`. Терминальные
+  строки удаляются после записи истории.
+- Нативный worker: direct и yt-dlp, pause/resume/move/cancel, `.nova-part-<id>`
+  для прямых загрузок, staging для yt-dlp, скан папки и `download-complete`,
+  отмена обеих веток.
+- `NovaTaskService` (`dataSync`, канал `nova_downloads`, IMPORTANCE_LOW) стартует
+  из `download_enqueue`/`download_queue_start`/`download_queue_pause(false)`/
+  `download_queue_resume`, пока activity в foreground; worker только обновляет
+  уведомление и останавливает сервис на пустой очереди. Android 15
+  `onTimeout(int, int)` пишет маркер паузы и останавливает сервис; debug-команда
+  `android_download_simulate_timeout` доступна только в debug-сборке.
+- UI: Downloads/Import ставят `DownloadTask` в нативную очередь, прогресс идёт из
+  `download-progress`, история — из SQLite; pause/resume/move/cancel вызывают
+  нативные команды; `download-complete` перезагружает snapshot библиотеки.
+- Проверено `verify-ui.py` на телефоне: 48/48. Прямая загрузка + скан; пауза,
+  перемещение и продолжение; отмена активной загрузки (нет файла и `done`,
+  в истории `cancelled`); Home + screen off (сервис `isForeground=true`,
+  уведомление 17 % → 38 %, загрузка завершилась); force-stop на `.nova-part`,
+  перезапуск и докачка с тем же id; очистка истории из UI; 392 px, нет
+  горизонтального overflow, 44 px.
+- Windows: `npm.cmd run build:web` и
+  `cargo test --manifest-path src-tauri/Cargo.toml --lib` — 33 passed.
+- `/sdcard/Music` не изменён: 104 файла, 78 треков в библиотеке, только Music;
+  папка NovaDownloads удалена, очередь/история пусты, `stay_on` = 0.
+
+## Известные ограничения phase 2B-2
+
+- Прогресс в строке `download_queue` не обновляется во время передачи: UI получает
+  процент из событий `download-progress`, а в БД остаётся 0 до завершения. После
+  force-stop загрузка перезапускается с 0 % (старый `.nova-part` удаляется).
+- Android 15 `onTimeout`: foreground-уведомление снимается системой, сохраняется
+  только флаг паузы; отдельного уведомления «Пауза» после timeout нет.
+- «Повторить» в истории доступно только в сессии, где задача поставлена: callback
+  хранится в памяти. После перезапуска запись истории остаётся без кнопки.
+- Импорт: для Яндекс Музыки поиск провайдеров идёт до постановки задачи; для
+  остальных источник ставится сразу, а провайдеры и легальное превью пробуются
+  при повторе.
+- FGS стартует из foreground-команд. Если очередь возобновлена из фона, worker
+  повторяет старт при взятии следующей задачи.
 - Пользовательские CA не доверяются в Android HTTP-клиенте: Rust использует
   корни webpki, поэтому TLS-инспекция и самоподписанные прокси не работают.
+
+## Известные ограничения phase 2B-1
+
+- Прямые загрузки Rust и история в `localStorage` заменены нативным worker'ом и
+  SQLite в 2B-2; старые записи истории мигрируют один раз.
+- Пользовательские CA не доверяются в Android HTTP-клиенте (см. 2B-2).
 
 ## Известные ограничения phase 2A
 
@@ -385,9 +429,6 @@ PCM16 и PCM float; другие кодировки проходят без об
 
 ## Следующие планы
 
-1. 2B-2: очередь и история загрузок в SQLite, `NovaTaskService` с `dataSync`
-   и уведомлением о прогрессе, продолжение после перезапуска, отмена прямых
-   загрузок Rust.
-2. Распознавание/тексты: микрофон, файл, MediaProjection, AudD/Shazam,
-   Genius/LRC.
-3. Мобильная полировка и release APK.
+1. 2C: распознавание (микрофон, файл, MediaProjection, AudD/Shazam) и тексты
+   (Genius/LRC).
+2. 2D: мобильная полировка, share/open with, release APK, подпись и ABI splits.

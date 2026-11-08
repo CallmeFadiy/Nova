@@ -47,17 +47,21 @@
   видео работает; ограничение и точный текст ошибки записаны в
   `docs/ANDROID.md`.
 
-**2B-2 — следующий этап.**
+**2B-2 — готово (2026-11-08).**
 
-- `NovaTaskService` с `dataSync` и уведомлением о прогрессе.
-- Очередь и история в SQLite: `download_queue`, `download_history`; перенос
-  текущей истории из `localStorage`.
-- Продолжение после возврата пользователя и перезапуска; лимит `dataSync` на
-  Android 14+.
-- Отмена прямых загрузок Rust.
-- Android-папка загрузок: пикер из 2A; по умолчанию `app_data_dir/downloads`.
-- Критерий: очередь, история, прогресс в фоне, файлы видны в библиотеке,
-  перезапуск не теряет очередь.
+- `NovaTaskService` с `dataSync` и уведомлением `nova_downloads`; сервис
+  стартует из foreground-команд enqueue/start/resume/pause, worker обновляет
+  уведомление и останавливает сервис на пустой очереди.
+- Очередь и история в SQLite (`download_queue`, `download_history`), миграция
+  истории из `localStorage`, `download_queue_state`/`clear_finished`.
+- Нативный worker: direct и yt-dlp, `.nova-part`, отмена обеих веток, скан в
+  библиотеку, восстановление после force-stop с тем же id.
+- UI: pause/resume/move/cancel по нативным командам, история из SQLite,
+  `download-complete` обновляет библиотеку.
+- 392 px/44 px, 48/48 device checks, 33 Rust tests; `/sdcard/Music` не изменён.
+- Android 15 `onTimeout(int, int)` обрабатывается; timeout оставляет сохранённую
+  паузу без отдельного уведомления. Прогресс в БД обновляется событиями, а после
+  перезапуска загрузка начинается с 0 %.
 
 ## 2C. Распознавание и тексты
 
