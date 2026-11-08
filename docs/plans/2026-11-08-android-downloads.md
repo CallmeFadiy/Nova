@@ -35,6 +35,9 @@ Rust. JS-контракт и событие `download-progress` не меняю�
 - 392 CSS px, без горизонтального overflow; кнопки загрузки/импорта ≥ 44 px.
 - APK только arm64 для телефона; рост APK ожидаем (Python/ffmpeg), размер
   фиксируется в отчёте.
+- Встроенный yt-dlp требует `jniLibs.useLegacyPackaging = true` в
+  `src-tauri/gen/android/app/build.gradle.kts`; не удалять — иначе
+  `nativeLibraryDir` пуст и `YoutubeDL.init` падает.
 
 ## Review Focus
 
@@ -68,9 +71,11 @@ Rust. JS-контракт и событие `download-progress` не меняю�
 - `NovaDownloadPlugin` commands: `downloadProbe` → `JSObject` с `version`
   и (если сеть доступна) `title`, `formats`.
 - Rust: `android_download_probe(app: AppHandle, url: String) -> Result<serde_json::Value, String>`.
-- `NovaMobile` Rust struct: `{ core: PluginHandle<R>, downloads: PluginHandle<R> }`;
-  register `app.nova.mobile`/`NovaMobilePlugin` and
-  `app.nova.download`/`NovaDownloadPlugin`.
+- Two Tauri plugins: `nova-mobile`/`NovaMobilePlugin` and
+  `nova-download`/`NovaDownloadPlugin`; `NovaDownloads` handle;
+  `run_download_command` uses it. A second class under the same Tauri plugin
+  name overwrites the core instance, so a separate `init_downloads()` plugin is
+  required.
 
 - [ ] **Step 1: Add the dependency and check resolution**
 
@@ -104,12 +109,16 @@ YouTube URL; return `version`, `title`, and `formats` count. If `YoutubeDL.init`
 is the only reliable call in the current network, return `version`/`ok` and
 record the network limit.
 
-- [ ] **Step 3: Register the second plugin handle**
+- [ ] **Step 3: Register the second plugin**
 
-Update `tauri-plugin-nova-mobile/src/lib.rs` so `NovaMobile` holds `core` and
-`downloads`; update `run_mobile_command` to use `core`; add
-`run_download_command` using `downloads`. Add `downloadProbe` to `build.rs` and
-a Rust `android_download_probe` command registered in `lib.rs`.
+Add `init_downloads()` as a second `TauriPlugin` named `nova-download`
+(`NovaDownloads` handle) in `tauri-plugin-nova-mobile/src/lib.rs`; keep
+`init()`/`NovaMobile` for `nova-mobile`. Update `run_download_command` to use
+`NovaDownloads`; do not change the core `run_mobile_command`. Add
+`downloadProbe` to `build.rs`'s `COMMANDS` (the generated `nova-mobile`
+permission is unused because JS calls the Rust wrapper, not the Kotlin plugin
+directly — leave a comment) and register `android_download_probe` in
+`src-tauri/src/lib.rs`.
 
 - [ ] **Step 4: Device probe**
 
@@ -130,7 +139,8 @@ git commit -m "feat(android): spike embedded youtubedl"
 
 **Files:**
 - Modify: `src-tauri/plugins/nova-mobile/android/src/main/java/app/nova/download/NovaDownloadPlugin.kt`
-- Modify: `src-tauri/src/commands.rs`, `src-tauri/src/media.rs`,
+- Modify: `src-tauri/plugins/nova-mobile/src/lib.rs`,
+  `src-tauri/src/commands.rs`, `src-tauri/src/media.rs`,
   `src-tauri/src/lib.rs`
 - Modify: `src/lib/tauri.ts`, `src/hooks/useDownloadProgress.ts`,
   `src/screens/Downloads.tsx`, `src/screens/Import.tsx` (only if needed)
@@ -144,9 +154,11 @@ git commit -m "feat(android): spike embedded youtubedl"
     directory }`; progress via `trigger("download-progress", payload)`.
   - `downloadCancel` args `{ id }` → `{ cancelled: Boolean }`.
 - Rust:
-  - `android_download_info(app, url) -> Result<ImportPlaylist, String>`
-  - `android_download_start(app, id, url, output_dir, query) -> Result<DownloadResult, String>`
+  - `android_download_info(app, url) -> Result<ImportPlaylist, String>` (async)
+  - `android_download_start(app, id, url, output_dir, query) -> Result<DownloadResult, String>` (async)
   - `android_download_cancel(app, id) -> Result<bool, String>`
+  - `run_download_command_async` uses `PluginHandle::run_mobile_plugin_async`; the
+    Kotlin command dispatches to its worker and resolves later.
 - `media::resolve_playlist` and `media::download_media` branch on
   `cfg(target_os = "android")` + YouTube/needs-yt-dlp URLs; direct URLs keep
   the current Rust path.
@@ -155,16 +167,24 @@ git commit -m "feat(android): spike embedded youtubedl"
 
 Use `YoutubeDLRequest` with `--dump-single-json --flat-playlist`; map entries
 to `ImportPlaylist`/`ImportTrack`. For a single video return one track; for a
-playlist return all entries. Preserve Unicode titles.
+playlist return all entries. Preserve Unicode titles. Fix the probe's minor
+gaps before building on it: reject an empty URL instead of probing a default;
+always emit `networkLimited` (true/false) and map yt-dlp errors explicitly;
+catch `Exception` (not `Throwable`); cache the `--version` result; keep
+`downloadProbe` as a diagnostic. Use a timeout/cancel path so a blocked network
+does not hold the worker for 165 s.
 
 - [ ] **Step 2: Implement `downloadStart`/cancel and progress**
 
 `downloadStart` runs `YoutubeDL.execute` on a background executor with
 `-x --audio-format mp3` (or the format the existing UI expects), output
-template `%(title)s.%(ext)s`, `-o <outputDir>`. Emit `download-progress` with
-`id`, `percent` (parse `[download] xx%`), `line`, `status`
-(`starting/downloading/done/error`), `path`, `error`. Cancel by process id;
-delete a partial file; resolve with the final path.
+template `%(title)s.%(ext)s`, `-o <outputDir>`; it returns immediately and
+resolves the Tauri command when the worker finishes. Emit `download-progress`
+with `id`, `percent` (parse `[download] xx%`), `line`, `status`
+(`starting/downloading/done/error`), `path`, `error`; always include
+`networkLimited` for errors. Cancel by process id; delete a partial file;
+resolve with the final path. Keep the executor alive for the plugin lifetime
+and recreate it if it was shut down.
 
 - [ ] **Step 3: Rust routing**
 
