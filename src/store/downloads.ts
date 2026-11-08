@@ -1,5 +1,6 @@
 import { create } from "zustand";
-import type { DownloadHistoryItem, DownloadProgress } from "../types";
+import { api } from "../lib/tauri";
+import type { DownloadHistoryItem, DownloadProgress, DownloadTask } from "../types";
 
 const HISTORY_KEY = "nova.download.history.v1";
 const HISTORY_LIMIT = 80;
@@ -63,6 +64,7 @@ interface DownloadStore {
   pending: string[];
   paused: boolean;
   history: DownloadHistoryItem[];
+  hydrated: boolean;
   upsert: (progress: DownloadProgress) => void;
   enqueue: (ids: string[]) => void;
   nextQueued: () => Promise<string | null>;
@@ -72,6 +74,16 @@ interface DownloadStore {
   removeDownload: (id: string) => void;
   moveQueued: (id: string, direction: -1 | 1) => void;
   clearHistory: () => void;
+  /** Loads the persisted queue/history once. Safe to call repeatedly. */
+  hydrate: () => Promise<void>;
+  // Native actions backed by SQLite. The Downloads/Import UI still uses the
+  // local queue loop above until Task 4 switches it over.
+  enqueueNative: (task: DownloadTask) => Promise<string>;
+  pauseNative: (paused: boolean) => Promise<void>;
+  resumeNative: () => Promise<void>;
+  cancelNative: (id: string) => Promise<boolean>;
+  moveNative: (id: string, direction: -1 | 1) => Promise<void>;
+  clearHistoryNative: () => Promise<void>;
 }
 
 export const useDownloadStore = create<DownloadStore>((set, get) => ({
@@ -79,6 +91,7 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
   pending: [],
   paused: false,
   history: readHistory(),
+  hydrated: false,
 
   upsert: (progress) =>
     set((state) => {
@@ -206,6 +219,68 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
     }),
 
   clearHistory: () => {
+    writeHistory([]);
+    set({ history: [] });
+  },
+
+  hydrate: async () => {
+    if (get().hydrated) return;
+    // Set the flag before the first await so React StrictMode's double effect
+    // cannot issue two overlapping loads.
+    set({ hydrated: true });
+
+    try {
+      const [queue, history] = await Promise.all([
+        api.downloadQueueList(),
+        api.downloadHistoryList(),
+      ]);
+
+      // Merge rows for display only. The legacy `pending` loop stays JS-owned
+      // until Task 4 switches downloads over to the native worker.
+      set((state) => {
+        const items = { ...state.items };
+
+        for (const row of queue) {
+          const { orderIndex, ...progress } = row;
+          const previous = state.items[row.id];
+          items[row.id] = {
+            ...previous,
+            ...progress,
+            order: orderIndex ?? previous?.order ?? 0,
+          };
+        }
+
+        return {
+          items,
+          // Only replace the localStorage history once the native table has
+          // rows; an empty table on an upgrading install must not wipe it.
+          history: history.length > 0 ? history : state.history,
+        };
+      });
+    } catch {
+      // Keep the localStorage fallback when the DB is unavailable.
+    }
+  },
+
+  enqueueNative: (task) => api.downloadEnqueue(task),
+
+  pauseNative: async (paused) => {
+    await api.downloadQueuePause(paused);
+    set({ paused });
+  },
+
+  resumeNative: () => api.downloadQueueResume(),
+
+  cancelNative: async (id) => {
+    const removed = await api.downloadQueueCancel(id);
+    if (removed) get().removeDownload(id);
+    return removed;
+  },
+
+  moveNative: (id, direction) => api.downloadQueueMove(id, direction),
+
+  clearHistoryNative: async () => {
+    await api.downloadHistoryClear();
     writeHistory([]);
     set({ history: [] });
   },

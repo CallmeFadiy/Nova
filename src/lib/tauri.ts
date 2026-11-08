@@ -5,8 +5,11 @@ import { openUrl, revealItemInDir } from "@tauri-apps/plugin-opener";
 import { isAndroid } from "./platform";
 import type {
   DeleteTracksResult,
+  DownloadHistoryItem,
   DownloadProgress,
+  DownloadQueueItem,
   DownloadResult,
+  DownloadTask,
   Folder,
   ImportPlaylist,
   LyricsFile,
@@ -670,6 +673,48 @@ export const api = {
       return true;
     }
     return call<boolean>("android_download_cancel", { id });
+  },
+
+  // Persistent queue/history (phase 2B-2). The native worker and the UI switch
+  // arrive in Tasks 2-4; until then these only back the store's hydrate().
+  async downloadQueueList(): Promise<DownloadQueueItem[]> {
+    if (!isTauri) return [];
+    return call<DownloadQueueItem[]>("download_queue_list");
+  },
+
+  async downloadHistoryList(): Promise<DownloadHistoryItem[]> {
+    if (!isTauri) return [];
+    return call<DownloadHistoryItem[]>("download_history_list");
+  },
+
+  async downloadEnqueue(task: DownloadTask): Promise<string> {
+    if (!isTauri) return task.id;
+    return call<string>("download_enqueue", { task });
+  },
+
+  async downloadQueuePause(paused: boolean): Promise<void> {
+    if (!isTauri) return;
+    await call<void>("download_queue_pause", { paused });
+  },
+
+  async downloadQueueCancel(id: string): Promise<boolean> {
+    if (!isTauri) return false;
+    return call<boolean>("download_queue_cancel", { id });
+  },
+
+  async downloadQueueMove(id: string, direction: -1 | 1): Promise<void> {
+    if (!isTauri) return;
+    await call<void>("download_queue_move", { id, direction });
+  },
+
+  async downloadHistoryClear(): Promise<void> {
+    if (!isTauri) return;
+    await call<void>("download_history_clear");
+  },
+
+  async downloadQueueResume(): Promise<void> {
+    if (!isTauri) return;
+    await call<void>("download_queue_resume");
   },
 
   async recognizeAudd(

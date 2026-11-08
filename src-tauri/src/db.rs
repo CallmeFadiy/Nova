@@ -83,9 +83,43 @@ CREATE TABLE IF NOT EXISTS settings (
     value TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS download_queue (
+    id TEXT PRIMARY KEY,
+    kind TEXT NOT NULL DEFAULT '',
+    url TEXT NOT NULL DEFAULT '',
+    query TEXT,
+    output_dir TEXT NOT NULL DEFAULT '',
+    file_name TEXT,
+    expected_artist TEXT,
+    expected_title TEXT,
+    title TEXT,
+    status TEXT NOT NULL DEFAULT 'queued',
+    percent REAL NOT NULL DEFAULT 0,
+    line TEXT NOT NULL DEFAULT '',
+    path TEXT,
+    error TEXT,
+    order_index INTEGER NOT NULL DEFAULT 0,
+    created_at INTEGER NOT NULL DEFAULT 0,
+    updated_at INTEGER NOT NULL DEFAULT 0,
+    finished_at INTEGER
+);
+
+CREATE TABLE IF NOT EXISTS download_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    download_id TEXT NOT NULL,
+    title TEXT NOT NULL DEFAULT '',
+    line TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL,
+    path TEXT,
+    error TEXT,
+    finished_at INTEGER NOT NULL DEFAULT 0
+);
+
 CREATE INDEX IF NOT EXISTS idx_tracks_folder ON tracks(folder_id);
 CREATE INDEX IF NOT EXISTS idx_tracks_added ON tracks(added_at);
 CREATE INDEX IF NOT EXISTS idx_playlist_items_playlist ON playlist_items(playlist_id);
+CREATE INDEX IF NOT EXISTS idx_download_queue_order ON download_queue(order_index);
+CREATE INDEX IF NOT EXISTS idx_download_history_finished ON download_history(finished_at);
 "#;
 
 pub fn init(app_dir: &Path) -> Result<Connection, Box<dyn std::error::Error>> {
@@ -96,13 +130,21 @@ pub fn init(app_dir: &Path) -> Result<Connection, Box<dyn std::error::Error>> {
 
     let conn = Connection::open(app_dir.join("nova.db"))?;
     conn.execute_batch("PRAGMA journal_mode = WAL;")?;
-    conn.execute_batch(SCHEMA)?;
-    ensure_track_columns(&conn)?;
+    apply_schema(&conn)?;
 
     #[cfg(debug_assertions)]
     seed_dev_folder(&conn)?;
 
     Ok(conn)
+}
+
+/// Creates every table and applies forward-only column migrations. Both the
+/// app database and the in-memory unit tests go through this function so the
+/// test schema cannot drift from the shipped one.
+pub(crate) fn apply_schema(conn: &Connection) -> rusqlite::Result<()> {
+    conn.execute_batch(SCHEMA)?;
+    ensure_track_columns(conn)?;
+    Ok(())
 }
 
 fn ensure_track_columns(conn: &Connection) -> rusqlite::Result<()> {

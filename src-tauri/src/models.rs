@@ -154,6 +154,35 @@ pub struct DownloadProgress {
     pub error: Option<String>,
 }
 
+/// A download the user asked for. It is persisted before the worker starts, so
+/// a killed app can resume the same entry after restart.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DownloadTask {
+    pub id: String,
+    pub kind: String,
+    pub url: String,
+    pub query: Option<String>,
+    pub output_dir: String,
+    pub file_name: Option<String>,
+    pub expected_artist: Option<String>,
+    pub expected_title: Option<String>,
+    pub title: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DownloadHistoryItem {
+    /// Download id (`download_queue.id`), not the autoincrement row id.
+    pub id: String,
+    pub title: String,
+    pub line: String,
+    pub status: String,
+    pub path: Option<String>,
+    pub error: Option<String>,
+    pub finished_at: i64,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DownloadResult {

@@ -1,5 +1,6 @@
 mod commands;
 mod db;
+mod downloads;
 mod http;
 mod legacy_migration;
 mod lyrics;
@@ -72,6 +73,14 @@ pub fn run() {
             commands::android_download_info,
             commands::android_download_start,
             commands::android_download_cancel,
+            commands::download_queue_list,
+            commands::download_history_list,
+            commands::download_enqueue,
+            commands::download_queue_pause,
+            commands::download_queue_cancel,
+            commands::download_queue_move,
+            commands::download_history_clear,
+            commands::download_queue_resume,
             commands::scan_library,
             commands::add_folder,
             commands::remove_folder,

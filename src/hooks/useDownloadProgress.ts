@@ -6,6 +6,7 @@ import {
 } from "../store/downloads";
 
 let listenerStarted = false;
+let hydrationStarted = false;
 
 export function useDownloadProgress() {
   const items = useDownloadStore((state) => state.items);
@@ -21,6 +22,15 @@ export function useDownloadProgress() {
   const moveQueued = useDownloadStore((state) => state.moveQueued);
   const removeDownload = useDownloadStore((state) => state.removeDownload);
   const clearHistory = useDownloadStore((state) => state.clearHistory);
+  const hydrate = useDownloadStore((state) => state.hydrate);
+
+  useEffect(() => {
+    if (hydrationStarted) return;
+    hydrationStarted = true;
+    // Pull the persisted queue once at startup. Until Task 3 starts writing
+    // rows this is a harmless empty read on an empty phone.
+    void useDownloadStore.getState().hydrate();
+  }, []);
 
   useEffect(() => {
     if (listenerStarted) return;
@@ -49,5 +59,6 @@ export function useDownloadProgress() {
     removeDownload,
     moveQueued,
     clearHistory,
+    hydrate,
   };
 }

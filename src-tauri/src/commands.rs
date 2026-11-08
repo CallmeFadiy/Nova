@@ -1,7 +1,7 @@
 use crate::models::{
-    DeleteTracksResult, DownloadResult, Folder, ImportPlaylist, LyricsFile, LyricsResult,
-    MediaCandidate, Playlist, RecognitionResult, ScanResult, Snapshot, TagEncodingIssue,
-    TagEncodingResult, Track, TrackHash,
+    DeleteTracksResult, DownloadHistoryItem, DownloadProgress, DownloadResult, DownloadTask, Folder,
+    ImportPlaylist, LyricsFile, LyricsResult, MediaCandidate, Playlist, RecognitionResult,
+    ScanResult, Snapshot, TagEncodingIssue, TagEncodingResult, Track, TrackHash,
 };
 use crate::text_encoding::repair_mojibake;
 use crate::{lyrics, media, recognition, scanner, AppState};
@@ -607,6 +607,68 @@ pub fn android_download_cancel(app: AppHandle, id: String) -> Result<bool, Strin
         let _ = (app, id);
         Err("Встроенный yt-dlp доступен только на Android".to_string())
     }
+}
+
+/// Persistent queue/history commands.
+///
+/// These only take the app DB mutex around the SQL call. The worker and the
+/// progress listener live outside this layer (Tasks 2-4).
+#[tauri::command]
+pub fn download_queue_list(state: State<'_, AppState>) -> Result<Vec<DownloadProgress>, String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    crate::downloads::queue::list(&conn).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn download_history_list(
+    state: State<'_, AppState>,
+) -> Result<Vec<DownloadHistoryItem>, String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    crate::downloads::history::list(&conn).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn download_enqueue(state: State<'_, AppState>, task: DownloadTask) -> Result<String, String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    crate::downloads::queue::enqueue(&conn, &task).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn download_queue_pause(state: State<'_, AppState>, paused: bool) -> Result<(), String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    crate::downloads::queue::set_paused(&conn, paused).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn download_queue_cancel(state: State<'_, AppState>, id: String) -> Result<bool, String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    crate::downloads::queue::cancel(&conn, &id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn download_queue_move(
+    state: State<'_, AppState>,
+    id: String,
+    direction: i64,
+) -> Result<(), String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    crate::downloads::queue::move_item(&conn, &id, direction).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn download_history_clear(state: State<'_, AppState>) -> Result<(), String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    crate::downloads::history::clear(&conn).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+/// Called once on startup by Task 4. Rows a killed process left in
+/// `starting`/`downloading` go back to `queued` with their progress cleared.
+#[tauri::command]
+pub fn download_queue_resume(state: State<'_, AppState>) -> Result<(), String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    crate::downloads::queue::resume(&conn).map_err(|e| e.to_string())?;
+    Ok(())
 }
 
 /// Forwards the embedded yt-dlp progress snapshot to the webview as the regular
