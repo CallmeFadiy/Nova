@@ -5,7 +5,7 @@
 //! SQLite database without a running app.
 
 use crate::db::now_secs;
-use crate::models::{DownloadHistoryItem, DownloadProgress, DownloadTask};
+use crate::models::{DownloadHistoryItem, DownloadQueueRow, DownloadTask};
 use rusqlite::{params, Connection, OptionalExtension};
 use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -78,22 +78,29 @@ pub mod queue {
         rows.collect()
     }
 
-    pub fn list(conn: &Connection) -> rusqlite::Result<Vec<DownloadProgress>> {
+    pub fn list(conn: &Connection) -> rusqlite::Result<Vec<DownloadQueueRow>> {
         let mut stmt = conn.prepare(
             r#"
-            SELECT id, percent, line, status, path, error
+            SELECT id, kind, title, percent, line, status, path, error, order_index
             FROM download_queue
             ORDER BY order_index ASC, created_at ASC, rowid ASC
             "#,
         )?;
         let rows = stmt.query_map([], |row| {
-            Ok(DownloadProgress {
+            let kind: String = row.get(1)?;
+            Ok(DownloadQueueRow {
                 id: row.get(0)?,
-                percent: row.get(1)?,
-                line: row.get(2)?,
-                status: row.get(3)?,
-                path: row.get(4)?,
-                error: row.get(5)?,
+                kind: kind.clone(),
+                title: row.get(2)?,
+                percent: row.get(3)?,
+                line: row.get(4)?,
+                status: row.get(5)?,
+                path: row.get(6)?,
+                error: row.get(7)?,
+                order_index: row.get(8)?,
+                // Mirrors the JS rule: only yt-dlp runs can be stopped by the
+                // Android plugin; direct HTTP downloads cannot.
+                cancellable: kind == "ytdlp",
             })
         })?;
         rows.collect()
@@ -200,6 +207,7 @@ pub mod queue {
                 status = 'queued',
                 percent = 0,
                 line = '',
+                path = NULL,
                 error = NULL,
                 updated_at = ?1
             WHERE status IN ('starting', 'downloading')
@@ -222,11 +230,12 @@ pub mod history {
         } else {
             now_secs()
         };
-        conn.execute(
+        let tx = conn.unchecked_transaction()?;
+        tx.execute(
             "DELETE FROM download_history WHERE download_id = ?1",
             params![item.id],
         )?;
-        conn.execute(
+        tx.execute(
             r#"
             INSERT INTO download_history (
                 download_id, title, line, status, path, error, finished_at
@@ -242,7 +251,22 @@ pub mod history {
                 finished_at,
             ],
         )?;
-        Ok(conn.last_insert_rowid())
+        // Keep the table bounded like history::list so an unattended worker
+        // cannot grow it forever.
+        tx.execute(
+            r#"
+            DELETE FROM download_history
+            WHERE id NOT IN (
+                SELECT id FROM download_history
+                ORDER BY finished_at DESC, id DESC
+                LIMIT ?1
+            )
+            "#,
+            params![HISTORY_LIMIT],
+        )?;
+        let row_id = tx.last_insert_rowid();
+        tx.commit()?;
+        Ok(row_id)
     }
 
     pub fn list(conn: &Connection) -> rusqlite::Result<Vec<DownloadHistoryItem>> {
@@ -342,10 +366,14 @@ mod tests {
     }
 
     #[test]
-    fn list_returns_progress_rows_in_queue_order() {
+    fn list_returns_queue_rows_with_order_and_metadata() {
         let conn = conn();
         queue::enqueue(&conn, &task("a", "https://example/a.mp3")).unwrap();
         queue::enqueue(&conn, &task("b", "https://example/b.mp3")).unwrap();
+        let mut direct = task("c", "https://example/c.mp3");
+        direct.kind = "direct".to_string();
+        direct.title = Some("direct title".to_string());
+        queue::enqueue(&conn, &direct).unwrap();
         queue::set_status(
             &conn,
             "b",
@@ -358,14 +386,27 @@ mod tests {
         .unwrap();
 
         let items = queue::list(&conn).unwrap();
-        assert_eq!(items.len(), 2);
+        assert_eq!(items.len(), 3);
+
         assert_eq!(items[0].id, "a");
+        assert_eq!(items[0].kind, "ytdlp");
+        assert_eq!(items[0].title.as_deref(), Some("title a"));
         assert_eq!(items[0].status, "queued");
         assert_eq!(items[0].percent, 0.0);
+        assert_eq!(items[0].order_index, 0);
+        assert!(items[0].cancellable);
+
         assert_eq!(items[1].id, "b");
         assert_eq!(items[1].status, "downloading");
         assert_eq!(items[1].percent, 42.5);
         assert_eq!(items[1].line, "[download] 42.5%");
+        assert_eq!(items[1].order_index, 1);
+
+        assert_eq!(items[2].id, "c");
+        assert_eq!(items[2].kind, "direct");
+        assert_eq!(items[2].title.as_deref(), Some("direct title"));
+        assert_eq!(items[2].order_index, 2);
+        assert!(!items[2].cancellable);
     }
 
     #[test]
@@ -409,7 +450,7 @@ mod tests {
             "downloading",
             Some(66.0),
             Some("[download] 66%"),
-            None,
+            Some("Downloads/partial.mp3"),
             Some("temporary"),
         )
         .unwrap();
@@ -438,6 +479,8 @@ mod tests {
         let downloading = by_id("downloading");
         assert_eq!(downloading.status, "queued");
         assert_eq!(downloading.percent, 0.0);
+        assert!(downloading.line.is_empty());
+        assert!(downloading.path.is_none());
         assert!(downloading.error.is_none());
 
         assert_eq!(by_id("queued").status, "queued");
@@ -472,5 +515,36 @@ mod tests {
 
         assert_eq!(history::clear(&conn).unwrap(), 2);
         assert!(history::list(&conn).unwrap().is_empty());
+    }
+
+    #[test]
+    fn history_replaces_duplicate_ids_and_prunes_to_limit() {
+        let conn = conn();
+        history::insert(&conn, &history_item("same", "error", 10)).unwrap();
+        let mut retry = history_item("same", "done", 20);
+        retry.title = "retried".to_string();
+        history::insert(&conn, &retry).unwrap();
+
+        let items = history::list(&conn).unwrap();
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].status, "done");
+        assert_eq!(items[0].title, "retried");
+
+        for index in 0..(HISTORY_LIMIT + 5) {
+            history::insert(
+                &conn,
+                &history_item(&format!("bulk-{index}"), "done", 1000 + index),
+            )
+            .unwrap();
+        }
+
+        let rows: i64 = conn
+            .query_row("SELECT COUNT(*) FROM download_history", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(rows, HISTORY_LIMIT);
+
+        let items = history::list(&conn).unwrap();
+        assert_eq!(items.len() as i64, HISTORY_LIMIT);
+        assert_eq!(items[0].id, format!("bulk-{}", HISTORY_LIMIT + 4));
     }
 }

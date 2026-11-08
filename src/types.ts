@@ -113,13 +113,21 @@ export interface ImportPlaylist {
   tracks: ImportTrack[];
 }
 
+export type DownloadStatus =
+  | "queued"
+  | "downloading"
+  | "done"
+  | "error"
+  | "starting";
+
 export interface DownloadProgress {
   id: string;
   percent: number;
   line: string;
-  status: "queued" | "downloading" | "done" | "error" | "starting";
+  status: DownloadStatus;
   path: string | null;
   error: string | null;
+  kind?: "ytdlp" | "direct";
   networkLimited?: boolean;
   /** True only for downloads the Android plugin can stop (yt-dlp processes). */
   cancellable?: boolean;
@@ -140,8 +148,17 @@ export interface DownloadHistoryItem {
 }
 
 /** Native queue row as returned by `download_queue_list`. */
-export interface DownloadQueueItem extends DownloadProgress {
-  orderIndex?: number;
+export interface DownloadQueueRow {
+  id: string;
+  kind: "ytdlp" | "direct";
+  title: string | null;
+  percent: number;
+  line: string;
+  status: DownloadStatus;
+  path: string | null;
+  error: string | null;
+  orderIndex: number;
+  cancellable: boolean;
 }
 
 /**

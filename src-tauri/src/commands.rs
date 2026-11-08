@@ -1,5 +1,5 @@
 use crate::models::{
-    DeleteTracksResult, DownloadHistoryItem, DownloadProgress, DownloadResult, DownloadTask, Folder,
+    DeleteTracksResult, DownloadHistoryItem, DownloadQueueRow, DownloadResult, DownloadTask, Folder,
     ImportPlaylist, LyricsFile, LyricsResult, MediaCandidate, Playlist, RecognitionResult,
     ScanResult, Snapshot, TagEncodingIssue, TagEncodingResult, Track, TrackHash,
 };
@@ -614,7 +614,7 @@ pub fn android_download_cancel(app: AppHandle, id: String) -> Result<bool, Strin
 /// These only take the app DB mutex around the SQL call. The worker and the
 /// progress listener live outside this layer (Tasks 2-4).
 #[tauri::command]
-pub fn download_queue_list(state: State<'_, AppState>) -> Result<Vec<DownloadProgress>, String> {
+pub fn download_queue_list(state: State<'_, AppState>) -> Result<Vec<DownloadQueueRow>, String> {
     let conn = state.db.lock().map_err(|e| e.to_string())?;
     crate::downloads::queue::list(&conn).map_err(|e| e.to_string())
 }

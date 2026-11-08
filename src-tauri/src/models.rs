@@ -154,6 +154,21 @@ pub struct DownloadProgress {
     pub error: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DownloadQueueRow {
+    pub id: String,
+    pub kind: String,
+    pub title: Option<String>,
+    pub percent: f64,
+    pub line: String,
+    pub status: String,
+    pub path: Option<String>,
+    pub error: Option<String>,
+    pub order_index: i64,
+    pub cancellable: bool,
+}
+
 /// A download the user asked for. It is persisted before the worker starts, so
 /// a killed app can resume the same entry after restart.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]

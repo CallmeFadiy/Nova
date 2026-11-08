@@ -221,13 +221,12 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
   clearHistory: () => {
     writeHistory([]);
     set({ history: [] });
+    // Native rows must go too, otherwise the next hydrate() brings them back.
+    void api.downloadHistoryClear().catch(() => undefined);
   },
 
   hydrate: async () => {
     if (get().hydrated) return;
-    // Set the flag before the first await so React StrictMode's double effect
-    // cannot issue two overlapping loads.
-    set({ hydrated: true });
 
     try {
       const [queue, history] = await Promise.all([
@@ -241,24 +240,32 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
         const items = { ...state.items };
 
         for (const row of queue) {
-          const { orderIndex, ...progress } = row;
+          const { orderIndex, title, kind, ...progress } = row;
           const previous = state.items[row.id];
           items[row.id] = {
             ...previous,
             ...progress,
-            order: orderIndex ?? previous?.order ?? 0,
+            title: title ?? previous?.title,
+            kind,
+            order: orderIndex,
           };
         }
 
-        return {
-          items,
-          // Only replace the localStorage history once the native table has
-          // rows; an empty table on an upgrading install must not wipe it.
-          history: history.length > 0 ? history : state.history,
-        };
+        // Native and localStorage history both exist on upgraded installs.
+        // Union by id, native wins, newest first, capped like the DB table.
+        const byId = new Map<string, DownloadHistoryItem>();
+        for (const entry of state.history) byId.set(entry.id, entry);
+        for (const entry of history) byId.set(entry.id, entry);
+        const merged = [...byId.values()]
+          .sort((a, b) => b.finishedAt - a.finishedAt)
+          .slice(0, HISTORY_LIMIT);
+        writeHistory(merged);
+
+        return { items, history: merged, hydrated: true };
       });
     } catch {
-      // Keep the localStorage fallback when the DB is unavailable.
+      // Let the next mount retry after a transient DB error.
+      set({ hydrated: false });
     }
   },
 

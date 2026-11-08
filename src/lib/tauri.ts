@@ -7,7 +7,7 @@ import type {
   DeleteTracksResult,
   DownloadHistoryItem,
   DownloadProgress,
-  DownloadQueueItem,
+  DownloadQueueRow,
   DownloadResult,
   DownloadTask,
   Folder,
@@ -677,9 +677,9 @@ export const api = {
 
   // Persistent queue/history (phase 2B-2). The native worker and the UI switch
   // arrive in Tasks 2-4; until then these only back the store's hydrate().
-  async downloadQueueList(): Promise<DownloadQueueItem[]> {
+  async downloadQueueList(): Promise<DownloadQueueRow[]> {
     if (!isTauri) return [];
-    return call<DownloadQueueItem[]>("download_queue_list");
+    return call<DownloadQueueRow[]>("download_queue_list");
   },
 
   async downloadHistoryList(): Promise<DownloadHistoryItem[]> {
