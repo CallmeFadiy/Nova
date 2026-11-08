@@ -206,7 +206,7 @@ pub async fn search(query: &str, limit: usize) -> Result<Vec<MediaCandidate>, St
         return Err("Введите название или исполнителя".to_string());
     }
     let limit = limit.clamp(1, 30);
-    let client = reqwest::Client::builder()
+    let client = http_client_builder()
         .user_agent(BROWSER_UA)
         .timeout(Duration::from_secs(22))
         .build()
@@ -274,11 +274,32 @@ pub async fn search(query: &str, limit: usize) -> Result<Vec<MediaCandidate>, St
 }
 
 fn media_client() -> Result<reqwest::Client, String> {
-    reqwest::Client::builder()
+    http_client_builder()
         .user_agent(BROWSER_UA)
         .timeout(Duration::from_secs(22))
         .build()
         .map_err(|error| error.to_string())
+}
+
+/// reqwest's `rustls` feature uses `rustls-platform-verifier` on Android, which
+/// panics unless the app initializes it with a JVM context. Nova does not ship
+/// the required Kotlin verifier component, so Android media clients use the
+/// bundled Mozilla root store instead; desktop keeps the platform defaults.
+fn http_client_builder() -> reqwest::ClientBuilder {
+    #[cfg(target_os = "android")]
+    {
+        if rustls::crypto::CryptoProvider::get_default().is_none() {
+            let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
+        }
+        let mut roots = rustls::RootCertStore::empty();
+        roots.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
+        let config = rustls::ClientConfig::builder()
+            .with_root_certificates(roots)
+            .with_no_client_auth();
+        return reqwest::Client::builder().use_preconfigured_tls(config);
+    }
+    #[cfg(not(target_os = "android"))]
+    reqwest::Client::builder()
 }
 
 async fn search_zaycev(
@@ -741,6 +762,23 @@ fn parse_clock_ms(value: &str) -> i64 {
     seconds * 1000
 }
 
+/// URLs that the embedded Android yt-dlp runs for. On desktop these keep using
+/// the bundled `yt-dlp` sidecar.
+pub fn is_ytdlp_url(url: &str) -> bool {
+    let lower = url.to_lowercase();
+    lower.contains("youtube.com")
+        || lower.contains("youtu.be")
+        || lower.contains("music.youtube.com")
+}
+
+/// Sources handled by the Rust HTTP downloader on every platform.
+fn is_direct_source(url: &str) -> bool {
+    url.contains("zaycev.net/pages/")
+        || url.contains(".muzofond.fm/")
+        || url.contains(".drivemusic.me/")
+        || is_audio_url(url)
+}
+
 pub async fn resolve_playlist(
     app: &AppHandle,
     url: &str,
@@ -760,7 +798,13 @@ pub async fn resolve_playlist(
         return resolve_yandex(url).await;
     }
 
-    if lower.contains("youtube.com") || lower.contains("youtu.be") {
+    if is_ytdlp_url(url) {
+        #[cfg(target_os = "android")]
+        {
+            let _ = ytdlp_path;
+            return crate::commands::android_download_info(app.clone(), url.to_string()).await;
+        }
+        #[cfg(not(target_os = "android"))]
         return resolve_youtube(app, url, ytdlp_path).await;
     }
 
@@ -836,7 +880,7 @@ async fn resolve_deezer(url: &str) -> Result<ImportPlaylist, String> {
     }
 
     let api = format!("https://api.deezer.com/{kind}/{id}");
-    let client = reqwest::Client::builder()
+    let client = http_client_builder()
         .user_agent("Nova/0.1")
         .timeout(Duration::from_secs(18))
         .build()
@@ -1508,6 +1552,7 @@ fn verify_download(
     ))
 }
 
+#[cfg_attr(target_os = "android", allow(unreachable_code, unused_variables))]
 pub async fn download_media(
     app: &AppHandle,
     id: String,
@@ -1524,11 +1569,7 @@ pub async fn download_media(
         .filter(|value| !value.is_empty())
         .map(str::to_string);
 
-    if url.contains("zaycev.net/pages/")
-        || url.contains(".muzofond.fm/")
-        || url.contains(".drivemusic.me/")
-        || is_audio_url(&url)
-    {
+    if is_direct_source(&url) {
         return download_direct(
             app,
             id,
@@ -1541,14 +1582,48 @@ pub async fn download_media(
         .await;
     }
 
-    let directory = resolve_output_dir(app, &output_dir)?;
-    let directory_string = directory.to_string_lossy().to_string();
-    let started_at = now_secs();
-
     let target = match preferred_name.as_deref() {
         Some(search) => format!("ytsearch1:{search}"),
         None => url,
     };
+
+    #[cfg(target_os = "android")]
+    {
+        let _ = &ytdlp_path;
+        let directory = resolve_output_dir(app, &output_dir)?;
+        let directory_string = directory.to_string_lossy().to_string();
+        let result = crate::commands::android_download_start(
+            app.clone(),
+            id.clone(),
+            target,
+            directory_string,
+            preferred_name,
+        )
+        .await?;
+        if let Err(error) = verify_download(
+            Path::new(&result.path),
+            expected_artist.as_deref(),
+            expected_title.as_deref(),
+        ) {
+            emit_progress(
+                app,
+                DownloadProgress {
+                    id,
+                    percent: 0.0,
+                    line: error.clone(),
+                    status: "error".to_string(),
+                    path: None,
+                    error: Some(error.clone()),
+                },
+            );
+            return Err(error);
+        }
+        return Ok(result);
+    }
+
+    let directory = resolve_output_dir(app, &output_dir)?;
+    let directory_string = directory.to_string_lossy().to_string();
+    let started_at = now_secs();
 
     let output_template = directory
         .join("%(artist,uploader,channel,creator)s - %(title)s.%(ext)s")
@@ -1651,7 +1726,7 @@ pub async fn download_direct(
         return Err("Ссылка должна начинаться с http:// или https://".to_string());
     }
     let directory = resolve_output_dir(app, &output_dir)?;
-    let client = reqwest::Client::builder()
+    let client = http_client_builder()
         .user_agent(BROWSER_UA)
         .timeout(Duration::from_secs(180))
         .build()
@@ -1934,6 +2009,18 @@ fn sanitize_filename(name: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn routes_youtube_and_direct_sources() {
+        assert!(is_ytdlp_url("https://www.youtube.com/watch?v=jNQXAC9IVRw"));
+        assert!(is_ytdlp_url("https://youtu.be/jNQXAC9IVRw"));
+        assert!(is_ytdlp_url("https://music.youtube.com/watch?v=x"));
+        assert!(!is_ytdlp_url("https://zaycev.net/pages/123"));
+        assert!(is_direct_source("https://cdn.example.com/track.mp3?x=1"));
+        assert!(is_direct_source("https://zaycev.net/pages/123"));
+        assert!(is_direct_source("https://www.muzofond.fm/track/1"));
+        assert!(!is_direct_source("https://soundcloud.com/artist/track"));
+    }
 
     #[test]
     fn finds_yandex_playlist_meta_in_state_patches() {

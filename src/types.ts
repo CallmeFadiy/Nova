@@ -120,6 +120,7 @@ export interface DownloadProgress {
   status: "queued" | "downloading" | "done" | "error" | "starting";
   path: string | null;
   error: string | null;
+  networkLimited?: boolean;
   order?: number;
   title?: string;
   retry?: () => void;

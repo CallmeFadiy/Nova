@@ -157,6 +157,26 @@ where
         .map_err(|e| e.to_string())
 }
 
+#[cfg(target_os = "android")]
+async fn run_download_command_async<T, P>(
+    app: &AppHandle,
+    command: &str,
+    payload: P,
+) -> Result<T, String>
+where
+    T: serde::de::DeserializeOwned,
+    P: Serialize,
+{
+    let handle = app
+        .state::<tauri_plugin_nova_mobile::NovaDownloads<tauri::Wry>>()
+        .0
+        .clone();
+    handle
+        .run_mobile_plugin_async(command, payload)
+        .await
+        .map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 pub fn android_permission_state(app: AppHandle) -> Result<String, String> {
     #[cfg(target_os = "android")]
@@ -486,6 +506,136 @@ pub fn android_download_probe(app: AppHandle, url: String) -> Result<serde_json:
         let _ = (app, url);
         Err("Встроенный yt-dlp доступен только на Android".to_string())
     }
+}
+
+#[tauri::command]
+pub async fn android_download_info(app: AppHandle, url: String) -> Result<ImportPlaylist, String> {
+    #[cfg(target_os = "android")]
+    {
+        #[derive(Serialize)]
+        struct Payload {
+            url: String,
+        }
+        return run_download_command_async(&app, "downloadInfo", Payload { url }).await;
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        let _ = (app, url);
+        Err("Встроенный yt-dlp доступен только на Android".to_string())
+    }
+}
+
+#[tauri::command]
+pub async fn android_download_start(
+    app: AppHandle,
+    id: String,
+    url: String,
+    output_dir: String,
+    query: Option<String>,
+) -> Result<DownloadResult, String> {
+    #[cfg(target_os = "android")]
+    {
+        use std::sync::atomic::{AtomicBool, Ordering};
+        use std::sync::Arc;
+
+        #[derive(Serialize)]
+        struct Payload<'a> {
+            id: &'a str,
+            url: &'a str,
+            #[serde(rename = "outputDir")]
+            output_dir: &'a str,
+            query: &'a str,
+        }
+
+        let query = query.unwrap_or_default();
+        let stop = Arc::new(AtomicBool::new(false));
+        let poll_app = app.clone();
+        let poll_id = id.clone();
+        let poll_stop = Arc::clone(&stop);
+        let poller = tauri::async_runtime::spawn_blocking(move || {
+            let mut last = String::new();
+            loop {
+                let running = !poll_stop.load(Ordering::Relaxed);
+                forward_mobile_progress(&poll_app, &poll_id, &mut last);
+                if !running {
+                    break;
+                }
+                std::thread::sleep(std::time::Duration::from_millis(250));
+            }
+        });
+
+        let result = run_download_command_async(
+            &app,
+            "downloadStart",
+            Payload {
+                id: &id,
+                url: &url,
+                output_dir: &output_dir,
+                query: &query,
+            },
+        )
+        .await;
+
+        stop.store(true, Ordering::Relaxed);
+        let _ = poller.await;
+        result
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        let _ = (app, id, url, output_dir, query);
+        Err("Встроенный yt-dlp доступен только на Android".to_string())
+    }
+}
+
+#[tauri::command]
+pub fn android_download_cancel(app: AppHandle, id: String) -> Result<bool, String> {
+    #[cfg(target_os = "android")]
+    {
+        #[derive(Serialize)]
+        struct Payload {
+            id: String,
+        }
+        let value: serde_json::Value =
+            run_download_command(&app, "downloadCancel", Payload { id })?;
+        return Ok(value
+            .get("cancelled")
+            .and_then(|value| value.as_bool())
+            .unwrap_or(false));
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        let _ = (app, id);
+        Err("Встроенный yt-dlp доступен только на Android".to_string())
+    }
+}
+
+/// Forwards the embedded yt-dlp progress snapshot to the webview as the regular
+/// `download-progress` event. The Kotlin plugin also calls `trigger`, but plugin
+/// events need `addPluginListener` and the second Tauri plugin (`nova-download`)
+/// has no generated ACL manifest, so the Rust poller is what the JS listener sees.
+#[cfg(target_os = "android")]
+fn forward_mobile_progress(app: &AppHandle, id: &str, last: &mut String) {
+    use tauri::Emitter as _;
+
+    #[derive(Serialize)]
+    struct Payload<'a> {
+        id: &'a str,
+    }
+
+    let Ok(value): Result<serde_json::Value, String> =
+        run_download_command(app, "downloadState", Payload { id })
+    else {
+        return;
+    };
+    if value.get("status").and_then(|value| value.as_str()) == Some("idle") {
+        return;
+    }
+    let signature = serde_json::to_string(&value).unwrap_or_default();
+    if signature == *last {
+        return;
+    }
+    *last = signature;
+    let _ = app.emit("download-progress", value);
 }
 
 #[tauri::command]

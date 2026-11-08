@@ -16,6 +16,10 @@ const COMMANDS: &[&str] = &[
     "audioSetEq",
     "audioState",
     "downloadProbe",
+    "downloadInfo",
+    "downloadStart",
+    "downloadCancel",
+    "downloadState",
 ];
 
 fn main() {
