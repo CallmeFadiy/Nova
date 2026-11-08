@@ -238,11 +238,13 @@ pub mod queue {
         Ok(value.as_deref() == Some("1"))
     }
 
-    /// Removes a row that has not finished. Returns whether a row was removed.
-    pub fn cancel(conn: &Connection, id: &str) -> rusqlite::Result<bool> {
+    /// Removes only a still-queued row. The worker moves a claimed row to
+    /// `starting` under the same lock, so a zero-row result here means the
+    /// worker owns it and must stop it through its cancel token instead of
+    /// having its row deleted underneath it.
+    pub fn cancel_queued(conn: &Connection, id: &str) -> rusqlite::Result<bool> {
         let removed = conn.execute(
-            "DELETE FROM download_queue
-             WHERE id = ?1 AND status IN ('queued', 'starting', 'downloading')",
+            "DELETE FROM download_queue WHERE id = ?1 AND status = 'queued'",
             params![id],
         )?;
         Ok(removed > 0)
@@ -497,7 +499,7 @@ fn claim_next(
         let Some(task) = queue::next_queued(&conn).map_err(|error| error.to_string())? else {
             return Ok(None);
         };
-        queue::set_status(
+        let changed = queue::set_status(
             &conn,
             &task.id,
             "starting",
@@ -507,6 +509,12 @@ fn claim_next(
             None,
         )
         .map_err(|error| error.to_string())?;
+        if changed == 0 {
+            // A queued cancel deleted the row between `next_queued` and this
+            // update. Do not download it; `download_queue_cancel` already
+            // dropped its token.
+            return Ok(None);
+        }
         task
     };
 
@@ -547,7 +555,7 @@ async fn worker_step(
         return Ok(true);
     }
 
-    with_db(db, |conn| {
+    let downloading = with_db(db, |conn| {
         queue::set_status(
             conn,
             &task.id,
@@ -557,31 +565,45 @@ async fn worker_step(
             None,
             None,
         )
-    })
-    .map_err(|error| error.to_string())?;
+    });
+    if let Err(error) = downloading {
+        // Do not strand the row in `starting`: put it back in the queue (or
+        // record the cancel if one arrived while we were marking it).
+        if token.load(Ordering::Relaxed) {
+            with_db(db, |conn| finish_cancelled(conn, app, &task));
+        } else {
+            let _ = with_db(db, |conn| {
+                queue::set_status(conn, &task.id, "queued", Some(0.0), Some(""), None, None)
+            });
+        }
+        forget_cancel_token(&task.id);
+        return Err(error.to_string());
+    }
 
     let result = dispatch(&task, app, Arc::clone(&token)).await;
     let cancelled = token.load(Ordering::Relaxed);
 
-    with_db(db, |conn| match result {
+    match result {
         Ok(result) => {
             if cancelled {
                 // A cancel racing the last chunk must never leave a `done` row
                 // or a completed file behind.
                 let _ = std::fs::remove_file(&result.path);
-                finish_cancelled(conn, app, &task);
+                with_db(db, |conn| finish_cancelled(conn, app, &task));
             } else {
-                finish_done(conn, app, app_dir, db_path, &task, &result);
+                finish_done(db, app, app_dir, db_path, &task, &result);
             }
         }
         Err(error) => {
-            if cancelled {
-                finish_cancelled(conn, app, &task);
-            } else {
-                finish_error(conn, app, &task, &error);
-            }
+            with_db(db, |conn| {
+                if cancelled {
+                    finish_cancelled(conn, app, &task);
+                } else {
+                    finish_error(conn, app, &task, &error);
+                }
+            });
         }
-    });
+    }
 
     forget_cancel_token(&task.id);
     Ok(true)
@@ -626,23 +648,50 @@ async fn dispatch(
 }
 
 fn finish_done(
-    conn: &Connection,
+    db: &Mutex<Connection>,
     app: Option<&AppHandle>,
     app_dir: Option<&Path>,
     db_path: Option<&Path>,
     task: &DownloadTask,
     result: &DownloadResult,
 ) {
-    let changed = queue::set_status(
-        conn,
-        &task.id,
-        "done",
-        Some(100.0),
-        Some("Готово"),
-        Some(&result.path),
-        None,
-    )
-    .unwrap_or(0);
+    // A transient `SQLITE_BUSY` must not delete a finished file or record the
+    // wrong status: retry the update, and on repeated failure keep the file and
+    // leave the row `downloading` for the resume path.
+    let mut changed = 0usize;
+    let mut last_error = None;
+    for attempt in 0..3 {
+        match with_db(db, |conn| {
+            queue::set_status(
+                conn,
+                &task.id,
+                "done",
+                Some(100.0),
+                Some("Готово"),
+                Some(&result.path),
+                None,
+            )
+        }) {
+            Ok(count) => {
+                changed = count;
+                last_error = None;
+                break;
+            }
+            Err(error) => {
+                last_error = Some(error);
+                if attempt < 2 {
+                    std::thread::sleep(Duration::from_millis(100));
+                }
+            }
+        }
+    }
+    if let Some(error) = last_error {
+        eprintln!(
+            "download worker: cannot mark {} done: {error}; keeping {}",
+            task.id, result.path
+        );
+        return;
+    }
     if changed == 0 {
         // The row was removed by a queued-cancel race: do not record a phantom
         // history entry or announce completion, and do not leave the orphan file.
@@ -651,18 +700,27 @@ fn finish_done(
     }
 
     let line = "Готово".to_string();
-    let _ = history::insert(
-        conn,
-        &DownloadHistoryItem {
-            id: task.id.clone(),
-            title: history_title(task),
-            line: line.clone(),
-            status: "done".to_string(),
-            path: Some(result.path.clone()),
-            error: None,
-            finished_at: now_secs(),
-        },
-    );
+    if let Err(error) = with_db(db, |conn| {
+        history::insert(
+            conn,
+            &DownloadHistoryItem {
+                id: task.id.clone(),
+                title: history_title(task),
+                line: line.clone(),
+                status: "done".to_string(),
+                path: Some(result.path.clone()),
+                error: None,
+                finished_at: now_secs(),
+            },
+        )
+    }) {
+        // The file and queue row are still correct; history can be rebuilt from
+        // the terminal row by Task 4 if this transient write failed.
+        eprintln!(
+            "download worker: cannot record history for {}: {error}",
+            task.id
+        );
+    }
 
     emit_progress(
         app,
@@ -926,11 +984,11 @@ mod tests {
         queue::enqueue(&conn, &task("a", "https://example/a.mp3")).unwrap();
         queue::enqueue(&conn, &task("b", "https://example/b.mp3")).unwrap();
 
-        assert!(queue::cancel(&conn, "a").unwrap());
+        assert!(queue::cancel_queued(&conn, "a").unwrap());
         assert_eq!(queue::ids(&conn).unwrap(), vec!["b".to_string()]);
 
-        assert!(!queue::cancel(&conn, "a").unwrap());
-        assert!(!queue::cancel(&conn, "missing").unwrap());
+        assert!(!queue::cancel_queued(&conn, "a").unwrap());
+        assert!(!queue::cancel_queued(&conn, "missing").unwrap());
 
         let items = queue::list(&conn).unwrap();
         assert_eq!(items.len(), 1);
@@ -1240,7 +1298,99 @@ mod tests {
             .map(|entry| entry.unwrap().file_name().to_string_lossy().to_string())
             .collect();
         assert_eq!(names, vec!["bystander.mp3".to_string()]);
+        assert!(
+            !names.iter().any(|name| name.starts_with(".nova-part")),
+            "temp file must be removed on cancel: {names:?}"
+        );
         assert_eq!(fs::read(&bystander).unwrap(), b"other job");
+
+        let _ = fs::remove_dir_all(&directory);
+    }
+
+    #[test]
+    fn direct_download_removes_stale_partial_and_writes_single_final_file() {
+        let directory = temp_dir("stale-part");
+        // Simulates a killed attempt: the same id resumes and must not leave the
+        // old temp behind or create `track (1).mp3` because of it.
+        let stale = directory.join(".nova-part-stale-1");
+        fs::write(&stale, b"dead partial").unwrap();
+        let base = serve_once("audio/mpeg", b"fresh-body".to_vec());
+
+        let result = tauri::async_runtime::block_on(crate::media::download_direct_impl(
+            None,
+            "stale-1".to_string(),
+            format!("{base}/track.mp3"),
+            directory.to_string_lossy().to_string(),
+            None,
+            None,
+            None,
+            None,
+        ))
+        .expect("download");
+        assert_eq!(fs::read(&result.path).unwrap(), b"fresh-body");
+        assert_eq!(
+            Path::new(&result.path).file_name().unwrap().to_string_lossy(),
+            "track.mp3"
+        );
+        assert!(!stale.exists(), "stale .nova-part must be deleted");
+
+        let names: Vec<String> = fs::read_dir(&directory)
+            .unwrap()
+            .map(|entry| entry.unwrap().file_name().to_string_lossy().to_string())
+            .collect();
+        assert_eq!(names, vec!["track.mp3".to_string()]);
+
+        let _ = fs::remove_dir_all(&directory);
+    }
+
+    #[test]
+    fn cancel_queued_does_not_delete_a_row_the_worker_claimed() {
+        let conn = conn();
+        queue::enqueue(&conn, &task("queued", "https://example/q.mp3")).unwrap();
+        queue::enqueue(&conn, &task("active", "https://example/a.mp3")).unwrap();
+        queue::set_status(&conn, "active", "starting", None, None, None, None).unwrap();
+
+        assert!(queue::cancel_queued(&conn, "queued").unwrap());
+        assert!(!queue::cancel_queued(&conn, "active").unwrap());
+        assert_eq!(queue::ids(&conn).unwrap(), vec!["active".to_string()]);
+    }
+
+    #[test]
+    fn forgotten_cancel_token_does_not_kill_a_retry() {
+        let first = cancel_token("retry-1");
+        first.store(true, Ordering::SeqCst);
+        forget_cancel_token("retry-1");
+
+        let retry = cancel_token("retry-1");
+        assert!(!retry.load(Ordering::SeqCst));
+        assert!(!Arc::ptr_eq(&first, &retry));
+        forget_cancel_token("retry-1");
+    }
+
+    #[test]
+    fn worker_does_not_run_a_row_deleted_by_queued_cancel() {
+        let db = Mutex::new(conn());
+        let directory = temp_dir("queued-cancel");
+        let queued = direct_task("queued-cancel-1", "http://127.0.0.1:9/track.mp3", &directory);
+        {
+            let conn = db.lock().unwrap();
+            queue::enqueue(&conn, &queued).unwrap();
+        }
+
+        // Mirrors `download_queue_cancel` for a queued row: signal, delete, and
+        // drop the token so a retry with the same id starts clean.
+        cancel_token("queued-cancel-1").store(true, Ordering::SeqCst);
+        {
+            let conn = db.lock().unwrap();
+            assert!(queue::cancel_queued(&conn, "queued-cancel-1").unwrap());
+            assert!(queue::list(&conn).unwrap().is_empty());
+        }
+        forget_cancel_token("queued-cancel-1");
+
+        let processed = tauri::async_runtime::block_on(worker_step(&db, None, None, None))
+            .expect("worker step");
+        assert!(!processed);
+        assert_eq!(fs::read_dir(&directory).unwrap().count(), 0);
 
         let _ = fs::remove_dir_all(&directory);
     }

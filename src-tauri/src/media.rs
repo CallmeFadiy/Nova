@@ -1821,12 +1821,19 @@ pub(crate) async fn download_direct_impl(
     } else {
         file_stem
     };
-    let mut path = directory.join(audio_file_name(&file_stem, &extension));
+    let mut final_path = directory.join(audio_file_name(&file_stem, &extension));
     let mut counter = 1;
-    while path.exists() {
-        path = directory.join(format!("{file_stem} ({counter}).{extension}"));
+    while final_path.exists() {
+        final_path = directory.join(format!("{file_stem} ({counter}).{extension}"));
         counter += 1;
     }
+
+    // Write to a sibling temp without an audio extension, then rename it into
+    // place. A process kill mid-transfer therefore leaves a `.nova-part-<id>`
+    // that the scanner ignores; a resumed task with the same id deletes it
+    // before starting instead of creating a duplicate `name (1)`.
+    let partial_path = directory.join(partial_file_name(&id));
+    let _ = fs::remove_file(&partial_path);
 
     // A cancel may arrive while the request headers are in flight; do not
     // create a partial file just to remove it again.
@@ -1834,17 +1841,16 @@ pub(crate) async fn download_direct_impl(
         return Err(CANCELLED_MESSAGE.to_string());
     }
 
-    let mut file = fs::File::create(&path)
+    let mut file = fs::File::create(&partial_path)
         .map_err(|error| format!("Не удалось создать файл: {error}"))?;
     let mut received = 0u64;
     let mut last_percent = -1.0f64;
     loop {
-        // Cancellation is checked between stream chunks. Direct downloads write
-        // into their final name, so the partial file must be removed here: only
-        // this job owns it.
+        // Cancellation is checked between stream chunks. Only this job owns its
+        // temp file, so it is always safe to remove here.
         if is_cancelled(&cancel) {
             drop(file);
-            let _ = fs::remove_file(&path);
+            let _ = fs::remove_file(&partial_path);
             return Err(CANCELLED_MESSAGE.to_string());
         }
         let chunk = match response.chunk().await {
@@ -1852,13 +1858,13 @@ pub(crate) async fn download_direct_impl(
             Ok(None) => break,
             Err(error) => {
                 drop(file);
-                let _ = fs::remove_file(&path);
+                let _ = fs::remove_file(&partial_path);
                 return Err(format!("Ошибка чтения файла: {error}"));
             }
         };
         if let Err(error) = file.write_all(&chunk) {
             drop(file);
-            let _ = fs::remove_file(&path);
+            let _ = fs::remove_file(&partial_path);
             return Err(format!("Не удалось записать файл: {error}"));
         }
         received += chunk.len() as u64;
@@ -1882,20 +1888,21 @@ pub(crate) async fn download_direct_impl(
     }
     if is_cancelled(&cancel) {
         drop(file);
-        let _ = fs::remove_file(&path);
+        let _ = fs::remove_file(&partial_path);
         return Err(CANCELLED_MESSAGE.to_string());
     }
     if let Err(error) = file.flush() {
         drop(file);
-        let _ = fs::remove_file(&path);
+        let _ = fs::remove_file(&partial_path);
         return Err(format!("Не удалось завершить файл: {error}"));
     }
     drop(file);
     if let Err(error) = verify_download(
-        &path,
+        &partial_path,
         expected_artist.as_deref(),
         expected_title.as_deref(),
     ) {
+        let _ = fs::remove_file(&partial_path);
         emit_progress_optional(
             app,
             DownloadProgress {
@@ -1909,7 +1916,11 @@ pub(crate) async fn download_direct_impl(
         );
         return Err(error);
     }
-    let path_string = path.to_string_lossy().to_string();
+    if let Err(error) = fs::rename(&partial_path, &final_path) {
+        let _ = fs::remove_file(&partial_path);
+        return Err(format!("Не удалось сохранить файл: {error}"));
+    }
+    let path_string = final_path.to_string_lossy().to_string();
     emit_progress_optional(
         app,
         DownloadProgress {
@@ -2093,6 +2104,29 @@ fn sanitize_filename(name: &str) -> String {
         value = "track".to_string();
     }
     value
+}
+
+/// Deterministic sibling name for an in-progress direct download. It starts
+/// with `.nova-part-` and has no audio extension, so the scanner ignores it.
+/// The id makes it possible to remove the leftover of a killed attempt when the
+/// same queued task resumes.
+fn partial_file_name(id: &str) -> String {
+    let safe: String = id
+        .chars()
+        .map(|character| {
+            if character.is_ascii_alphanumeric() || matches!(character, '-' | '_' | '.') {
+                character
+            } else {
+                '_'
+            }
+        })
+        .collect();
+    let safe = safe.trim_matches('.').trim();
+    if safe.is_empty() {
+        ".nova-part-download".to_string()
+    } else {
+        format!(".nova-part-{safe}")
+    }
 }
 
 #[cfg(test)]

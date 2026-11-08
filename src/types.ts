@@ -118,6 +118,7 @@ export type DownloadStatus =
   | "downloading"
   | "done"
   | "error"
+  | "cancelled"
   | "starting";
 
 export interface DownloadProgress {
@@ -129,7 +130,7 @@ export interface DownloadProgress {
   error: string | null;
   kind?: "ytdlp" | "direct";
   networkLimited?: boolean;
-  /** True only for downloads the Android plugin can stop (yt-dlp processes). */
+  /** Every active row can be stopped: direct downloads use a token, yt-dlp a process id. */
   cancellable?: boolean;
   order?: number;
   title?: string;
@@ -140,7 +141,7 @@ export interface DownloadHistoryItem {
   id: string;
   title: string;
   line: string;
-  status: "done" | "error";
+  status: "done" | "error" | "cancelled";
   path: string | null;
   error: string | null;
   finishedAt: number;

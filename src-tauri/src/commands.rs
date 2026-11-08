@@ -690,18 +690,23 @@ pub fn download_queue_cancel(
     // the status read and the DELETE.
     crate::downloads::cancel_token(&id).store(true, Ordering::SeqCst);
 
-    // A queued job has not written anything yet, so deleting the row is atomic
-    // and preserves the Task 1 semantics. Active jobs stay in the table: the
-    // worker observes the token, deletes its own partial/staging files, and
-    // records `cancelled` itself. That avoids a deleted row being updated to
-    // `done` by an in-flight worker.
+    // A queued job has not written anything yet; `cancel_queued` deletes only a
+    // row that is still `queued`, so a worker that claimed it in the meantime
+    // keeps ownership and stops through the token below. Active jobs stay in
+    // the table: the worker observes the token, deletes its own partial/staging
+    // files, and records `cancelled` itself. That avoids a deleted row being
+    // updated to `done` by an in-flight worker.
     let removed = if status == "queued" {
         let conn = state.db.lock().map_err(|e| e.to_string())?;
-        crate::downloads::queue::cancel(&conn, &id).map_err(|e| e.to_string())?
+        crate::downloads::queue::cancel_queued(&conn, &id).map_err(|e| e.to_string())?
     } else {
         false
     };
     if removed {
+        // No worker owns this row: `claim_next` treats a zero-row `starting`
+        // update as "row vanished" and does not run it. Dropping the token here
+        // keeps a later retry with the same id from being killed immediately.
+        crate::downloads::forget_cancel_token(&id);
         return Ok(true);
     }
 
@@ -714,16 +719,21 @@ pub fn download_queue_cancel(
     #[cfg(not(target_os = "android"))]
     let _ = (app, kind);
 
-    // A queued row deleted by a concurrent cancel leaves nothing to stop.
+    // A queued row deleted by a concurrent cancel leaves nothing to stop. If the
+    // worker already finished, drop the token too: otherwise a later retry with
+    // the same id would inherit a permanently set flag. A genuinely active row
+    // must keep its token until the worker observes it and records `cancelled`.
     let still_there = {
         let conn = state.db.lock().map_err(|e| e.to_string())?;
         crate::downloads::queue::status_kind(&conn, &id).map_err(|e| e.to_string())?
     };
-    if still_there.is_none() {
-        crate::downloads::forget_cancel_token(&id);
-        return Ok(false);
+    match still_there {
+        Some((current, _)) if matches!(current.as_str(), "starting" | "downloading") => Ok(true),
+        _ => {
+            crate::downloads::forget_cancel_token(&id);
+            Ok(false)
+        }
     }
-    Ok(true)
 }
 
 #[tauri::command]
@@ -744,15 +754,14 @@ pub fn download_history_clear(state: State<'_, AppState>) -> Result<(), String> 
 }
 
 /// Called once on startup by Task 4. Rows a killed process left in
-/// `starting`/`downloading` go back to `queued` with their progress cleared,
-/// and the queue is unpaused so the worker picks them up. This is also the
-/// native "resume queue" action in the UI.
+/// `starting`/`downloading` go back to `queued` with their progress cleared.
+/// The pause flag is deliberately left alone: a user-paused queue stays paused,
+/// and Task 4 calls pause/resume separately when it restores the UI.
 #[tauri::command]
 pub fn download_queue_resume(app: AppHandle, state: State<'_, AppState>) -> Result<(), String> {
     {
         let conn = state.db.lock().map_err(|e| e.to_string())?;
         crate::downloads::queue::resume(&conn).map_err(|e| e.to_string())?;
-        crate::downloads::queue::set_paused(&conn, false).map_err(|e| e.to_string())?;
     }
     crate::downloads::start_worker(app);
     Ok(())
