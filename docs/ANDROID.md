@@ -397,8 +397,9 @@ SHA-256 `48E69E78C820BBA75E7F1F4BC3D4B446C26FD61B00F9E86FAFADA24A30287A8A`,
   Kosandra получено 2953 символа LRC; кэш и редактор работают.
 - Share/Open with: FileProvider, `ACTION_VIEW` audio/video, импорт в
   `/sdcard/Download/NovaInbox` и добавление папки в библиотеку. Проверено
-  `content://` из MediaStore (79-й трек, переход в Library); chooser
-  «Поделиться» и «Открыть в другом приложении» показываются.
+  `content://` из MediaStore (79-й трек, переход в Library); «Поделиться»
+  показывает системный chooser, «Открыть в другом приложении» запускает
+  `ACTION_VIEW` напрямую.
 - MIUI: состояние `PowerManager.isIgnoringBatteryOptimizations`, запрос
   исключения, настройки батареи и автозапуска в Settings.
 - Release: `release/Android/Nova-0.1.0-arm64-release.apk`, 66 866 991 байт,
