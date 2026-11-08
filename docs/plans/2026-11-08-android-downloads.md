@@ -77,7 +77,7 @@ Rust. JS-контракт и событие `download-progress` не меняю�
   name overwrites the core instance, so a separate `init_downloads()` plugin is
   required.
 
-- [ ] **Step 1: Add the dependency and check resolution**
+- [x] **Step 1: Add the dependency and check resolution**
 
 Add to the plugin module:
 ```kotlin
@@ -89,7 +89,7 @@ Run from `src-tauri/gen/android`:
 Expected: artifacts resolve; if not, add the repository the artifact requires
 (e.g. JitPack) and record the exact working coordinates.
 
-- [ ] **Step 2: Implement the probe**
+- [x] **Step 2: Implement the probe**
 
 `NovaDownloadPlugin`:
 ```kotlin
@@ -109,7 +109,7 @@ YouTube URL; return `version`, `title`, and `formats` count. If `YoutubeDL.init`
 is the only reliable call in the current network, return `version`/`ok` and
 record the network limit.
 
-- [ ] **Step 3: Register the second plugin**
+- [x] **Step 3: Register the second plugin**
 
 Add `init_downloads()` as a second `TauriPlugin` named `nova-download`
 (`NovaDownloads` handle) in `tauri-plugin-nova-mobile/src/lib.rs`; keep
@@ -120,13 +120,13 @@ permission is unused because JS calls the Rust wrapper, not the Kotlin plugin
 directly — leave a comment) and register `android_download_probe` in
 `src-tauri/src/lib.rs`.
 
-- [ ] **Step 4: Device probe**
+- [x] **Step 4: Device probe**
 
 Build arm64, install, invoke `android_download_probe` with a short YouTube URL;
 record the output and APK size. Expected: a JSON with title/formats or an
 explicit network error; no crash.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src-tauri/plugins/nova-mobile src-tauri/src src-tauri/gen/android/build.gradle.kts
@@ -163,7 +163,7 @@ git commit -m "feat(android): spike embedded youtubedl"
   `cfg(target_os = "android")` + YouTube/needs-yt-dlp URLs; direct URLs keep
   the current Rust path.
 
-- [ ] **Step 1: Implement `downloadInfo`**
+- [x] **Step 1: Implement `downloadInfo`**
 
 Use `YoutubeDLRequest` with `--dump-single-json --flat-playlist`; map entries
 to `ImportPlaylist`/`ImportTrack`. For a single video return one track; for a
@@ -174,7 +174,7 @@ catch `Exception` (not `Throwable`); cache the `--version` result; keep
 `downloadProbe` as a diagnostic. Use a timeout/cancel path so a blocked network
 does not hold the worker for 165 s.
 
-- [ ] **Step 2: Implement `downloadStart`/cancel and progress**
+- [x] **Step 2: Implement `downloadStart`/cancel and progress**
 
 `downloadStart` runs `YoutubeDL.execute` on a background executor with
 `-x --audio-format mp3` (or the format the existing UI expects), output
@@ -186,7 +186,7 @@ with `id`, `percent` (parse `[download] xx%`), `line`, `status`
 resolve with the final path. Keep the executor alive for the plugin lifetime
 and recreate it if it was shut down.
 
-- [ ] **Step 3: Rust routing**
+- [x] **Step 3: Rust routing**
 
 Add `is_ytdlp_url(url)` (YouTube/youtu.be/music.youtube.com and any URL the
 existing code routes to `run_ytdlp`). In `resolve_playlist`, on Android use
@@ -194,14 +194,14 @@ existing code routes to `run_ytdlp`). In `resolve_playlist`, on Android use
 `download_media`, on Android use the plugin for yt-dlp URLs; direct URLs use
 `download_direct`. Ensure `ytdlp_path` is ignored on Android.
 
-- [ ] **Step 4: Device download test**
+- [x] **Step 4: Device download test**
 
 Resolve and download a short YouTube track (or the spike's working URL) to
 `/sdcard/Download/NovaDownloads`; assert progress events, final file exists,
 `DownloadResult.path` is real, cancel leaves no file. Test a direct Rust URL
 too. Expected: PASS; no sidecar error.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src-tauri src/lib src/hooks src/screens
@@ -220,31 +220,31 @@ git commit -m "feat(android): add embedded yt-dlp downloads"
 **Interfaces:** uses Task 1 pickers (`pickFolder`), Task 2 commands/events;
 no new commands.
 
-- [ ] **Step 1: Hide desktop-only settings on Android**
+- [x] **Step 1: Hide desktop-only settings on Android**
 
 `Settings.tsx`: hide the `ytdlpPath` row when `isAndroid`; show a static note
 «Встроенный yt-dlp»; keep the download folder picker (2A) and default app-data
 directory. Do not remove desktop fields.
 
-- [ ] **Step 2: Mobile layout**
+- [x] **Step 2: Mobile layout**
 
 Verify Downloads/Import at 392 px: search field, link input, tabs, progress
 rows, cancel/retry, history; buttons ≥ 44 px, no horizontal overflow; IME does
 not cover the link field/submit. Fix only real issues.
 
-- [ ] **Step 3: Duplicate/error flows**
+- [x] **Step 3: Duplicate/error flows**
 
 Ensure `findDuplicateTrack`/`DuplicateDownloadModal` works on Android; clear
 network/format errors via `errorText`; cancelling a queued/downloading item
 does not mark it done.
 
-- [ ] **Step 4: Device UI test**
+- [x] **Step 4: Device UI test**
 
 Open `/downloads`, search a query (direct source), download; open `/import`,
 paste a YouTube URL, resolve, select one track, download; check progress,
 cancel, history, downloaded file visible in the library after scan.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/screens src/styles/app.css
@@ -259,7 +259,7 @@ git commit -m "fix(android): polish downloads and import screens"
 - Modify: `docs/ANDROID.md`, `README.md`
 - Modify: `docs/plans/2026-11-08-android-phase2-roadmap.md` (mark 2B-1 done)
 
-- [ ] **Step 1: Windows regression**
+- [x] **Step 1: Windows regression**
 
 ```powershell
 npm.cmd run build:web
@@ -267,7 +267,7 @@ cargo test --manifest-path src-tauri/Cargo.toml --lib
 ```
 Expected: EXIT 0; 13 Rust tests PASS.
 
-- [ ] **Step 2: Phone acceptance**
+- [x] **Step 2: Phone acceptance**
 
 - Direct source search/download (Zaycev/Muzofond/DriveMusic).
 - YouTube single + playlist resolve/download (or documented network limit).
@@ -275,13 +275,13 @@ Expected: EXIT 0; 13 Rust tests PASS.
   scanner adds it to the library; `/sdcard/Music` unchanged.
 - 392 px/44 px screenshots; DB integrity; cleanup test downloads.
 
-- [ ] **Step 3: Docs**
+- [x] **Step 3: Docs**
 
 Update `docs/ANDROID.md` with 2B-1 scope, `youtubedl-android` version, APK size,
 test results, YouTube network limitation, and the explicit 2B-2 follow-up:
 SQLite queue/history + `NovaTaskService` dataSync + restart resume.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add docs/ANDROID.md README.md docs/plans/2026-11-08-android-phase2-roadmap.md

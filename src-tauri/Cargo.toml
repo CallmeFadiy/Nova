@@ -40,7 +40,7 @@ wasapi = "0.26"
 
 # reqwest's `rustls` feature verifies through Android's Java TrustManager, which
 # needs a Kotlin helper plus JNI init that Nova does not ship. Build the media
-# HTTP client with bundled webpki roots on Android instead (see media::http_client_builder).
+# HTTP client with bundled webpki roots on Android instead (see http::client_builder).
 [target.'cfg(target_os = "android")'.dependencies]
 rustls = "0.23"
 webpki-roots = "1"

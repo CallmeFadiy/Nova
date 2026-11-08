@@ -14,6 +14,8 @@ import com.yausername.youtubedl_android.YoutubeDL
 import com.yausername.youtubedl_android.YoutubeDLRequest
 import org.json.JSONObject
 import java.io.File
+import java.nio.file.FileAlreadyExistsException
+import java.nio.file.Files
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ExecutorService
@@ -82,6 +84,7 @@ class NovaDownloadPlugin(private val activity: Activity) : Plugin(activity) {
     private val snapshots = ConcurrentHashMap<String, DownloadSnapshot>()
     private val active = ConcurrentHashMap.newKeySet<String>()
     private val cancelled = ConcurrentHashMap.newKeySet<String>()
+    private val moveLock = Any()
 
     override fun onDestroy(activity: AppCompatActivity) {
         active.forEach { YoutubeDL.destroyProcessById(it) }
@@ -233,15 +236,20 @@ class NovaDownloadPlugin(private val activity: Activity) : Plugin(activity) {
         directory: File,
         invoke: Invoke,
     ) {
-        val startedAt = System.currentTimeMillis()
-        val existingNames = directory.list()?.toSet().orEmpty()
+        // Each yt-dlp job downloads into a private staging directory, so a failed
+        // or cancelled job can only ever delete its own partial files. Two jobs
+        // (and concurrent Rust `download_direct` writes) may share `directory`.
+        val staging = File(directory, ".nova-${stagingName(id)}")
         try {
+            if (!staging.exists() && !staging.mkdirs()) {
+                throw IllegalStateException("Не удалось создать временную папку загрузки")
+            }
             ensureInitialized()
             if (cancelled.contains(id)) {
                 throw YoutubeDL.CanceledException()
             }
 
-            val template = File(directory, "%(title)s.%(ext)s").absolutePath
+            val template = File(staging, "%(title)s.%(ext)s").absolutePath
             val request = YoutubeDLRequest(url)
             request.addOption("--no-playlist")
             request.addOption("--newline")
@@ -277,15 +285,17 @@ class NovaDownloadPlugin(private val activity: Activity) : Plugin(activity) {
                 }
             }
 
-            val path = response.out
+            val downloaded = response.out
                 .lineSequence()
                 .map(String::trim)
                 .filter { it.isNotEmpty() }
-                .filter { File(it).isFile }
-                .lastOrNull()
-                ?: newestFile(directory, existingNames)
-                ?: throw IllegalStateException("Файл скачан, но не найден в папке загрузок")
+                .map { File(it) }
+                .lastOrNull { file ->
+                    file.isFile && file.parentFile?.canonicalPath == staging.canonicalPath
+                }
+                ?: throw IllegalStateException("Файл скачан, но не найден во временной папке загрузки")
 
+            val path = moveIntoLibrary(downloaded, directory)
             val title = File(path).nameWithoutExtension.ifBlank {
                 query.ifBlank { "Новый трек" }
             }
@@ -305,7 +315,7 @@ class NovaDownloadPlugin(private val activity: Activity) : Plugin(activity) {
             result.put("directory", directory.absolutePath)
             resolveOnUi(invoke, result)
         } catch (error: Exception) {
-            cleanupPartial(directory, existingNames)
+            staging.deleteRecursively()
             val wasCancelled = error is YoutubeDL.CanceledException || cancelled.contains(id)
             val message = if (wasCancelled) {
                 "Загрузка отменена"
@@ -324,6 +334,7 @@ class NovaDownloadPlugin(private val activity: Activity) : Plugin(activity) {
             )
             rejectOnUi(invoke, message)
         } finally {
+            staging.deleteRecursively()
             active.remove(id)
             cancelled.remove(id)
             YoutubeDL.destroyProcessById(id)
@@ -498,21 +509,36 @@ class NovaDownloadPlugin(private val activity: Activity) : Plugin(activity) {
         }
     }
 
-    private fun newestFile(directory: File, existing: Set<String>): String? {
-        val files = directory.listFiles() ?: return null
-        return files
-            .filter { it.isFile && it.name !in existing }
-            .maxByOrNull { it.lastModified() }
-            ?.absolutePath
-    }
+    private fun stagingName(id: String): String =
+        id.replace(Regex("[^A-Za-z0-9._-]"), "_").ifBlank { UUID.randomUUID().toString() }
 
-    private fun cleanupPartial(directory: File, existing: Set<String>) {
-        val files = directory.listFiles() ?: return
-        files.forEach { file ->
-            if (file.isFile && file.name !in existing) {
-                file.delete()
+    /**
+     * Moves the finished yt-dlp file from its staging directory into the shared
+     * download directory. Never overwrites an existing file: a name collision
+     * gets a ` (n)` suffix instead, which also covers files written concurrently
+     * by Rust `download_direct`.
+     */
+    private fun moveIntoLibrary(source: File, directory: File): String {
+        synchronized(moveLock) {
+            var index = 1
+            while (true) {
+                val target = File(directory, targetName(source.name, index))
+                try {
+                    Files.move(source.toPath(), target.toPath())
+                    return target.absolutePath
+                } catch (_: FileAlreadyExistsException) {
+                    // Name taken (possibly by a concurrent Rust download): try ` (n)`.
+                    index += 1
+                }
             }
         }
+    }
+
+    private fun targetName(name: String, index: Int): String {
+        if (index == 1) return name
+        val base = name.substringBeforeLast('.', name).ifBlank { name }
+        val extension = name.substringAfterLast('.', "")
+        return if (extension.isEmpty()) "$base ($index)" else "$base ($index).$extension"
     }
 
     private fun splitMediaTitle(rawTitle: String, fallbackArtist: String): Pair<String, String> {

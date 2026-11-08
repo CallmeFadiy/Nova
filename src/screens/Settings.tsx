@@ -728,27 +728,30 @@ export function Settings() {
           <div className="settings-inline">
             <Download size={15} />
             <span>
-              Встроенный yt-dlp входит в приложение, путь указывать не нужно.
+              Встроенный yt-dlp входит в приложение, путь указывать не нужно. Он
+              всегда выбирает лучший доступный аудиопоток.
             </span>
           </div>
         ) : (
-          <div className="settings-field">
-            <label>Путь к yt-dlp</label>
-            <input
-              className="text-input"
-              value={ytdlpPath}
-              placeholder="yt-dlp.exe или путь к нему"
-              onChange={(event) => setYtdlpPath(event.target.value)}
-            />
-          </div>
+          <>
+            <div className="settings-field">
+              <label>Путь к yt-dlp</label>
+              <input
+                className="text-input"
+                value={ytdlpPath}
+                placeholder="yt-dlp.exe или путь к нему"
+                onChange={(event) => setYtdlpPath(event.target.value)}
+              />
+            </div>
+            <div className="settings-inline">
+              <Download size={15} />
+              <span>
+                yt-dlp всегда выбирает лучший доступный аудиопоток. Настройки
+                сохраняются локально.
+              </span>
+            </div>
+          </>
         )}
-        <div className="settings-inline">
-          <Download size={15} />
-          <span>
-            yt-dlp всегда выбирает лучший доступный аудиопоток. Настройки
-            сохраняются локально.
-          </span>
-        </div>
       </section>
 
       <section className="settings-section">

@@ -256,7 +256,7 @@ production-сборкой `build:web`.
   `:ffmpeg:0.18.1`. `jniLibs.useLegacyPackaging = true` обязателен: иначе
   Python/ffmpeg-payload не распаковывается в `nativeLibraryDir` и
   `YoutubeDL.init` падает.
-- Размер arm64 debug APK: 156 902 812 байт ≈ 156.9 MB (149.6 MiB). Сборка —
+- Размер arm64 debug APK: 156 900 412 байт ≈ 156.9 MB (149.6 MiB). Сборка —
   обычный workaround: `tauri android build --debug --apk --target aarch64`
   собирает Rust-библиотеку, затем `libnova_lib.so` копируется в
   `jniLibs/arm64-v8a`, а `gradlew :app:assembleArm64Debug` запускается без
@@ -306,12 +306,20 @@ production-сборкой `build:web`.
   `07-cancel-running.png`, `08-error-history-392.png`,
   `09-downloads-retry-error-392.png`, `10-downloads-retry-done-392.png`,
   `11-import-error-row-392.png`, `12-import-retry-done-392.png`.
+- Fix 2B-1: каждая yt-dlp-загрузка идёт в `<outputDir>/.nova-<id>/`, готовый
+  файл переносится в `outputDir` без перезаписи (суффикс ` (n)` при
+  совпадении), а ошибка/отмена удаляет только staging. На телефоне
+  `sentinel.txt` и `bystander.mp3` пережили падающую загрузку, staging удалён;
+  прямой MP3 и YouTube `Me at the zoo` скачались в `outputDir`, история
+  очищена и проверена (0). `gradlew` запускался как
+  `:app:assembleArm64Debug -x rustBuildArm64Debug`.
 - Финал: SQLite `integrity_check = ok`, `foreign_key_check` пуст, 78 записей
   `tracks`, все 78 — Music, тестовых строк и папки NovaDownloads нет, таблиц
   `download_queue`/`download_history` нет (2B-2 ещё не реализована).
-  История загрузок очищена, `downloadDir` возвращён к значению по умолчанию,
-  фон по умолчанию (`appBackground`/`nowBackground` = null), приложение
-  force-stopped.
+  История загрузок очищена и проверена (0 записей; архивный
+  `screens-task4/post-run-state.json` снят до очистки и содержал `history: 5`),
+  `downloadDir` возвращён к значению по умолчанию, фон по умолчанию
+  (`appBackground`/`nowBackground` = null), приложение force-stopped.
 - `/sdcard/Music` не изменён: 104 файла, SHA-256 совпал до и после. Тестовые
   загрузки выполнялись только в `/sdcard/Download/NovaDownloads`, папка
   удалена после прогона.
