@@ -12,11 +12,16 @@ import {
   Volume2,
 } from "lucide-react";
 import { formatDuration, trackCountLabel } from "../lib/format";
+import { errorText } from "../lib/errors";
 import { pickBestCandidate } from "../lib/match";
 import { api, openExternal } from "../lib/tauri";
 import { DuplicateDownloadModal } from "../components/DuplicateDownloadModal";
 import { useDownloadProgress } from "../hooks/useDownloadProgress";
 import { findDuplicateTrack, useLibraryStore } from "../store/library";
+import {
+  clearDownloadCancelled,
+  isDownloadCancelled,
+} from "../store/downloads";
 import { useSettingsStore } from "../store/settings";
 import { useUiStore } from "../store/ui";
 import type {
@@ -80,10 +85,7 @@ export function Import() {
         "success",
       );
     } catch (error) {
-      notify(
-        error instanceof Error ? error.message : "Не удалось разобрать ссылку",
-        "error",
-      );
+      notify(errorText(error), "error");
     } finally {
       setLoading(false);
     }
@@ -124,6 +126,7 @@ export function Import() {
       error: null,
     });
     const found = await api.searchMedia(track.query, 8);
+    if (isDownloadCancelled(id)) return null;
     const candidate = pickBestCandidate(
       {
         artist: track.artist,
@@ -155,6 +158,7 @@ export function Import() {
   };
 
   const downloadOne = async (id: string, track: ImportTrack) => {
+    if (isDownloadCancelled(id)) return null;
     setProgress({
       id,
       percent: 0,
@@ -166,7 +170,8 @@ export function Import() {
     const isYoutube = playlist?.source === "YouTube";
     const isYandex = playlist?.source === "Яндекс Музыка";
 
-    const markDone = (result: DownloadResult) => {
+    const markDone = (result: DownloadResult): DownloadResult | null => {
+      if (isDownloadCancelled(id)) return null;
       setProgress({
         id,
         percent: 100,
@@ -184,6 +189,7 @@ export function Import() {
         if (result) return markDone(result);
       } catch {
         // Fall back to yt-dlp search if the providers did not help.
+        if (isDownloadCancelled(id)) return null;
       }
     }
 
@@ -199,6 +205,9 @@ export function Import() {
       });
       return markDone(result);
     } catch (error) {
+      // A cancelled download rejects here; do not fall back to another source
+      // or a preview after the user has already cancelled it.
+      if (isDownloadCancelled(id)) return null;
       // If the original source cannot provide audio, search the same three
       // providers as the Downloads screen and take the best match.
       try {
@@ -208,7 +217,10 @@ export function Import() {
         }
       } catch {
         // Fall through to the original preview/error handling.
+        if (isDownloadCancelled(id)) return null;
       }
+
+      if (isDownloadCancelled(id)) return null;
 
       if (track.previewUrl) {
         setProgress({
@@ -227,6 +239,7 @@ export function Import() {
           expectedArtist: track.artist,
           expectedTitle: track.title,
         });
+        if (isDownloadCancelled(id)) return null;
         setProgress({
           id,
           percent: 100,
@@ -237,8 +250,7 @@ export function Import() {
         });
         return result;
       }
-      const message =
-        error instanceof Error ? error.message : "Ошибка загрузки";
+      const message = errorText(error);
       setProgress({
         id,
         percent: 0,
@@ -255,6 +267,7 @@ export function Import() {
   };
 
   const retryImportDownload = async (id: string, track: ImportTrack) => {
+    clearDownloadCancelled(id);
     const result = await downloadOne(id, track);
     if (result) {
       if (result.directory) await addFolder(result.directory);
@@ -354,8 +367,8 @@ export function Import() {
           }
         }
       } catch (error) {
-        const message =
-          error instanceof Error ? error.message : "Ошибка загрузки";
+        if (isDownloadCancelled(item.id)) continue;
+        const message = errorText(error);
         setProgress({
           id: item.id,
           percent: 0,

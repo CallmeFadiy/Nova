@@ -724,15 +724,24 @@ export function Settings() {
             </button>
           </div>
         </div>
-        <div className="settings-field">
-          <label>Путь к yt-dlp</label>
-          <input
-            className="text-input"
-            value={ytdlpPath}
-            placeholder="yt-dlp.exe или путь к нему"
-            onChange={(event) => setYtdlpPath(event.target.value)}
-          />
-        </div>
+        {isAndroid ? (
+          <div className="settings-inline">
+            <Download size={15} />
+            <span>
+              Встроенный yt-dlp входит в приложение, путь указывать не нужно.
+            </span>
+          </div>
+        ) : (
+          <div className="settings-field">
+            <label>Путь к yt-dlp</label>
+            <input
+              className="text-input"
+              value={ytdlpPath}
+              placeholder="yt-dlp.exe или путь к нему"
+              onChange={(event) => setYtdlpPath(event.target.value)}
+            />
+          </div>
+        )}
         <div className="settings-inline">
           <Download size={15} />
           <span>

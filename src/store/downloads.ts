@@ -4,6 +4,29 @@ import type { DownloadHistoryItem, DownloadProgress } from "../types";
 const HISTORY_KEY = "nova.download.history.v1";
 const HISTORY_LIMIT = 80;
 
+/**
+ * Downloads the user cancelled. Cancellation rejects the in-flight command, and
+ * the screens check this set before writing a result so a cancelled item can
+ * never be recorded as done (or silently re-queued by an import fallback).
+ */
+const cancelledIds = new Set<string>();
+
+export function markDownloadCancelled(id: string) {
+  cancelledIds.add(id);
+  if (cancelledIds.size > 200) {
+    cancelledIds.clear();
+    cancelledIds.add(id);
+  }
+}
+
+export function isDownloadCancelled(id: string) {
+  return cancelledIds.has(id);
+}
+
+export function clearDownloadCancelled(id: string) {
+  cancelledIds.delete(id);
+}
+
 function readHistory(): DownloadHistoryItem[] {
   try {
     if (typeof window === "undefined") return [];
@@ -46,6 +69,7 @@ interface DownloadStore {
   pauseQueue: () => void;
   resumeQueue: () => void;
   cancelQueued: (id: string) => void;
+  removeDownload: (id: string) => void;
   moveQueued: (id: string, direction: -1 | 1) => void;
   clearHistory: () => void;
 }
@@ -145,6 +169,19 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
       delete items[id];
       return {
         items,
+        pending: state.pending.filter((pendingId) => pendingId !== id),
+      };
+    }),
+
+  removeDownload: (id) =>
+    set((state) => {
+      const items = { ...state.items };
+      delete items[id];
+      const history = state.history.filter((entry) => entry.id !== id);
+      if (history.length !== state.history.length) writeHistory(history);
+      return {
+        items,
+        history,
         pending: state.pending.filter((pendingId) => pendingId !== id),
       };
     }),

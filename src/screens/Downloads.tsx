@@ -30,6 +30,11 @@ import { isAndroid } from "../lib/platform";
 import { DuplicateDownloadModal } from "../components/DuplicateDownloadModal";
 import { useDownloadProgress } from "../hooks/useDownloadProgress";
 import { findDuplicateTrack, useLibraryStore } from "../store/library";
+import {
+  clearDownloadCancelled,
+  isDownloadCancelled,
+  markDownloadCancelled,
+} from "../store/downloads";
 import { useSettingsStore } from "../store/settings";
 import { useUiStore } from "../store/ui";
 import type { DownloadResult, MediaCandidate, Track } from "../types";
@@ -55,6 +60,7 @@ export function Downloads() {
     pauseQueue,
     resumeQueue,
     cancelQueued,
+    removeDownload,
     moveQueued,
     clearHistory,
   } = useDownloadProgress();
@@ -89,10 +95,7 @@ export function Downloads() {
       setResults(found);
       if (found.length === 0) notify("Ничего не найдено", "info");
     } catch (error) {
-      notify(
-        error instanceof Error ? error.message : "Не удалось выполнить поиск",
-        "error",
-      );
+      notify(errorText(error), "error");
     } finally {
       setSearching(false);
     }
@@ -122,6 +125,7 @@ export function Downloads() {
   };
 
   const finishDownload = async (id: string, result: DownloadResult) => {
+    if (isDownloadCancelled(id)) return;
     setProgress({
       id,
       percent: 100,
@@ -136,6 +140,26 @@ export function Downloads() {
       await scan();
     }
     notify(`Скачано: ${result.title}`, "success");
+  };
+
+  const cancelDownload = async (id: string) => {
+    // Mark before awaiting the command: the in-flight promise rejects while the
+    // cancellation is still travelling through the plugin.
+    markDownloadCancelled(id);
+    try {
+      const cancelled = await api.cancelDownload(id);
+      if (!cancelled) {
+        clearDownloadCancelled(id);
+        notify("Эту загрузку нельзя отменить", "info");
+        return;
+      }
+    } catch (error) {
+      clearDownloadCancelled(id);
+      notify(errorText(error), "error");
+      return;
+    }
+    removeDownload(id);
+    notify("Загрузка отменена", "info");
   };
 
   const chooseDownloadDir = async () => {
@@ -178,6 +202,7 @@ export function Downloads() {
     replace?: Track | null,
   ) => {
     const id = `${candidate.id}-${Date.now()}`;
+    clearDownloadCancelled(id);
     setProgress({
       id,
       percent: 0,
@@ -212,6 +237,7 @@ export function Downloads() {
         await deleteTrack(replace.id, true);
       }
     } catch (error) {
+      if (isDownloadCancelled(id)) return;
       if (
         candidate.downloadUrl &&
         candidate.webpageUrl &&
@@ -239,10 +265,11 @@ export function Downloads() {
           return;
         } catch {
           // show the original direct-download error below
+          if (isDownloadCancelled(id)) return;
         }
       }
-      const message =
-        error instanceof Error ? error.message : "Ошибка загрузки";
+      if (isDownloadCancelled(id)) return;
+      const message = errorText(error);
       setProgress({
         id,
         percent: 0,
@@ -252,6 +279,7 @@ export function Downloads() {
         error: message,
         title: `${candidate.artist} – ${candidate.title}`,
         retry: () => {
+          clearDownloadCancelled(id);
           void startCandidate(candidate, replace);
         },
       });
@@ -264,6 +292,7 @@ export function Downloads() {
     if (!target) return;
     setStartingLink(true);
     const id = `link-${Date.now()}`;
+    clearDownloadCancelled(id);
     setProgress({
       id,
       percent: 0,
@@ -300,8 +329,8 @@ export function Downloads() {
       await finishDownload(id, result);
       setLink("");
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Не удалось скачать по ссылке";
+      if (isDownloadCancelled(id)) return;
+      const message = errorText(error);
       setProgress({
         id,
         percent: 0,
@@ -616,6 +645,19 @@ export function Downloads() {
                           onClick={() => cancelQueued(item.id)}
                           title="Отменить"
                           aria-label="Отменить"
+                        >
+                          <X size={13} />
+                        </button>
+                      </div>
+                    ) : isAndroid &&
+                      (item.status === "starting" ||
+                        item.status === "downloading") ? (
+                      <div className="download-row-actions">
+                        <button
+                          className="icon-button tiny danger"
+                          onClick={() => void cancelDownload(item.id)}
+                          title="Отменить загрузку"
+                          aria-label="Отменить загрузку"
                         >
                           <X size={13} />
                         </button>

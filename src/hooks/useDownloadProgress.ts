@@ -1,6 +1,9 @@
 import { useEffect } from "react";
 import { listenDownloadProgress } from "../lib/tauri";
-import { useDownloadStore } from "../store/downloads";
+import {
+  isDownloadCancelled,
+  useDownloadStore,
+} from "../store/downloads";
 
 let listenerStarted = false;
 
@@ -16,6 +19,7 @@ export function useDownloadProgress() {
   const resumeQueue = useDownloadStore((state) => state.resumeQueue);
   const cancelQueued = useDownloadStore((state) => state.cancelQueued);
   const moveQueued = useDownloadStore((state) => state.moveQueued);
+  const removeDownload = useDownloadStore((state) => state.removeDownload);
   const clearHistory = useDownloadStore((state) => state.clearHistory);
 
   useEffect(() => {
@@ -24,6 +28,9 @@ export function useDownloadProgress() {
     // Keep this listener for the lifetime of the window: an import batch
     // continues after the user navigates away from the Import screen.
     void listenDownloadProgress((progress) => {
+      // A cancelled yt-dlp run still publishes one last error snapshot while the
+      // command unwinds; ignore it so the cancelled row stays removed.
+      if (isDownloadCancelled(progress.id)) return;
       useDownloadStore.getState().upsert(progress);
     });
   }, []);
@@ -39,6 +46,7 @@ export function useDownloadProgress() {
     pauseQueue,
     resumeQueue,
     cancelQueued,
+    removeDownload,
     moveQueued,
     clearHistory,
   };

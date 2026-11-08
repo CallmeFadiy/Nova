@@ -664,6 +664,14 @@ export const api = {
     });
   },
 
+  async cancelDownload(id: string): Promise<boolean> {
+    if (!isTauri) {
+      await delay(120);
+      return true;
+    }
+    return call<boolean>("android_download_cancel", { id });
+  },
+
   async recognizeAudd(
     apiToken: string,
     source: RecognitionInput = "microphone",

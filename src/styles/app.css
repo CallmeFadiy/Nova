@@ -6709,3 +6709,70 @@ body {
   }
 }
 
+/* Phase 2B-1: downloads/import controls on a phone. The search and link fields
+   are bare inputs inside a bordered row, so the row needs the 44 px height and
+   the input has to stretch — otherwise only the 17 px text line is tappable. */
+@media (max-width: 900px) {
+  .download-search-row,
+  .import-input-row {
+    min-height: 46px;
+  }
+
+  .download-search-row input,
+  .import-input-row input {
+    align-self: stretch;
+    height: 44px;
+    font-size: 12px;
+  }
+
+  .downloads-tabs button {
+    min-height: 44px;
+    min-width: 44px;
+    padding: 0 12px;
+    font-size: 11px;
+  }
+
+  .downloads-section-head {
+    flex-wrap: wrap;
+    row-gap: 8px;
+  }
+
+  .downloads-head-actions {
+    margin-left: auto;
+  }
+
+  .page .import-check input {
+    width: 18px;
+    height: 18px;
+  }
+
+  /* «Очистить», «Открыть папку» and «Повторить» are text buttons, which the
+     shared 44 px rule above does not cover. */
+  .page .downloads-head-actions .text-button,
+  .page .download-row-actions .text-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+    min-width: 44px;
+    padding: 0 8px;
+    font-size: 10px;
+  }
+
+  .page .download-row {
+    padding: 8px 10px;
+  }
+
+  .downloads-info {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
+
+  /* The settings theme raises the folder field to 38 px with a more specific
+     selector; on a phone it must still be a 44 px target. */
+  .settings-page .settings-field .text-input,
+  .settings-page .settings-field .select-input {
+    height: 44px;
+  }
+}
+
