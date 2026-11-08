@@ -14,9 +14,8 @@ const DIRECT_SOURCE =
 
 /**
  * Mirrors `is_direct_source`/`is_audio_url` in `media.rs`: these downloads run
- * in Rust instead of yt-dlp. The native queue worker can cancel them with a
- * token, but the legacy Downloads/Import loop still hides its cancel button
- * until Task 4 switches the UI to the native queue.
+ * in Rust instead of yt-dlp. The native queue worker cancels both branches with
+ * a token or the embedded process id.
  */
 export function isDirectDownloadUrl(url: string): boolean {
   const lower = url.toLowerCase();

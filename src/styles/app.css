@@ -3561,7 +3561,8 @@ p {
   color: #7fb28a;
 }
 
-.download-status-error {
+.download-status-error,
+.download-status-cancelled {
   color: #d8867e;
 }
 

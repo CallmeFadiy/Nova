@@ -183,6 +183,9 @@ pub struct DownloadTask {
     pub expected_artist: Option<String>,
     pub expected_title: Option<String>,
     pub title: Option<String>,
+    /// Desktop yt-dlp executable chosen in Settings. `None` uses the bundled
+    /// sidecar. Android ignores it because the embedded library is used.
+    pub ytdlp_path: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

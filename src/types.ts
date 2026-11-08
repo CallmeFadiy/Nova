@@ -181,6 +181,8 @@ export interface DownloadTask {
   expectedArtist: string | null;
   expectedTitle: string | null;
   title: string | null;
+  /** Desktop yt-dlp executable; null uses the bundled sidecar. */
+  ytdlpPath: string | null;
 }
 
 /** Payload of the `download-complete` event. */

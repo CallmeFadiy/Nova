@@ -27,6 +27,7 @@ import { Library } from "./screens/Library";
 import { PlaylistDetail } from "./screens/PlaylistDetail";
 import { Settings } from "./screens/Settings";
 import { Shazam } from "./screens/Shazam";
+import { useDownloadProgress } from "./hooks/useDownloadProgress";
 import { useEqStore } from "./store/eq";
 import { useLibraryStore } from "./store/library";
 import { usePlayerStore } from "./store/player";
@@ -35,6 +36,9 @@ import { useSettingsStore } from "./store/settings";
 import { useUiStore } from "./store/ui";
 
 export default function App() {
+  // Install the download listeners and hydrate the native queue at app start,
+  // not only when Downloads/Import is opened.
+  useDownloadProgress();
   const loading = useLibraryStore((state) => state.loading);
   const tracks = useLibraryStore((state) => state.tracks);
   const folders = useLibraryStore((state) => state.folders);

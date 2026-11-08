@@ -19,7 +19,7 @@ import { api, openExternal } from "../lib/tauri";
 import { DuplicateDownloadModal } from "../components/DuplicateDownloadModal";
 import { useDownloadProgress } from "../hooks/useDownloadProgress";
 import { findDuplicateTrack, useLibraryStore } from "../store/library";
-import { registerDownloadDone } from "../store/downloads";
+import { registerDownloadDone, cancelDownloadDone } from "../store/downloads";
 import { useSettingsStore } from "../store/settings";
 import { useUiStore } from "../store/ui";
 import type {
@@ -45,12 +45,20 @@ export function Import() {
   const tracks = useLibraryStore((state) => state.tracks);
   const deleteTrack = useLibraryStore((state) => state.deleteTrack);
   const notify = useUiStore((state) => state.notify);
-  const { items, history, setProgress, enqueue, recordFailure } =
-    useDownloadProgress();
+  const {
+    items,
+    history,
+    paused,
+    setProgress,
+    enqueue,
+    resumeQueue,
+    recordFailure,
+  } = useDownloadProgress();
 
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);
   const [playlist, setPlaylist] = useState<ImportPlaylist | null>(null);
+  const [session, setSession] = useState(() => Date.now().toString(36));
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [downloading, setDownloading] = useState(false);
   const [previewAudio, setPreviewAudio] = useState<HTMLAudioElement | null>(null);
@@ -76,6 +84,7 @@ export function Import() {
     try {
       const result = await api.resolvePlaylist(value, ytdlpPath);
       setPlaylist(result);
+      setSession(Date.now().toString(36));
       setSelected(new Set(result.tracks.map((_, index) => index)));
       notify(
         `Найдено ${trackCountLabel(result.tracks.length)} в «${result.title}»`,
@@ -123,6 +132,7 @@ export function Import() {
     expectedArtist: track.artist,
     expectedTitle: track.title,
     title: `${track.artist} – ${track.title}`,
+    ytdlpPath: ytdlpPath.trim() || null,
   });
 
   const directTask = (
@@ -223,15 +233,19 @@ export function Import() {
       retry,
     });
 
+    if (mode === "replace" && existing) {
+      // Register before the invoke: a fast local download can emit `done`
+      // before the command promise resolves.
+      registerDownloadDone(id, () => {
+        void deleteTrack(existing.id, true);
+      });
+    }
+
     try {
       await enqueue(task);
-      if (mode === "replace" && existing) {
-        registerDownloadDone(id, () => {
-          void deleteTrack(existing.id, true);
-        });
-      }
       return true;
     } catch (error) {
+      if (mode === "replace" && existing) cancelDownloadDone(id);
       const message = errorText(error);
       await recordFailure(id, title, message, retry);
       return false;
@@ -244,7 +258,7 @@ export function Import() {
     existing: Track | undefined,
     mode: ConflictMode,
   ) => {
-    const id = `import-${index}-${Date.now()}-retry`;
+    const id = `import-${session}-${index}-${Date.now()}-retry`;
     setProgress({
       id,
       percent: 0,
@@ -277,7 +291,7 @@ export function Import() {
     duplicate: Track | undefined,
     mode: ConflictMode,
   ): Promise<boolean> => {
-    const id = `import-${index}-${Date.now()}`;
+    const id = `import-${session}-${index}-${Date.now()}`;
     let task: DownloadTask | null = null;
     // Yandex pages often need the provider search first (same as 2B-1).
     if (playlist?.source === "Яндекс Музыка") {
@@ -316,6 +330,15 @@ export function Import() {
   const runDownloadSelected = async (mode: ConflictMode) => {
     if (!playlist || selected.size === 0) return;
     setDownloading(true);
+    // A batch started from this screen should not silently sit behind a paused
+    // queue (the user explicitly pressed «Скачать выбранные»).
+    if (paused) {
+      try {
+        await resumeQueue();
+      } catch {
+        // The rows still enqueue; the Downloads toggle can resume them.
+      }
+    }
     const duplicates = duplicateMap();
     let queued = 0;
     let skipped = 0;
@@ -421,7 +444,7 @@ export function Import() {
             // Active rows live in `items`; finished rows are in the native
             // history. Prefer an active retry over an older terminal record.
             const progress = Object.values(items)
-              .filter((item) => item.id.startsWith(`import-${index}-`))
+              .filter((item) => item.id.startsWith(`import-${session}-${index}-`))
               .reduce<DownloadProgress | undefined>(
                 (newest, item) =>
                   !newest || (item.order ?? 0) >= (newest.order ?? 0)
@@ -430,7 +453,9 @@ export function Import() {
                 undefined,
               );
             const finished = history
-              .filter((entry) => entry.id.startsWith(`import-${index}-`))
+              .filter((entry) =>
+                entry.id.startsWith(`import-${session}-${index}-`),
+              )
               .sort((a, b) => b.finishedAt - a.finishedAt)[0];
             const shown = progress
               ? { status: progress.status, percent: progress.percent }

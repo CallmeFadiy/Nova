@@ -204,9 +204,11 @@ class NovaTaskService : Service() {
 
     private fun statusText(status: String): String = when (status) {
         STATUS_STARTING -> getString(R.string.nova_download_status_preparing)
+        STATUS_QUEUED -> getString(R.string.nova_download_status_queued)
         STATUS_DOWNLOADING -> getString(R.string.nova_download_status_downloading)
         STATUS_DONE -> getString(R.string.nova_download_status_done)
         STATUS_ERROR -> getString(R.string.nova_download_status_error)
+        STATUS_CANCELLED -> getString(R.string.nova_download_status_cancelled)
         STATUS_PAUSED -> getString(R.string.nova_download_status_paused)
         else -> status.ifBlank { getString(R.string.nova_download_status_downloading) }
     }
@@ -223,9 +225,11 @@ class NovaTaskService : Service() {
         private const val EXTRA_STATUS = "status"
 
         private const val STATUS_STARTING = "starting"
+        private const val STATUS_QUEUED = "queued"
         private const val STATUS_DOWNLOADING = "downloading"
         private const val STATUS_DONE = "done"
         private const val STATUS_ERROR = "error"
+        private const val STATUS_CANCELLED = "cancelled"
         private const val STATUS_PAUSED = "paused"
 
         /** Read by the Rust worker; relative to `app_data_dir` (`dataDir`). */

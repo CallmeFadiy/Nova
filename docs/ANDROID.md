@@ -344,8 +344,9 @@ SHA-256 `F57FFC8029BB534903B2BE3A618B1BA9C43FA64BF8E96BA3AA105A2CD56B77C4`,
   отмена обеих веток.
 - `NovaTaskService` (`dataSync`, канал `nova_downloads`, IMPORTANCE_LOW) стартует
   из `download_enqueue`/`download_queue_start`/`download_queue_pause(false)`/
-  `download_queue_resume`, пока activity в foreground; worker только обновляет
-  уведомление и останавливает сервис на пустой очереди. Android 15
+  `download_queue_resume`, пока activity в foreground; worker обновляет
+  уведомление, запускает сервис при взятии задачи, если он ещё не запущен, и
+  останавливает его на пустой очереди. Android 15
   `onTimeout(int, int)` пишет маркер паузы и останавливает сервис; debug-команда
   `android_download_simulate_timeout` доступна только в debug-сборке.
 - UI: Downloads/Import ставят `DownloadTask` в нативную очередь, прогресс идёт из

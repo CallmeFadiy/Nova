@@ -21,6 +21,11 @@ export function registerDownloadDone(id: string, callback: () => void) {
   doneCallbacks.set(id, callback);
 }
 
+/** Removes a callback whose task was never persisted. */
+export function cancelDownloadDone(id: string) {
+  doneCallbacks.delete(id);
+}
+
 function fireDoneCallback(id: string) {
   const callback = doneCallbacks.get(id);
   if (!callback) return;
@@ -146,7 +151,8 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
       const previous = state.items[progress.id];
 
       if (terminal) {
-        if (progress.retry) retryById.set(progress.id, progress.retry);
+        if (progress.status === "done") retryById.delete(progress.id);
+        else if (progress.retry) retryById.set(progress.id, progress.retry);
         else if (previous?.retry) retryById.set(progress.id, previous.retry);
         const items = { ...state.items };
         delete items[progress.id];
@@ -218,11 +224,17 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
   hydrate: async () => {
     if (get().hydrated) return;
 
+    // Startup side effects are best-effort: a malformed legacy row or a
+    // transient DB error must never hide an already persisted queue.
     try {
       // Re-queue rows left in starting/downloading by a killed process and
       // claim the foreground service while the activity is still visible.
       await api.downloadQueueResume();
+    } catch {
+      // The worker also resumes on its own connection at app setup.
+    }
 
+    try {
       const legacy = readLegacyHistory();
       if (legacy.length > 0) {
         await api.downloadHistoryImport(
@@ -233,10 +245,18 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
         );
         clearLegacyHistory();
       }
+    } catch {
+      // Keep the old history for the next attempt.
+    }
 
-      // Terminal rows have already been copied to download_history.
-      await api.downloadQueueClearFinished().catch(() => undefined);
+    // Terminal rows have already been copied to download_history.
+    try {
+      await api.downloadQueueClearFinished();
+    } catch {
+      // A leftover terminal row is harmless; history is still authoritative.
+    }
 
+    try {
       const [rows, history, state] = await Promise.all([
         api.downloadQueueList(),
         api.downloadHistoryList(),
@@ -256,7 +276,7 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
           .map((entry) => ({
             ...entry,
             finishedAt: toMillis(entry.finishedAt),
-            retry: retryById.get(entry.id),
+            retry: entry.status === "done" ? undefined : retryById.get(entry.id),
           }))
           .sort((a, b) => b.finishedAt - a.finishedAt)
           .slice(0, HISTORY_LIMIT),
@@ -267,7 +287,8 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
       // Drop any terminal row written between the list and this call.
       void api.downloadQueueClearFinished().catch(() => undefined);
     } catch {
-      // Let the next mount retry after a transient DB error.
+      // Let the next mount retry; the hook intentionally calls hydrate on
+      // every mount while `hydrated` is false.
       set({ hydrated: false });
     }
   },
@@ -289,7 +310,7 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
         .map((entry) => ({
           ...entry,
           finishedAt: toMillis(entry.finishedAt),
-          retry: retryById.get(entry.id),
+          retry: entry.status === "done" ? undefined : retryById.get(entry.id),
         }))
         .sort((a, b) => b.finishedAt - a.finishedAt)
         .slice(0, HISTORY_LIMIT),

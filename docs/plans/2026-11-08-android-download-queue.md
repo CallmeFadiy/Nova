@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use subagent-driven-development
 > (recommended) or executing-plans to implement this plan task-by-task. Steps
-> use checkbox (`- [ ]`) syntax for tracking.
+> use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Перенести очередь/историю загрузок в SQLite, запускать загрузки
 нативным worker'ом и `NovaTaskService` (dataSync), переживать перезапуск
@@ -84,7 +84,7 @@ React/Zustand, ADB/Playwright.
   - `useDownloadStore.hydrate()` loads queue + history; `enqueue(task)` calls native;
   - `useDownloadProgress` calls `hydrate` once and keeps the progress listener.
 
-- [ ] **Step 1: Add schema and a failing Rust test**
+- [x] **Step 1: Add schema and a failing Rust test**
 
 Create `src-tauri/src/downloads.rs` with an in-memory `Connection` test:
 ```rust
@@ -102,7 +102,7 @@ fn enqueue_list_and_move() {
 Run `cargo test --manifest-path src-tauri/Cargo.toml --lib downloads::`.
 Expected: FAIL — tables/helpers missing.
 
-- [ ] **Step 2: Implement schema and queue helpers**
+- [x] **Step 2: Implement schema and queue helpers**
 
 Expose `pub(crate) fn apply_schema(conn: &Connection)` from `db.rs` (or a
 `downloads::ensure_schema` called by both `db::init` and tests). Implement
@@ -110,19 +110,19 @@ Expose `pub(crate) fn apply_schema(conn: &Connection)` from `db.rs` (or a
 with SQL, no business logic. `enqueue` appends `order_index = max+1`.
 `resume` sets `starting/downloading` to `queued`, clears percent/error.
 
-- [ ] **Step 3: Rust commands and registration**
+- [x] **Step 3: Rust commands and registration**
 
 Add the commands in `commands.rs` (state DB lock only around SQL), register in
 `lib.rs`, and add unit tests for enqueue/list/move/cancel/resume/history.
 
-- [ ] **Step 4: JS types/API and store hydrate**
+- [x] **Step 4: JS types/API and store hydrate**
 
 Add `DownloadTask`, `DownloadQueueItem` types and API methods. `useDownloadStore`
 adds `hydrate` and native `enqueue/pause/resume/cancel/move/clearHistory`;
 `useDownloadProgress` calls `hydrate` once. Do not switch the existing
 Downloads/Import queue loop yet; this task only makes persistence available.
 
-- [ ] **Step 5: Verify**
+- [x] **Step 5: Verify**
 
 Run `cargo test --manifest-path src-tauri/Cargo.toml --lib`,
 `npm.cmd run build:web`, and on the phone invoke `download_queue_list` →
@@ -150,13 +150,13 @@ Run `cargo test --manifest-path src-tauri/Cargo.toml --lib`,
 - On terminal: update queue, insert history, add output dir to folders and scan,
   emit `download-complete`; on cancel/error clean own files.
 
-- [ ] **Step 1: Failing worker test**
+- [x] **Step 1: Failing worker test**
 
 Create an in-memory queue test that seeds a direct task, runs one worker step
 with a local HTTP server, and asserts status `done`, path exists, history row.
 Expected: FAIL — worker missing.
 
-- [ ] **Step 2: Implement worker loop**
+- [x] **Step 2: Implement worker loop**
 
 Loop: read oldest `queued` (or `downloading` after resume), skip if paused;
 mark `starting`, emit; call `media::download_media`/`download_direct`; update
@@ -164,20 +164,20 @@ mark `starting`, emit; call `media::download_media`/`download_direct`; update
 message; on cancel `cancelled`, delete own files; sleep 250 ms when empty.
 Use `tokio::spawn`; guard with an `AtomicBool` `worker_running`.
 
-- [ ] **Step 3: Cancellation**
+- [x] **Step 3: Cancellation**
 
 Map `id -> Arc<AtomicBool>`; `download_queue_cancel` sets the token and calls
 `android_download_cancel` for yt-dlp; `download_direct` checks it while
 streaming; worker marks cancelled. Add a device test: large direct URL, cancel,
 no file/done.
 
-- [ ] **Step 4: Native scan**
+- [x] **Step 4: Native scan**
 
 On `done`, add the output dir to folders (INSERT OR IGNORE) and call
 `scanner::scan` with a short-lived DB connection; emit `download-complete`.
 The JS can refresh with `get_snapshot`.
 
-- [ ] **Step 5: Verify/commit**
+- [x] **Step 5: Verify/commit**
 
 Rust tests, direct + yt-dlp worker on phone, cancel, scan; commit.
 
@@ -198,14 +198,14 @@ Rust tests, direct + yt-dlp worker on phone, cancel, scan; commit.
 - Worker starts service on enqueue, updates notification (throttled), stops on
   empty; on paused/timeout the service remains with «Пауза».
 
-- [ ] **Step 1: Implement service and manifest** (no notification spam; update
+- [x] **Step 1: Implement service and manifest** (no notification spam; update
   max once per 500 ms).
-- [ ] **Step 2: Wire worker start/stop/progress.**
-- [ ] **Step 3: Device test:** enqueue yt-dlp, Home/screen off, verify progress
+- [x] **Step 2: Wire worker start/stop/progress.**
+- [x] **Step 3: Device test:** enqueue yt-dlp, Home/screen off, verify progress
   continues, notification updates, `dumpsys activity services` shows
   `NovaTaskService` foreground `dataSync`; Android 14 timeout path simulated by
   calling `onTimeout`/pause command, queue pauses, app doesn't crash.
-- [ ] **Step 4: Commit.**
+- [x] **Step 4: Commit.**
 
 ---
 
@@ -226,11 +226,11 @@ Rust tests, direct + yt-dlp worker on phone, cancel, scan; commit.
 - Restart: on mount `download_queue_resume` + hydrate; in-flight jobs show
   queued/downloading from DB.
 
-- [ ] **Step 1: Refactor store and screens; remove the JS queue loop.**
-- [ ] **Step 2: Device test:** enqueue 2 direct + 1 yt-dlp; pause/resume/move/
+- [x] **Step 1: Refactor store and screens; remove the JS queue loop.**
+- [x] **Step 2: Device test:** enqueue 2 direct + 1 yt-dlp; pause/resume/move/
   cancel; force-stop/relaunch; queue resumes and finishes; history persists;
   background/notification; 392 px/44 px; cleanup.
-- [ ] **Step 3: Commit.**
+- [x] **Step 3: Commit.**
 
 ---
 
@@ -239,9 +239,9 @@ Rust tests, direct + yt-dlp worker on phone, cancel, scan; commit.
 **Files:** `docs/ANDROID.md`, `README.md`, roadmap, `docs/THIRD_PARTY.md` if
 new components.
 
-- [ ] **Step 1: Windows regression** (`build:web`, cargo tests).
-- [ ] **Step 2: Phone acceptance:** restart/resume, background, notification,
+- [x] **Step 1: Windows regression** (`build:web`, cargo tests).
+- [x] **Step 2: Phone acceptance:** restart/resume, background, notification,
   Android 14 timeout simulation, direct/yt-dlp cancel, history persistence,
   78 Music tracks, `/sdcard/Music` unchanged, cleanup.
-- [ ] **Step 3: Docs:** 2B-2 section, limitations, next 2C/2D.
-- [ ] **Step 4: Commit.**
+- [x] **Step 3: Docs:** 2B-2 section, limitations, next 2C/2D.
+- [x] **Step 4: Commit.**

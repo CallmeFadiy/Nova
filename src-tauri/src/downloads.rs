@@ -54,11 +54,11 @@ pub mod queue {
             r#"
             INSERT INTO download_queue (
                 id, kind, url, query, output_dir, file_name, expected_artist,
-                expected_title, title, status, percent, line, path, error,
-                order_index, created_at, updated_at, finished_at
+                expected_title, title, ytdlp_path, status, percent, line, path,
+                error, order_index, created_at, updated_at, finished_at
             ) VALUES (
-                ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, 'queued', 0, '', NULL, NULL,
-                ?10, ?11, ?11, NULL
+                ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, 'queued', 0, '', NULL,
+                NULL, ?11, ?12, ?12, NULL
             )
             "#,
             params![
@@ -71,6 +71,7 @@ pub mod queue {
                 task.expected_artist,
                 task.expected_title,
                 task.title,
+                task.ytdlp_path,
                 order_index,
                 now,
             ],
@@ -167,7 +168,14 @@ pub mod queue {
     /// `download_history`. Keeps the queue table bounded across restarts.
     pub fn clear_finished(conn: &Connection) -> rusqlite::Result<usize> {
         conn.execute(
-            "DELETE FROM download_queue WHERE status IN ('done', 'error', 'cancelled')",
+            r#"
+            DELETE FROM download_queue
+            WHERE status IN ('done', 'error', 'cancelled')
+              AND EXISTS (
+                  SELECT 1 FROM download_history h
+                  WHERE h.download_id = download_queue.id
+              )
+            "#,
             [],
         )
     }
@@ -179,7 +187,7 @@ pub mod queue {
         conn.query_row(
             r#"
             SELECT id, kind, url, query, output_dir, file_name, expected_artist,
-                   expected_title, title
+                   expected_title, title, ytdlp_path
             FROM download_queue
             WHERE status = 'queued'
             ORDER BY order_index ASC, created_at ASC, rowid ASC
@@ -197,6 +205,7 @@ pub mod queue {
                     expected_artist: row.get(6)?,
                     expected_title: row.get(7)?,
                     title: row.get(8)?,
+                    ytdlp_path: row.get(9)?,
                 })
             },
         )
@@ -871,7 +880,7 @@ async fn dispatch(
                 task.url.clone(),
                 task.query.clone(),
                 task.output_dir.clone(),
-                None,
+                task.ytdlp_path.clone(),
                 task.expected_artist.clone(),
                 task.expected_title.clone(),
                 Some(cancel),
@@ -1135,6 +1144,7 @@ mod tests {
             expected_artist: None,
             expected_title: None,
             title: Some(format!("title {id}")),
+            ytdlp_path: None,
         }
     }
 
@@ -1200,10 +1210,32 @@ mod tests {
             ("cancelled", "cancelled"),
         ] {
             queue::set_status(&conn, id, status, None, None, None, None).unwrap();
+            history::insert(&conn, &history_item(id, status, 1)).unwrap();
         }
 
         assert_eq!(queue::clear_finished(&conn).unwrap(), 3);
         assert_eq!(queue::ids(&conn).unwrap(), vec!["queued".to_string()]);
+    }
+
+    #[test]
+    fn clear_finished_keeps_a_terminal_row_without_history() {
+        let conn = conn();
+        queue::enqueue(&conn, &task("done", "https://example/d.mp3")).unwrap();
+        queue::set_status(&conn, "done", "done", None, None, None, None).unwrap();
+
+        assert_eq!(queue::clear_finished(&conn).unwrap(), 0);
+        assert_eq!(queue::ids(&conn).unwrap(), vec!["done".to_string()]);
+    }
+
+    #[test]
+    fn ytdlp_path_round_trips_through_the_queue() {
+        let conn = conn();
+        let mut queued = task("a", "https://example/a.mp3");
+        queued.ytdlp_path = Some("C:\\tools\\yt-dlp.exe".to_string());
+        queue::enqueue(&conn, &queued).unwrap();
+
+        let next = queue::next_queued(&conn).unwrap().unwrap();
+        assert_eq!(next.ytdlp_path.as_deref(), Some("C:\\tools\\yt-dlp.exe"));
     }
 
     #[test]

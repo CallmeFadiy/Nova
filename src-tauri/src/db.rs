@@ -93,6 +93,7 @@ CREATE TABLE IF NOT EXISTS download_queue (
     expected_artist TEXT,
     expected_title TEXT,
     title TEXT,
+    ytdlp_path TEXT,
     status TEXT NOT NULL DEFAULT 'queued',
     percent REAL NOT NULL DEFAULT 0,
     line TEXT NOT NULL DEFAULT '',
@@ -147,6 +148,20 @@ pub fn init(app_dir: &Path) -> Result<Connection, Box<dyn std::error::Error>> {
 pub(crate) fn apply_schema(conn: &Connection) -> rusqlite::Result<()> {
     conn.execute_batch(SCHEMA)?;
     ensure_track_columns(conn)?;
+    ensure_download_queue_columns(conn)?;
+    Ok(())
+}
+
+fn ensure_download_queue_columns(conn: &Connection) -> rusqlite::Result<()> {
+    let mut stmt = conn.prepare("PRAGMA table_info(download_queue)")?;
+    let columns = stmt
+        .query_map([], |row| row.get::<_, String>(1))?
+        .collect::<Result<Vec<_>, _>>()?;
+
+    if !columns.iter().any(|column| column == "ytdlp_path") {
+        conn.execute("ALTER TABLE download_queue ADD COLUMN ytdlp_path TEXT", [])?;
+    }
+
     Ok(())
 }
 

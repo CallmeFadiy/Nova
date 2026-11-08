@@ -31,7 +31,7 @@ import { isAndroid } from "../lib/platform";
 import { DuplicateDownloadModal } from "../components/DuplicateDownloadModal";
 import { useDownloadProgress } from "../hooks/useDownloadProgress";
 import { findDuplicateTrack, useLibraryStore } from "../store/library";
-import { registerDownloadDone } from "../store/downloads";
+import { registerDownloadDone, cancelDownloadDone } from "../store/downloads";
 import { useSettingsStore } from "../store/settings";
 import { useUiStore } from "../store/ui";
 import type {
@@ -43,6 +43,7 @@ import type {
 export function Downloads() {
   const downloadDir = useSettingsStore((state) => state.downloadDir);
   const setDownloadDir = useSettingsStore((state) => state.setDownloadDir);
+  const ytdlpPath = useSettingsStore((state) => state.ytdlpPath);
   const tracks = useLibraryStore((state) => state.tracks);
   const deleteTrack = useLibraryStore((state) => state.deleteTrack);
   const notify = useUiStore((state) => state.notify);
@@ -222,6 +223,7 @@ export function Downloads() {
       expectedArtist: candidate.artist,
       expectedTitle: candidate.title,
       title,
+      ytdlpPath: direct ? null : ytdlpPath.trim() || null,
     };
     const retry = () => {
       // A failed direct URL falls back to the webpage through yt-dlp.
@@ -246,14 +248,18 @@ export function Downloads() {
       retry,
     });
 
+    if (replace) {
+      // Register before the invoke: a fast local download can emit `done`
+      // before the command promise resolves.
+      registerDownloadDone(id, () => {
+        void deleteTrack(replace.id, true);
+      });
+    }
+
     try {
       await enqueue(task);
-      if (replace) {
-        registerDownloadDone(id, () => {
-          void deleteTrack(replace.id, true);
-        });
-      }
     } catch (error) {
+      if (replace) cancelDownloadDone(id);
       const message = errorText(error);
       await recordFailure(id, title, message, retry);
       notify(message, "error");
@@ -271,9 +277,10 @@ export function Downloads() {
       : direct
         ? (target.split("/").pop()?.split("?")[0] ?? "track")
         : null;
+    const kind = direct || isZaycevPage ? "direct" : "ytdlp";
     const task: DownloadTask = {
       id,
-      kind: direct || isZaycevPage ? "direct" : "ytdlp",
+      kind,
       url: target,
       query: null,
       outputDir: downloadDir,
@@ -281,6 +288,7 @@ export function Downloads() {
       expectedArtist: null,
       expectedTitle: null,
       title: target,
+      ytdlpPath: kind === "ytdlp" ? ytdlpPath.trim() || null : null,
     };
     const retry = () => {
       void queueLink(target);
@@ -623,8 +631,9 @@ export function Downloads() {
                           <X size={13} />
                         </button>
                       </div>
-                    ) : item.status === "starting" ||
-                      item.status === "downloading" ? (
+                    ) : (item.status === "starting" ||
+                      item.status === "downloading") &&
+                      (isAndroid || item.kind !== "ytdlp") ? (
                       <div className="download-row-actions">
                         <button
                           className="icon-button tiny danger"

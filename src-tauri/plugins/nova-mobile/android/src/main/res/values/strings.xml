@@ -5,8 +5,10 @@
     <string name="nova_downloads_channel_description">Фоновая очередь загрузок Nova</string>
     <string name="nova_downloads_default_title">Загрузка</string>
     <string name="nova_download_status_preparing">Подготовка…</string>
+    <string name="nova_download_status_queued">В очереди</string>
     <string name="nova_download_status_downloading">Скачивание…</string>
     <string name="nova_download_status_done">Готово</string>
     <string name="nova_download_status_error">Ошибка</string>
+    <string name="nova_download_status_cancelled">Отменено</string>
     <string name="nova_download_status_paused">Пауза</string>
 </resources>

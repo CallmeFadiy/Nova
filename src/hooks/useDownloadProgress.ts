@@ -6,7 +6,7 @@ import {
 import { useDownloadStore } from "../store/downloads";
 import { useLibraryStore } from "../store/library";
 
-let started = false;
+let listenersStarted = false;
 
 export function useDownloadProgress() {
   const items = useDownloadStore((state) => state.items);
@@ -26,11 +26,12 @@ export function useDownloadProgress() {
   const recordFailure = useDownloadStore((state) => state.recordFailure);
 
   useEffect(() => {
-    if (started) return;
-    started = true;
+    if (listenersStarted) return;
+    listenersStarted = true;
 
     // Keep these listeners for the lifetime of the window: a batch continues
-    // after the user navigates away from Downloads/Import.
+    // after the user navigates away from Downloads/Import. The root App calls
+    // this hook so a background/restart download also refreshes the library.
     void listenDownloadProgress((progress) => {
       useDownloadStore.getState().upsert(progress);
     });
@@ -39,8 +40,10 @@ export function useDownloadProgress() {
       // instead of running a second scan.
       void useLibraryStore.getState().refresh();
     });
-    // Pull the persisted queue once at startup; this also re-queues rows left
-    // in starting/downloading and claims the foreground service.
+  }, []);
+
+  useEffect(() => {
+    // Idempotent; a failed hydrate resets `hydrated` and the next mount retries.
     void useDownloadStore.getState().hydrate();
   }, []);
 
