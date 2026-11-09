@@ -249,7 +249,7 @@ export function Library({ initialTab = "tracks" }: { initialTab?: Tab }) {
           </p>
         </div>
         <div className="head-actions">
-          <ScanButton />
+          <ScanButton className="library-scan-button" />
           <button className="primary-button" onClick={() => void handleAddFolder()}>
             <FolderPlus size={15} />
             Добавить папку

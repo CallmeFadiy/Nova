@@ -311,13 +311,15 @@ export default function App() {
         }`}
       >
         <Sidebar />
-        <button
-          className="mobile-menu"
-          onClick={() => setMobileNavOpen(!mobileNavOpen)}
-          aria-label="Меню"
-        >
-          <Menu size={18} />
-        </button>
+        {location.pathname !== "/" || mobileNavOpen ? (
+          <button
+            className="mobile-menu mobile-menu-global"
+            onClick={() => setMobileNavOpen(!mobileNavOpen)}
+            aria-label="Меню"
+          >
+            <Menu size={18} />
+          </button>
+        ) : null}
         <main className="main-scroll" ref={mainScrollRef}>
           <Routes>
             <Route

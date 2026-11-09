@@ -6318,6 +6318,11 @@ body {
     z-index: 75;
   }
 
+  .mobile-menu-global {
+    right: calc(12px + env(safe-area-inset-right, 0px));
+    left: auto;
+  }
+
   .sidebar {
     width: min(82vw, 320px);
     padding-top: calc(18px + env(safe-area-inset-top, 0px));
@@ -6331,10 +6336,11 @@ body {
     height: 44px;
   }
 
-  .mobile-nav-open .mobile-menu {
-    left: calc(
-      min(82vw, 320px) - 52px + env(safe-area-inset-left, 0px)
+  .mobile-nav-open .mobile-menu-global {
+    right: calc(
+      100vw - min(82vw, 320px) + 12px + env(safe-area-inset-right, 0px)
     );
+    left: auto;
   }
 
   .player-bar {
@@ -6822,3 +6828,168 @@ body {
   }
 }
 
+
+/* Mobile Home: the menu sits on the greeting line, the scanner/shuffle are
+   removed from this screen, and the current-track card is compact. */
+@media (max-width: 900px) {
+  .home-head .head-actions,
+  .library-scan-button {
+    display: none;
+  }
+
+  .home-title-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .home-menu {
+    display: grid;
+    place-items: center;
+    position: static;
+    left: auto;
+    top: auto;
+    right: auto;
+    width: 44px;
+    height: 44px;
+    flex: none;
+    z-index: auto;
+  }
+
+  .home-hero {
+    grid-template-columns: 140px minmax(0, 1fr);
+    min-height: 0;
+  }
+
+  .home-hero-art,
+  .hero-cover {
+    width: 140px;
+    height: 140px;
+    aspect-ratio: auto;
+  }
+
+  .home-hero-art {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 140px;
+  }
+
+  .home-hero-art::after {
+    display: none;
+  }
+
+  .home-hero-body {
+    padding: 10px 12px;
+  }
+
+  .hero-catalog {
+    display: none;
+  }
+
+  .home-hero h2 {
+    margin: 3px 0 1px;
+    font-size: 23px;
+    line-height: 1.05;
+    white-space: normal;
+  }
+
+  .hero-artist {
+    font-size: 12px;
+  }
+
+  .hero-meta {
+    margin-top: 4px;
+    gap: 4px;
+  }
+
+  .hero-meta-album,
+  .hero-meta-divider {
+    display: none;
+  }
+
+  .hero-chip {
+    padding: 1px 4px;
+    font-size: 7px;
+  }
+
+  .hero-progress {
+    margin-top: 3px;
+    padding-top: 5px;
+  }
+
+  .hero-progress > span {
+    font-size: 8px;
+  }
+
+  .hero-actions {
+    margin-top: 6px;
+    gap: 5px;
+  }
+
+  .hero-actions .play-hero {
+    width: 44px;
+    height: 44px;
+  }
+
+  .hero-actions .ghost-button {
+    min-height: 44px;
+    padding: 0 8px;
+    font-size: 9px;
+  }
+
+  .hero-actions .hero-shuffle-button {
+    width: 44px;
+    padding: 0;
+    font-size: 0;
+    justify-content: center;
+  }
+
+  .hero-actions .hero-shuffle-button svg {
+    margin: 0;
+  }
+
+  .hero-actions .hero-library-button {
+    display: none;
+  }
+
+  .hero-actions a.ghost-button {
+    text-decoration: none;
+  }
+}
+
+/* The Home header's inner block is a shrink-wrapped flex item, so stretch it
+   before space-between can put the menu on the right edge. */
+@media (max-width: 900px) {
+  .home-head > div {
+    width: 100%;
+  }
+}
+
+/* Compact hero: keep embedded, possibly non-square artwork fully visible. */
+@media (max-width: 900px) {
+  .home-hero-art .hero-cover img {
+    object-fit: contain;
+  }
+}
+
+/* The 88 px hero initials are sized for the 300 px desktop cover; scale them
+   down for the compact phone card so "MU"/"BX" is not clipped. */
+@media (max-width: 900px) {
+  .home-hero .hero-cover .cover-initials {
+    font-size: 44px;
+  }
+
+  .home-hero .hero-cover .cover-caption {
+    font-size: 9px;
+  }
+}
+
+/* While the drawer is open the floating global button is the close control;
+   hide the Home header's duplicate menu button behind it. */
+@media (max-width: 900px) {
+  .mobile-nav-open .home-menu {
+    display: none;
+  }
+}

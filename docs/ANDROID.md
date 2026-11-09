@@ -405,8 +405,8 @@ SHA-256 `48E69E78C820BBA75E7F1F4BC3D4B446C26FD61B00F9E86FAFADA24A30287A8A`,
   `ACTION_VIEW` напрямую.
 - MIUI: состояние `PowerManager.isIgnoringBatteryOptimizations`, запрос
   исключения, настройки батареи и автозапуска в Settings.
-- Release: `release/Android/Nova-0.1.0-arm64-release.apk`, 67 611 291 байт,
-  SHA-256 `DB78EA160B5E99953634AEC93606CEFFFB6449341CCCE3E28B6D4B2BDB6370F9`,
+- Release: `release/Android/Nova-0.1.0-arm64-release.apk`, 67 612 255 байт,
+  SHA-256 `3FC3BD402D32197F88DB161899F96E2CCB8DB03B2325F5459F15B577E021AD39`,
   arm64-v8a, подписан локальным `nova-release.jks` (CN=Nova Local, cert
   SHA-256 `b4ec51312f56ae3cfd4c76912b7cf9aa41a24776301ef7715883eecd1e584958`).
   Установлен поверх предыдущего release (та же подпись): 78 треков и API-ключ
@@ -443,6 +443,11 @@ SHA-256 `48E69E78C820BBA75E7F1F4BC3D4B446C26FD61B00F9E86FAFADA24A30287A8A`,
   между экранами сбрасывает прокрутку наверх. Проверены 10 экранов на
   392 CSS px и на телефоне: горизонтального overflow нет, controls ≥ 44 px,
   контент не уходит под статус-бар и системную навигацию.
+- Главная на телефоне (2026-11-09): бургер справа на линии приветствия;
+  «Сканировать» и «Перемешать» убраны с главной, кнопка сканера — ещё и с
+  библиотеки; сканер остался только в настройках. Карточка текущего трека —
+  компактная горизонтальная (обложка 140 px, play/shuffle/«Открыть»,
+  «Играть всю библиотеку» скрыта). Проверено на 392 CSS px и на телефоне.
 - Windows: `cargo test --manifest-path src-tauri/Cargo.toml --lib` — 38 passed,
   `npm.cmd run build:web` — exit 0.
 

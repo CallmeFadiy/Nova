@@ -2,6 +2,7 @@ import {
   ArrowRight,
   FolderPlus,
   ListMusic,
+  Menu,
   Pause,
   Play,
   Shuffle,
@@ -45,6 +46,8 @@ export function Home() {
   const seek = usePlayerStore((state) => state.seek);
   const current = useCurrentTrack();
   const notify = useUiStore((state) => state.notify);
+  const mobileNavOpen = useUiStore((state) => state.mobileNavOpen);
+  const setMobileNavOpen = useUiStore((state) => state.setMobileNavOpen);
 
   const visible = visibleTracks(tracks);
   const albums = groupAlbums(tracks);
@@ -179,7 +182,16 @@ export function Home() {
               month: "long",
             })}
           </p>
-          <h1 className="serif">{greeting()}</h1>
+          <div className="home-title-row">
+            <h1 className="serif">{greeting()}</h1>
+            <button
+              className="mobile-menu home-menu"
+              onClick={() => setMobileNavOpen(!mobileNavOpen)}
+              aria-label="Меню"
+            >
+              <Menu size={18} />
+            </button>
+          </div>
           <p className="page-sub">
             {trackCountLabel(visible.length)} · {albums.length}{" "}
             {pluralRu(albums.length, ["альбом", "альбома", "альбомов"])}
@@ -272,11 +284,17 @@ export function Home() {
                   <Play size={18} fill="currentColor" />
                 )}
               </button>
-              <button className="ghost-button" onClick={shuffleHero}>
+              <button
+                className="ghost-button hero-shuffle-button"
+                onClick={shuffleHero}
+              >
                 <Shuffle size={14} />
                 Перемешать
               </button>
-              <button className="ghost-button" onClick={playLibrary}>
+              <button
+                className="ghost-button hero-library-button"
+                onClick={playLibrary}
+              >
                 <ListMusic size={14} />
                 Играть всю библиотеку
               </button>
