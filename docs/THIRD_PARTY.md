@@ -13,6 +13,7 @@ Nova использует следующие сторонние компонен
 | `reqwest` | MIT / Apache-2.0 | HTTP-запросы к каталогам и AudD |
 | `cpal` | Apache-2.0 | запись микрофона |
 | `hound` | Apache-2.0 | WAV для AudD |
+| `symphonia` | MPL-2.0 | 12-секундный фрагмент для AudD на Android |
 | **`songrec-lib`** | **GPL-3.0+** | встроенное Shazam-распознавание |
 
 ### Важно про GPL
