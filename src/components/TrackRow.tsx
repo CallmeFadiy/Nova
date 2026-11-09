@@ -2,6 +2,7 @@ import { ArrowDown, ArrowUp, Heart, MoreHorizontal } from "lucide-react";
 import type { KeyboardEvent, MouseEvent } from "react";
 import { useLongPress } from "../hooks/useLongPress";
 import { formatDuration } from "../lib/format";
+import { isAndroid } from "../lib/platform";
 import type { Track } from "../types";
 import { Cover } from "./Cover";
 
@@ -66,7 +67,8 @@ export function TrackRow({
       onTouchCancel={longPress.onTouchCancel}
       onContextMenu={(event) => {
         event.preventDefault();
-        onMenu();
+        if (isAndroid) onLongPress?.();
+        else onMenu();
       }}
       onKeyDown={(event) => {
         if (event.key === "Enter" || event.key === " ") {
