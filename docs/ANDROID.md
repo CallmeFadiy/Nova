@@ -387,12 +387,14 @@ SHA-256 `48E69E78C820BBA75E7F1F4BC3D4B446C26FD61B00F9E86FAFADA24A30287A8A`,
 - Распознавание на Android идёт через AudD: `RECORD_AUDIO` запрашивается
   runtime-разрешением; микрофон пишет Rust/cpal, файл уходит в
   `recognize_audd_file`, системный звук — через `NovaProjectionService`
-  (`MediaProjection` + `AudioPlaybackCapture`, 16 кГц mono WAV). Загрузка
-  проверена публичным токеном `test`: AudD принимает файл и отвечает
-  fingerprint/no-match (не «файл не отправлен») для файла, микрофона и
-  системного звука; для успешного совпадения нужен реальный API-ключ.
-  Встроенный `songrec` на Android падает, поэтому UI переключает провайдера на
-  AudD и показывает ошибку Windows-версии, если вызвать builtin напрямую.
+  (`MediaProjection` + `AudioPlaybackCapture`, 16 кГц mono WAV). Для файлов
+  `symphonia` декодирует первые 12 секунд в 16 кГц mono WAV, поэтому лимит
+  AudD в 10 МБ не мешает большим трекам. Проверено: 20,8 МБ FLAC распознан
+  публичным токеном `test` как «Санавабич» / Miyagi & Эндшпиль. Ключ
+  пользователя валиден, но аккаунт отвечает `the limit was reached`; это
+  показывается понятным сообщением про лимит AudD. Встроенный `songrec` на
+  Android падает, поэтому UI переключает провайдера на AudD и показывает
+  ошибку Windows-версии, если вызвать builtin напрямую.
 - Тексты: Genius, при 403 — LRCLIB (`syncedLyrics` LRC или plain). На треке
   Kosandra получено 2953 символа LRC; кэш и редактор работают.
 - Share/Open with: FileProvider, `ACTION_VIEW` audio/video, импорт в
@@ -402,26 +404,30 @@ SHA-256 `48E69E78C820BBA75E7F1F4BC3D4B446C26FD61B00F9E86FAFADA24A30287A8A`,
   `ACTION_VIEW` напрямую.
 - MIUI: состояние `PowerManager.isIgnoringBatteryOptimizations`, запрос
   исключения, настройки батареи и автозапуска в Settings.
-- Release: `release/Android/Nova-0.1.0-arm64-release.apk`, 66 866 991 байт,
-  SHA-256 `22017EF0F5FCE1A6C444AD8492349C8420710487B619CABC27C4869C253E85A9`,
+- Release: `release/Android/Nova-0.1.0-arm64-release.apk`, 67 294 955 байт,
+  SHA-256 `8FD4A9AC802E3D2B1D4517BB40A0F85DFCB210E0C89F104D43AEFCB70E28D21A`,
   arm64-v8a, подписан локальным `nova-release.jks` (CN=Nova Local, cert
   SHA-256 `b4ec51312f56ae3cfd4c76912b7cf9aa41a24776301ef7715883eecd1e584958`).
   Финальный APK установлен начисто (`adb uninstall` → install): 78 треков
   пересобраны из `/sdcard/Music`, play/pause, next/prev, фон, локскрин и
   действия медиа-уведомления проверены. Плейлистов, избранного и кастомных
-  обложек перед переустановкой не было, потери данных нет.
+  обложек перед переустановкой не было, потери данных нет. API-ключ AudD
+  введён в Settings и сохраняется после перезапуска приложения.
 - Polish: 26/26 проверок на 392 px — 10 экранов без overflow, все controls
   ≥ 44 px, Now Playing, Lyrics, track actions с Share/Open with. Исправлены
   30 px переключатели источника на Shazam.
 - Windows: `npm.cmd run build:web` и
-  `cargo test --manifest-path src-tauri/Cargo.toml --lib` — 36 passed.
+  `cargo test --manifest-path src-tauri/Cargo.toml --lib` — 37 passed.
 - `/sdcard/Music` — 104 файла, 78 треков, только Music; тестовые папки удалены.
 
 ## Известные ограничения phase 2C–2D
 
 - AudD требует API-ключ; без ключа распознавание показывает подсказку.
-- AudD принимает файл до 10 МБ; большие треки отклоняются с понятным
-  сообщением (полноценное извлечение 12-секундного фрагмента — следующий шаг).
+  Успешное совпадение зависит от тарифа AudD: у ключа пользователя на момент
+  приёмки исчерпан лимит, приложение показывает это отдельным сообщением.
+- Для больших файлов отправляются первые 12 секунд (`symphonia`). Форматы,
+  которые `symphonia` не декодирует (например WMA), по-прежнему уходят целиком
+  и ограничены 10 МБ стандартного endpoint AudD.
 - Встроенный Shazam доступен только в Windows; на Android он отключён.
 - `AudioPlaybackCapture` не захватывает звук самого Nova (ограничение Android);
   для проверки нужен другой плеер/видео.

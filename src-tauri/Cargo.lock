@@ -2662,6 +2662,7 @@ dependencies = [
  "serde_json",
  "sha1",
  "songrec-lib",
+ "symphonia",
  "tauri",
  "tauri-build",
  "tauri-plugin-dialog",

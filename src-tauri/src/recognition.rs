@@ -1,8 +1,15 @@
 use crate::models::RecognitionResult;
 use serde::Serialize;
+use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use symphonia::core::audio::SampleBuffer;
+use symphonia::core::codecs::DecoderOptions;
+use symphonia::core::formats::FormatOptions;
+use symphonia::core::io::MediaSourceStream;
+use symphonia::core::meta::MetadataOptions;
+use symphonia::core::probe::Hint;
 use tauri::{AppHandle, Emitter};
 
 const TARGET_RATE: u32 = 16_000;
@@ -525,6 +532,76 @@ pub async fn recognize_audd(
     audd_send(wav, "nova-sample.wav", "audio/wav", &token).await
 }
 
+/// Decode the first `seconds` of an audio file into a 16 kHz mono WAV. AudD's
+/// standard endpoint analyzes ~12 s and caps uploads at 10 MB, so large tracks
+/// are reduced before upload.
+fn extract_preview(path: &str, seconds: u64) -> Result<Vec<u8>, String> {
+    let file = std::fs::File::open(path)
+        .map_err(|error| format!("Не удалось открыть файл: {error}"))?;
+    let mss = MediaSourceStream::new(Box::new(file), Default::default());
+    let mut hint = Hint::new();
+    if let Some(extension) = Path::new(path).extension().and_then(|value| value.to_str()) {
+        hint.with_extension(extension);
+    }
+    let probed = symphonia::default::get_probe()
+        .format(
+            &hint,
+            mss,
+            &FormatOptions::default(),
+            &MetadataOptions::default(),
+        )
+        .map_err(|error| format!("Формат аудио не поддержан: {error}"))?;
+    let mut format = probed.format;
+    let track = format
+        .default_track()
+        .ok_or_else(|| "В файле нет аудиодорожки".to_string())?;
+    let track_id = track.id;
+    let mut decoder = symphonia::default::get_codecs()
+        .make(&track.codec_params, &DecoderOptions::default())
+        .map_err(|error| format!("Кодек аудио не поддержан: {error}"))?;
+    let mut sample_rate = track.codec_params.sample_rate.unwrap_or(0);
+    let limit_seconds = seconds.max(1);
+    let mut mono: Vec<f32> = Vec::new();
+
+    while let Ok(packet) = format.next_packet() {
+        if packet.track_id() != track_id {
+            continue;
+        }
+        match decoder.decode(&packet) {
+            Ok(decoded) => {
+                let spec = *decoded.spec();
+                if sample_rate == 0 {
+                    sample_rate = spec.rate;
+                }
+                let channels = spec.channels.count().max(1);
+                let mut buffer =
+                    SampleBuffer::<f32>::new(decoded.capacity() as u64, spec);
+                buffer.copy_interleaved_ref(decoded);
+                for frame in buffer.samples().chunks(channels) {
+                    let sum: f32 = frame.iter().sum();
+                    mono.push(sum / channels as f32);
+                }
+                if sample_rate > 0
+                    && mono.len() as u64 >= sample_rate as u64 * limit_seconds
+                {
+                    break;
+                }
+            }
+            Err(symphonia::core::errors::Error::DecodeError(_)) => continue,
+            Err(_) => break,
+        }
+    }
+
+    if mono.is_empty() || sample_rate == 0 {
+        return Err("Не удалось декодировать аудио".to_string());
+    }
+    let samples = resample_to_16k(&mono, sample_rate);
+    if samples.len() < TARGET_RATE as usize * 2 {
+        return Err("Слишком короткая запись: нужно не меньше 2 секунд".to_string());
+    }
+    wav_bytes(&samples)
+}
+
 /// AudD accepts common audio files, so the Android file picker can recognize a
 /// track without the (Windows-only) local Shazam fingerprint engine.
 pub async fn recognize_audd_file(
@@ -535,7 +612,21 @@ pub async fn recognize_audd_file(
     if token.is_empty() {
         return Err("Укажите API-ключ AudD в настройках".to_string());
     }
-    let name = std::path::Path::new(&path)
+
+    let preview_path = path.clone();
+    let preview = tauri::async_runtime::spawn_blocking(move || {
+        extract_preview(&preview_path, 12)
+    })
+    .await
+    .map_err(|error| format!("Не удалось подготовить фрагмент: {error}"))?;
+    let preview_error = match preview {
+        Ok(wav) => return audd_send(wav, "nova-preview.wav", "audio/wav", &token).await,
+        Err(error) => error,
+    };
+
+    // Some formats (for example WMA) are not decoded by Symphonia. AudD still
+    // accepts them directly, but only within its 10 MB standard-endpoint cap.
+    let name = Path::new(&path)
         .file_name()
         .map(|value| value.to_string_lossy().to_string())
         .unwrap_or_else(|| "nova-sample.wav".to_string());
@@ -555,7 +646,7 @@ pub async fn recognize_audd_file(
     const MAX_AUDD_BYTES: u64 = 10 * 1024 * 1024;
     if metadata.len() > MAX_AUDD_BYTES {
         return Err(format!(
-            "Файл больше 10 МБ ({}). AudD принимает файл до 10 МБ: выберите короткий фрагмент или mp3 меньшего размера.",
+            "{preview_error}. Файл больше 10 МБ ({}), отправлять целиком нельзя.",
             metadata.len()
         ));
     }
@@ -601,7 +692,16 @@ async fn audd_send(
             .and_then(|value| value.get("error_message"))
             .and_then(|value| value.as_str())
             .unwrap_or("AudD не смог обработать запрос");
-        return Err(message.to_string());
+        let friendly = if message.contains("limit was reached") {
+            "Лимит запросов AudD исчерпан. Проверьте тариф на dashboard.audd.io."
+        } else if message.contains("authorization failed")
+            || message.contains("api_token")
+        {
+            "AudD отклонил API-ключ. Проверьте ключ и тариф на dashboard.audd.io."
+        } else {
+            message
+        };
+        return Err(friendly.to_string());
     }
 
     let result = json.get("result").unwrap_or(&serde_json::Value::Null);
@@ -741,6 +841,41 @@ mod tests {
         let output = resample_to_16k(&input, 16_000);
         assert_eq!(output.len(), 16_000);
         assert_eq!(output[0], 16_383);
+    }
+
+    #[test]
+    fn extract_preview_produces_16k_mono_wav() {
+        let path = std::env::temp_dir().join(format!(
+            "nova-preview-{}-{}.wav",
+            std::process::id(),
+            now_ms()
+        ));
+        let spec = hound::WavSpec {
+            channels: 1,
+            sample_rate: 44_100,
+            bits_per_sample: 16,
+            sample_format: hound::SampleFormat::Int,
+        };
+        {
+            let mut writer = hound::WavWriter::create(&path, spec).unwrap();
+            for index in 0..44_100 * 3 {
+                let sample = ((index as f32 * 440.0 * 2.0 * std::f32::consts::PI / 44_100.0)
+                    .sin()
+                    * 6000.0) as i16;
+                writer.write_sample(sample).unwrap();
+            }
+            writer.finalize().unwrap();
+        }
+
+        let wav = extract_preview(path.to_str().unwrap(), 2).unwrap();
+        let _ = std::fs::remove_file(&path);
+        assert_eq!(&wav[0..4], b"RIFF");
+        assert_eq!(u16::from_le_bytes([wav[22], wav[23]]), 1);
+        assert_eq!(
+            u32::from_le_bytes([wav[24], wav[25], wav[26], wav[27]]),
+            16_000
+        );
+        assert!(wav.len() > 44 + 16_000 * 2);
     }
 
     #[test]

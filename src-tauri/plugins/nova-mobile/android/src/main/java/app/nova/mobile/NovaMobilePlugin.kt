@@ -218,7 +218,12 @@ class NovaMobilePlugin(private val activity: Activity) : Plugin(activity) {
             invoke.reject("Файл не найден")
             return
         }
-        val file = shareableFile(original)
+        val file = try {
+            shareableFile(original)
+        } catch (error: Exception) {
+            invoke.reject(error.message ?: "Не удалось подготовить файл")
+            return
+        }
         try {
             val intent = Intent(Intent.ACTION_SEND).apply {
                 type = mimeType(file.name)
@@ -239,7 +244,12 @@ class NovaMobilePlugin(private val activity: Activity) : Plugin(activity) {
             invoke.reject("Файл не найден")
             return
         }
-        val file = shareableFile(original)
+        val file = try {
+            shareableFile(original)
+        } catch (error: Exception) {
+            invoke.reject(error.message ?: "Не удалось подготовить файл")
+            return
+        }
         try {
             val intent = Intent(Intent.ACTION_VIEW).apply {
                 setDataAndType(contentUri(file), mimeType(file.name))
@@ -360,6 +370,11 @@ class NovaMobilePlugin(private val activity: Activity) : Plugin(activity) {
         }
         val target = File(activity.cacheDir, "share/${file.name}")
         target.parentFile?.mkdirs()
+        // Keep the sharing cache bounded: drop copies older than seven days.
+        val cutoff = System.currentTimeMillis() - 7L * 24 * 60 * 60 * 1000
+        target.parentFile?.listFiles()?.forEach { old ->
+            if (old != target && old.lastModified() < cutoff) old.delete()
+        }
         file.copyTo(target, overwrite = true)
         return target
     }

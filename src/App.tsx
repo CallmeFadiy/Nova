@@ -52,17 +52,22 @@ export default function App() {
     const importOpened = async () => {
       if (document.visibilityState !== "visible") return;
       const opened = await api.androidTakeOpenedFile();
+      if (opened.path && !handled.has(opened.path)) {
+        handled.add(opened.path);
+        const directory = opened.path.substring(
+          0,
+          opened.path.lastIndexOf("/"),
+        );
+        await useLibraryStore.getState().addFolder(directory);
+        const name = opened.path.split("/").pop() ?? "файл";
+        useUiStore
+          .getState()
+          .notify(`Добавлено в библиотеку: ${name}`, "success");
+        window.location.hash = "#/library";
+      }
       if (opened.error) {
         useUiStore.getState().notify(opened.error, "error");
-        return;
       }
-      if (!opened.path || handled.has(opened.path)) return;
-      handled.add(opened.path);
-      const directory = opened.path.substring(0, opened.path.lastIndexOf("/"));
-      await useLibraryStore.getState().addFolder(directory);
-      const name = opened.path.split("/").pop() ?? "файл";
-      useUiStore.getState().notify(`Добавлено в библиотеку: ${name}`, "success");
-      window.location.hash = "#/library";
     };
     void importOpened();
     const interval = window.setInterval(() => void importOpened(), 3000);
