@@ -45,6 +45,6 @@ Android, and make the mobile layout respect phone display insets.
 - [x] Confirm the API key survives the in-place update.
 - [x] Windows: `cargo test --manifest-path src-tauri/Cargo.toml --lib` — 38
   passed; `npm.cmd run build:web` — exit 0.
-- [x] Release APK: 67 757 631 bytes,
-  SHA-256 `3BF8A05D0318222E7B61C412BFC7B1C69DEAC5127DEE17EB160454BD064D8A1A`.
+- [x] Release APK: 67 611 291 bytes,
+  SHA-256 `DB78EA160B5E99953634AEC93606CEFFFB6449341CCCE3E28B6D4B2BDB6370F9`.
 - [x] `/sdcard/Music` — 104 files, 78 tracks; test files and folders removed.

@@ -187,34 +187,24 @@ mod tests {
     #[test]
     fn removes_legacy_hidden_tracks_and_keeps_tracks() {
         let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(SCHEMA).unwrap();
+        conn.execute(
+            r#"
+            INSERT INTO tracks
+                (path, filename, title, artist, album, album_artist, added_at, updated_at)
+            VALUES
+                ('/music/kept.mp3', 'kept.mp3', 'Kept', 'Artist', 'Album', 'Artist', 1, 1)
+            "#,
+            [],
+        )
+        .unwrap();
         conn.execute_batch(
             r#"
-            PRAGMA foreign_keys = ON;
-            CREATE TABLE tracks (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                path TEXT NOT NULL UNIQUE,
-                folder_id INTEGER,
-                filename TEXT NOT NULL,
-                title TEXT NOT NULL,
-                artist TEXT NOT NULL,
-                album TEXT NOT NULL,
-                album_artist TEXT NOT NULL,
-                duration_ms INTEGER NOT NULL DEFAULT 0,
-                format TEXT NOT NULL DEFAULT '',
-                size INTEGER NOT NULL DEFAULT 0,
-                added_at INTEGER NOT NULL,
-                updated_at INTEGER NOT NULL,
-                missing INTEGER NOT NULL DEFAULT 0
-            );
             CREATE TABLE hidden_tracks (
                 track_id INTEGER PRIMARY KEY REFERENCES tracks(id) ON DELETE CASCADE,
                 hidden_at INTEGER NOT NULL,
                 reason TEXT
             );
-            INSERT INTO tracks
-                (path, filename, title, artist, album, album_artist, added_at, updated_at)
-            VALUES
-                ('/music/kept.mp3', 'kept.mp3', 'Kept', 'Artist', 'Album', 'Artist', 1, 1);
             INSERT INTO hidden_tracks (track_id, hidden_at, reason)
             VALUES (1, 1, 'album');
             "#,
@@ -230,11 +220,18 @@ mod tests {
                 |row| row.get(0),
             )
             .unwrap();
-        let tracks: i64 = conn
-            .query_row("SELECT COUNT(*) FROM tracks", [], |row| row.get(0))
+        let snapshot = crate::commands::snapshot(&conn).unwrap();
+        let foreign_key_errors: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM pragma_foreign_key_check",
+                [],
+                |row| row.get(0),
+            )
             .unwrap();
         assert_eq!(hidden_tables, 0);
-        assert_eq!(tracks, 1);
+        assert_eq!(snapshot.tracks.len(), 1);
+        assert_eq!(snapshot.tracks[0].path, "/music/kept.mp3");
+        assert_eq!(foreign_key_errors, 0);
     }
 }
 

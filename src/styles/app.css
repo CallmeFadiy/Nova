@@ -6293,8 +6293,9 @@ body {
   }
 
   .selection-bar {
-    top: calc(52px + env(safe-area-inset-top));
-    padding: 6px 8px;
+    top: calc(52px + env(safe-area-inset-top, 0px));
+    padding: 6px max(8px, env(safe-area-inset-right, 0px)) 6px
+      max(8px, env(safe-area-inset-left, 0px));
     font-size: 12px;
   }
 
@@ -6331,7 +6332,9 @@ body {
   }
 
   .mobile-nav-open .mobile-menu {
-    left: calc(min(82vw, 320px) - 52px);
+    left: calc(
+      min(82vw, 320px) - 52px + env(safe-area-inset-left, 0px)
+    );
   }
 
   .player-bar {

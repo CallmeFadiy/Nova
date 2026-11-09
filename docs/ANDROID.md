@@ -28,7 +28,7 @@ SQLite, foreground-сервис и полный паритет с Windows доб
 - Редактирование названия, исполнителя, альбома и album artist; объединение
   альбомов; кастомные обложки; фон приложения и экрана «Сейчас играет».
 - Удаление трека вместе с файлом, поиск дубликатов по SHA-1, исправление
-  кодировки, скрытые треки и их восстановление.
+  кодировки. Скрытие треков удалено: доступно только удаление с файлом.
 - Загрузки и импорт на Android: встроенный `youtubedl-android:library:0.18.1`
   с ffmpeg, прямые источники Zaycev/Muzofond/DriveMusic (сквозная загрузка
   проверена только на Muzofond) и прямые ссылки, разбор плейлистов и
@@ -405,8 +405,8 @@ SHA-256 `48E69E78C820BBA75E7F1F4BC3D4B446C26FD61B00F9E86FAFADA24A30287A8A`,
   `ACTION_VIEW` напрямую.
 - MIUI: состояние `PowerManager.isIgnoringBatteryOptimizations`, запрос
   исключения, настройки батареи и автозапуска в Settings.
-- Release: `release/Android/Nova-0.1.0-arm64-release.apk`, 67 757 631 байт,
-  SHA-256 `3BF8A05D0318222E7B61C412BFC7B1C69DEAC5127DEE17EB160454BD064D8A1A`,
+- Release: `release/Android/Nova-0.1.0-arm64-release.apk`, 67 611 291 байт,
+  SHA-256 `DB78EA160B5E99953634AEC93606CEFFFB6449341CCCE3E28B6D4B2BDB6370F9`,
   arm64-v8a, подписан локальным `nova-release.jks` (CN=Nova Local, cert
   SHA-256 `b4ec51312f56ae3cfd4c76912b7cf9aa41a24776301ef7715883eecd1e584958`).
   Установлен поверх предыдущего release (та же подпись): 78 треков и API-ключ
@@ -430,7 +430,13 @@ SHA-256 `48E69E78C820BBA75E7F1F4BC3D4B446C26FD61B00F9E86FAFADA24A30287A8A`,
   `Тони Раут - 911.mp3` остался на месте; `/sdcard/Music` — 104 файла.
 - Android-иконка сгенерирована из десктопного `src-tauri/icons/icon.png`
   (белые наушники): adaptive foreground, круглая версия и фон `#0B0B0D`.
-  Иконка проверена в лаунчере телефона.
+  Иконка проверена в лаунчере телефона. Рецепт:
+  `npm.cmd run tauri -- icon src-tauri/icons/android-icon.json -o $env:TEMP\nova-icons`,
+  затем скопировать `android\mipmap-*` и `android\values` в
+  `src-tauri/gen/android/app/src/main/res` и `src-tauri/icons/android`;
+  `android-fg.png` уже содержит отступ 20% под safe zone, а
+  `mipmap-anydpi-v26/ic_launcher_round.xml` добавляется вручную (Tauri
+  генерирует только `ic_launcher.xml`).
 - Мобильная адаптация: `viewport-fit=cover`, safe-area для статус-бара,
   жестовой панели и боковых вырезов в main-scroll, меню, sidebar, player bar,
   нижней навигации, очереди, Now Playing, модальных окнах и тостах; переход

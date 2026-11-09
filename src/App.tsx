@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 import { Menu } from "lucide-react";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { onBackButtonPress } from "@tauri-apps/api/app";
@@ -42,13 +42,13 @@ import { useUiStore } from "./store/ui";
 
 export default function App() {
   const location = useLocation();
+  const mainScrollRef = useRef<HTMLElement>(null);
 
   // A route change should start at the top of the page, especially on a phone
-  // where the previous screen may have been scrolled far down.
-  useEffect(() => {
-    document
-      .querySelector<HTMLElement>(".main-scroll")
-      ?.scrollTo({ top: 0 });
+  // where the previous screen may have been scrolled far down. Layout effect
+  // runs before paint, so the old offset is never shown for a frame.
+  useLayoutEffect(() => {
+    mainScrollRef.current?.scrollTo({ top: 0 });
   }, [location.pathname]);
 
   // Install the download listeners and hydrate the native queue at app start,
@@ -318,7 +318,7 @@ export default function App() {
         >
           <Menu size={18} />
         </button>
-        <main className="main-scroll">
+        <main className="main-scroll" ref={mainScrollRef}>
           <Routes>
             <Route
               path="/"
