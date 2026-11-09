@@ -595,6 +595,10 @@ fn extract_preview(path: &str, seconds: u64) -> Result<Vec<u8>, String> {
     if mono.is_empty() || sample_rate == 0 {
         return Err("Не удалось декодировать аудио".to_string());
     }
+    let limit = sample_rate as usize * limit_seconds as usize;
+    if mono.len() > limit {
+        mono.truncate(limit);
+    }
     let samples = resample_to_16k(&mono, sample_rate);
     if samples.len() < TARGET_RATE as usize * 2 {
         return Err("Слишком короткая запись: нужно не меньше 2 секунд".to_string());
@@ -613,19 +617,31 @@ pub async fn recognize_audd_file(
         return Err("Укажите API-ключ AudD в настройках".to_string());
     }
 
-    let preview_path = path.clone();
-    let preview = tauri::async_runtime::spawn_blocking(move || {
-        extract_preview(&preview_path, 12)
-    })
-    .await
-    .map_err(|error| format!("Не удалось подготовить фрагмент: {error}"))?;
-    let preview_error = match preview {
-        Ok(wav) => return audd_send(wav, "nova-preview.wav", "audio/wav", &token).await,
-        Err(error) => error,
-    };
+    const MAX_AUDD_BYTES: u64 = 10 * 1024 * 1024;
+    let size = tokio::fs::metadata(&path)
+        .await
+        .map_err(|error| format!("Не удалось прочитать файл: {error}"))?
+        .len();
 
-    // Some formats (for example WMA) are not decoded by Symphonia. AudD still
-    // accepts them directly, but only within its 10 MB standard-endpoint cap.
+    // Small files are uploaded as-is: AudD can analyze the whole track, which is
+    // more forgiving than a single 12-second window. Only files above AudD's
+    // standard-endpoint cap are reduced to their first 12 seconds.
+    if size > MAX_AUDD_BYTES {
+        let preview_path = path.clone();
+        let preview = tauri::async_runtime::spawn_blocking(move || {
+            extract_preview(&preview_path, 12)
+        })
+        .await
+        .map_err(|error| format!("Не удалось подготовить фрагмент: {error}"))?;
+        return match preview {
+            Ok(wav) => audd_send(wav, "nova-preview.wav", "audio/wav", &token).await,
+            Err(preview_error) => Err(format!(
+                "{preview_error}. Файл больше 10 МБ ({:.1} МБ), отправлять целиком нельзя.",
+                size as f64 / 1_048_576.0
+            )),
+        };
+    }
+
     let name = Path::new(&path)
         .file_name()
         .map(|value| value.to_string_lossy().to_string())
@@ -640,16 +656,6 @@ pub async fn recognize_audd_file(
         "aiff" | "aif" => "audio/aiff",
         _ => "audio/wav",
     };
-    let metadata = tokio::fs::metadata(&path)
-        .await
-        .map_err(|error| format!("Не удалось прочитать файл: {error}"))?;
-    const MAX_AUDD_BYTES: u64 = 10 * 1024 * 1024;
-    if metadata.len() > MAX_AUDD_BYTES {
-        return Err(format!(
-            "{preview_error}. Файл больше 10 МБ ({}), отправлять целиком нельзя.",
-            metadata.len()
-        ));
-    }
     let bytes = tokio::fs::read(&path)
         .await
         .map_err(|error| format!("Не удалось прочитать файл: {error}"))?;
@@ -875,7 +881,13 @@ mod tests {
             u32::from_le_bytes([wav[24], wav[25], wav[26], wav[27]]),
             16_000
         );
-        assert!(wav.len() > 44 + 16_000 * 2);
+        let data_len =
+            u32::from_le_bytes([wav[40], wav[41], wav[42], wav[43]]) as usize;
+        let duration_samples = data_len / 2;
+        assert!(
+            (31_000..=33_000).contains(&duration_samples),
+            "unexpected preview duration: {duration_samples} samples"
+        );
     }
 
     #[test]

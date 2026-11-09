@@ -387,11 +387,12 @@ SHA-256 `48E69E78C820BBA75E7F1F4BC3D4B446C26FD61B00F9E86FAFADA24A30287A8A`,
 - Распознавание на Android идёт через AudD: `RECORD_AUDIO` запрашивается
   runtime-разрешением; микрофон пишет Rust/cpal, файл уходит в
   `recognize_audd_file`, системный звук — через `NovaProjectionService`
-  (`MediaProjection` + `AudioPlaybackCapture`, 16 кГц mono WAV). Для файлов
-  `symphonia` декодирует первые 12 секунд в 16 кГц mono WAV, поэтому лимит
-  AudD в 10 МБ не мешает большим трекам. Проверено: 20,8 МБ FLAC распознан
-  публичным токеном `test` как «Санавабич» / Miyagi & Эндшпиль. Ключ
-  пользователя валиден, но аккаунт отвечает `the limit was reached`; это
+  (`MediaProjection` + `AudioPlaybackCapture`, 16 кГц mono WAV). Небольшие
+  файлы уходят в AudD целиком; для файлов больше 10 МБ `symphonia` декодирует
+  первые 12 секунд в 16 кГц mono WAV. Проверено публичным токеном `test`:
+  8,9 МБ MP3 распознан целиком как Kosandra / Miyagi & Andy Panda, а 20,8 МБ
+  FLAC — по 12-секундному фрагменту как «Санавабич» / Miyagi & Эндшпиль.
+  Ключ пользователя валиден, но аккаунт отвечает `the limit was reached`; это
   показывается понятным сообщением про лимит AudD. Встроенный `songrec` на
   Android падает, поэтому UI переключает провайдера на AudD и показывает
   ошибку Windows-версии, если вызвать builtin напрямую.
@@ -404,8 +405,8 @@ SHA-256 `48E69E78C820BBA75E7F1F4BC3D4B446C26FD61B00F9E86FAFADA24A30287A8A`,
   `ACTION_VIEW` напрямую.
 - MIUI: состояние `PowerManager.isIgnoringBatteryOptimizations`, запрос
   исключения, настройки батареи и автозапуска в Settings.
-- Release: `release/Android/Nova-0.1.0-arm64-release.apk`, 67 294 955 байт,
-  SHA-256 `8FD4A9AC802E3D2B1D4517BB40A0F85DFCB210E0C89F104D43AEFCB70E28D21A`,
+- Release: `release/Android/Nova-0.1.0-arm64-release.apk`, 67 298 283 байт,
+  SHA-256 `B4A8922DFF1C623E23E44B64F5FA1302936EAC2F896D9664F1754BB85F34564F`,
   arm64-v8a, подписан локальным `nova-release.jks` (CN=Nova Local, cert
   SHA-256 `b4ec51312f56ae3cfd4c76912b7cf9aa41a24776301ef7715883eecd1e584958`).
   Финальный APK установлен начисто (`adb uninstall` → install): 78 треков

@@ -39,10 +39,12 @@ uploads to AudD. Share/open uses `FileProvider`; `ACTION_VIEW` imports into
 - [x] Device checks: microphone permission, AudD upload with the public `test`
   token (file, microphone and system capture return AudD fingerprint/no-match,
   proving the file is received), projection consent/capture, lyrics.
-- [x] 12-second preview extraction (`symphonia`, 16 kHz mono WAV) so files
-  larger than AudD's 10 MB limit are recognized; verified on a 20.8 MB FLAC
-  (public `test` token → «Санавабич» / Miyagi & Эндшпиль). Raw-file fallback
-  stays for formats `symphonia` cannot decode.
+- [x] 12-second preview extraction (`symphonia`, 16 kHz mono WAV) for files
+  larger than AudD's 10 MB limit; smaller files are still uploaded whole.
+  Verified both paths with the public `test` token: 8.9 MB MP3 (whole file) →
+  Kosandra / Miyagi & Andy Panda; 20.8 MB FLAC (preview) → «Санавабич» /
+  Miyagi & Эндшпиль. Raw-file fallback stays for formats `symphonia` cannot
+  decode.
 - [x] AudD limit/key error mapping to actionable Russian messages; the supplied
   key is valid but the account quota is exhausted (`the limit was reached`).
 - [x] API key entered in Settings and persisted across an app restart.
@@ -55,8 +57,9 @@ uploads to AudD. Share/open uses `FileProvider`; `ACTION_VIEW` imports into
 - [x] MIUI battery optimization/autostart controls in Settings.
 - [x] Release signing config (`keystore.properties`, local keystore ignored).
 - [x] Build/verify a signed release APK (`Nova-0.1.0-arm64-release.apk`,
-  67 294 955 bytes, SHA-256 `8FD4A9AC…E28D21A`, arm64-v8a, clean install).
+  67 298 283 bytes, SHA-256 `B4A8922D…F34564F`, arm64-v8a, clean install).
 - [x] 392 px/44 px/safe-area audit across all screens (26 checks; Shazam
   source-switch CSS included in the final APK).
 - [x] Final device acceptance and docs: 78 tracks, playback/background/lockscreen,
-  notification actions, `/sdcard/Music` 104 files, Windows smoke.
+  notification actions, API key persists across restart, `/sdcard/Music` 104
+  files, Windows smoke.

@@ -78,6 +78,7 @@ class NovaMobilePlugin(private val activity: Activity) : Plugin(activity) {
                 trigger("open-file", payload)
             } catch (error: Exception) {
                 val message = error.message ?: "Не удалось открыть файл"
+                pendingOpenPath = null
                 pendingOpenError = message
                 val payload = JSObject()
                 payload.put("error", message)
