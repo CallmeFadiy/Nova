@@ -405,21 +405,40 @@ SHA-256 `48E69E78C820BBA75E7F1F4BC3D4B446C26FD61B00F9E86FAFADA24A30287A8A`,
   `ACTION_VIEW` напрямую.
 - MIUI: состояние `PowerManager.isIgnoringBatteryOptimizations`, запрос
   исключения, настройки батареи и автозапуска в Settings.
-- Release: `release/Android/Nova-0.1.0-arm64-release.apk`, 67 298 283 байт,
-  SHA-256 `B4A8922DFF1C623E23E44B64F5FA1302936EAC2F896D9664F1754BB85F34564F`,
+- Release: `release/Android/Nova-0.1.0-arm64-release.apk`, 67 757 631 байт,
+  SHA-256 `3BF8A05D0318222E7B61C412BFC7B1C69DEAC5127DEE17EB160454BD064D8A1A`,
   arm64-v8a, подписан локальным `nova-release.jks` (CN=Nova Local, cert
   SHA-256 `b4ec51312f56ae3cfd4c76912b7cf9aa41a24776301ef7715883eecd1e584958`).
-  Финальный APK установлен начисто (`adb uninstall` → install): 78 треков
-  пересобраны из `/sdcard/Music`, play/pause, next/prev, фон, локскрин и
-  действия медиа-уведомления проверены. Плейлистов, избранного и кастомных
-  обложек перед переустановкой не было, потери данных нет. API-ключ AudD
-  введён в Settings и сохраняется после перезапуска приложения.
+  Установлен поверх предыдущего release (та же подпись): 78 треков и API-ключ
+  AudD сохранились; скрытый трек вернулся после миграции. Иконка в лаунчере —
+  десктопные наушники. Чистая установка проверялась на предыдущей сборке.
 - Polish: 26/26 проверок на 392 px — 10 экранов без overflow, все controls
   ≥ 44 px, Now Playing, Lyrics, track actions с Share/Open with. Исправлены
   30 px переключатели источника на Shazam.
 - Windows: `npm.cmd run build:web` и
-  `cargo test --manifest-path src-tauri/Cargo.toml --lib` — 37 passed.
+  `cargo test --manifest-path src-tauri/Cargo.toml --lib` — 38 passed.
 - `/sdcard/Music` — 104 файла, 78 треков, только Music; тестовые папки удалены.
+
+## Удаление скрытия и мобильная полировка (2026-11-09)
+
+- Скрытие треков удалено на десктопе и Android: убрано действие «Скрыть из
+  альбома», раздел «Скрытые треки», store/API-методы и Rust-команды
+  `hide_track`/`restore_track`. Осталось только «Удалить трек и файл».
+- Миграция `DROP TABLE IF EXISTS hidden_tracks` возвращает ранее скрытые
+  треки, не трогая файлы. Проверено на телефоне: скрытый «911 (4 Раунд)»
+  вернулся после установки новой сборки поверх старой, файл
+  `Тони Раут - 911.mp3` остался на месте; `/sdcard/Music` — 104 файла.
+- Android-иконка сгенерирована из десктопного `src-tauri/icons/icon.png`
+  (белые наушники): adaptive foreground, круглая версия и фон `#0B0B0D`.
+  Иконка проверена в лаунчере телефона.
+- Мобильная адаптация: `viewport-fit=cover`, safe-area для статус-бара,
+  жестовой панели и боковых вырезов в main-scroll, меню, sidebar, player bar,
+  нижней навигации, очереди, Now Playing, модальных окнах и тостах; переход
+  между экранами сбрасывает прокрутку наверх. Проверены 10 экранов на
+  392 CSS px и на телефоне: горизонтального overflow нет, controls ≥ 44 px,
+  контент не уходит под статус-бар и системную навигацию.
+- Windows: `cargo test --manifest-path src-tauri/Cargo.toml --lib` — 38 passed,
+  `npm.cmd run build:web` — exit 0.
 
 ## Известные ограничения phase 2C–2D
 

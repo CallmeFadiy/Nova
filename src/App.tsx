@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { Menu } from "lucide-react";
-import { Navigate, Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { onBackButtonPress } from "@tauri-apps/api/app";
 import { AddToPlaylistModal } from "./components/AddToPlaylistModal";
 import { AndroidGate } from "./components/AndroidGate";
@@ -41,6 +41,16 @@ import { useSettingsStore } from "./store/settings";
 import { useUiStore } from "./store/ui";
 
 export default function App() {
+  const location = useLocation();
+
+  // A route change should start at the top of the page, especially on a phone
+  // where the previous screen may have been scrolled far down.
+  useEffect(() => {
+    document
+      .querySelector<HTMLElement>(".main-scroll")
+      ?.scrollTo({ top: 0 });
+  }, [location.pathname]);
+
   // Install the download listeners and hydrate the native queue at app start,
   // not only when Downloads/Import is opened. This variant does not subscribe
   // the root to progress events.
