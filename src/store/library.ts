@@ -27,8 +27,6 @@ interface LibraryState {
   removeFromPlaylist: (playlistId: number, trackId: number) => Promise<void>;
   reorderPlaylist: (playlistId: number, trackIds: number[]) => Promise<void>;
   toggleFavorite: (trackId: number) => Promise<void>;
-  hideTrack: (trackId: number) => Promise<void>;
-  restoreTrack: (trackId: number) => Promise<void>;
   setTrackCover: (trackId: number, sourcePath: string) => Promise<void>;
   clearTrackCover: (trackId: number) => Promise<void>;
   updateTrackMetadata: (
@@ -213,29 +211,6 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
     }
   },
 
-  hideTrack: async (trackId) => {
-    try {
-      const snapshot = await api.hideTrack(trackId);
-      set(applySnapshot(snapshot));
-      useUiStore.getState().notify(
-        "Трек скрыт из альбома. Файл остался на устройстве",
-        "success",
-      );
-    } catch (error) {
-      set({ error: error instanceof Error ? error.message : String(error) });
-    }
-  },
-
-  restoreTrack: async (trackId) => {
-    try {
-      const snapshot = await api.restoreTrack(trackId);
-      set(applySnapshot(snapshot));
-      useUiStore.getState().notify("Трек возвращён в библиотеку", "success");
-    } catch (error) {
-      set({ error: error instanceof Error ? error.message : String(error) });
-    }
-  },
-
   setTrackCover: async (trackId, sourcePath) => {
     try {
       const snapshot = await api.setTrackCover(trackId, sourcePath);
@@ -373,13 +348,11 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
 }));
 
 export function visibleTracks(tracks: Track[]): Track[] {
-  return tracks.filter((track) => !track.hidden && !track.missing);
+  return tracks.filter((track) => !track.missing);
 }
 
 export function favoriteTracks(tracks: Track[]): Track[] {
-  return tracks.filter(
-    (track) => track.favorite && !track.hidden && !track.missing,
-  );
+  return tracks.filter((track) => track.favorite && !track.missing);
 }
 
 export interface DuplicateTrackGroup {

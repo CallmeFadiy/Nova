@@ -30,13 +30,11 @@ fn read_tracks(conn: &Connection) -> rusqlite::Result<Vec<Track>> {
             t.album_artist, t.duration_ms, t.track_no, t.year, t.genre,
             t.cover_path, t.custom_cover_path, t.format, t.size, t.added_at,
             (f.track_id IS NOT NULL) AS favorite,
-            (h.track_id IS NOT NULL) AS hidden,
             t.missing,
             t.group_key_override,
             t.group_name_override
         FROM tracks t
         LEFT JOIN favorites f ON f.track_id = t.id
-        LEFT JOIN hidden_tracks h ON h.track_id = t.id
         ORDER BY t.added_at DESC, t.title COLLATE NOCASE
         "#,
     )?;
@@ -61,10 +59,9 @@ fn read_tracks(conn: &Connection) -> rusqlite::Result<Vec<Track>> {
             size: row.get(15)?,
             added_at: row.get(16)?,
             favorite: row.get::<_, i64>(17)? != 0,
-            hidden: row.get::<_, i64>(18)? != 0,
-            missing: row.get::<_, i64>(19)? != 0,
-            group_key_override: row.get(20)?,
-            group_name_override: row.get(21)?,
+            missing: row.get::<_, i64>(18)? != 0,
+            group_key_override: row.get(19)?,
+            group_name_override: row.get(20)?,
         })
     })?;
 
@@ -1271,28 +1268,6 @@ pub fn toggle_favorite(state: State<'_, AppState>, track_id: i64) -> Result<Snap
         )
         .map_err(|e| e.to_string())?;
     }
-    snapshot(&conn)
-}
-
-#[tauri::command]
-pub fn hide_track(state: State<'_, AppState>, track_id: i64) -> Result<Snapshot, String> {
-    let conn = state.db.lock().map_err(|e| e.to_string())?;
-    conn.execute(
-        "INSERT OR IGNORE INTO hidden_tracks (track_id, hidden_at, reason) VALUES (?1, ?2, 'album')",
-        params![track_id, crate::db::now_secs()],
-    )
-    .map_err(|e| e.to_string())?;
-    snapshot(&conn)
-}
-
-#[tauri::command]
-pub fn restore_track(state: State<'_, AppState>, track_id: i64) -> Result<Snapshot, String> {
-    let conn = state.db.lock().map_err(|e| e.to_string())?;
-    conn.execute(
-        "DELETE FROM hidden_tracks WHERE track_id = ?1",
-        params![track_id],
-    )
-    .map_err(|e| e.to_string())?;
     snapshot(&conn)
 }
 

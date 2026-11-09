@@ -57,12 +57,6 @@ CREATE TABLE IF NOT EXISTS favorites (
     added_at INTEGER NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS hidden_tracks (
-    track_id INTEGER PRIMARY KEY REFERENCES tracks(id) ON DELETE CASCADE,
-    hidden_at INTEGER NOT NULL,
-    reason TEXT
-);
-
 CREATE TABLE IF NOT EXISTS playlists (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
@@ -147,6 +141,9 @@ pub fn init(app_dir: &Path) -> Result<Connection, Box<dyn std::error::Error>> {
 /// test schema cannot drift from the shipped one.
 pub(crate) fn apply_schema(conn: &Connection) -> rusqlite::Result<()> {
     conn.execute_batch(SCHEMA)?;
+    // Hiding tracks was removed: dropping the legacy table makes every
+    // previously hidden track visible again without touching its file.
+    conn.execute("DROP TABLE IF EXISTS hidden_tracks", [])?;
     ensure_track_columns(conn)?;
     ensure_download_queue_columns(conn)?;
     Ok(())
@@ -181,6 +178,64 @@ fn ensure_track_columns(conn: &Connection) -> rusqlite::Result<()> {
         )?;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn removes_legacy_hidden_tracks_and_keeps_tracks() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            r#"
+            PRAGMA foreign_keys = ON;
+            CREATE TABLE tracks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                path TEXT NOT NULL UNIQUE,
+                folder_id INTEGER,
+                filename TEXT NOT NULL,
+                title TEXT NOT NULL,
+                artist TEXT NOT NULL,
+                album TEXT NOT NULL,
+                album_artist TEXT NOT NULL,
+                duration_ms INTEGER NOT NULL DEFAULT 0,
+                format TEXT NOT NULL DEFAULT '',
+                size INTEGER NOT NULL DEFAULT 0,
+                added_at INTEGER NOT NULL,
+                updated_at INTEGER NOT NULL,
+                missing INTEGER NOT NULL DEFAULT 0
+            );
+            CREATE TABLE hidden_tracks (
+                track_id INTEGER PRIMARY KEY REFERENCES tracks(id) ON DELETE CASCADE,
+                hidden_at INTEGER NOT NULL,
+                reason TEXT
+            );
+            INSERT INTO tracks
+                (path, filename, title, artist, album, album_artist, added_at, updated_at)
+            VALUES
+                ('/music/kept.mp3', 'kept.mp3', 'Kept', 'Artist', 'Album', 'Artist', 1, 1);
+            INSERT INTO hidden_tracks (track_id, hidden_at, reason)
+            VALUES (1, 1, 'album');
+            "#,
+        )
+        .unwrap();
+
+        apply_schema(&conn).unwrap();
+
+        let hidden_tables: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'hidden_tracks'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        let tracks: i64 = conn
+            .query_row("SELECT COUNT(*) FROM tracks", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(hidden_tables, 0);
+        assert_eq!(tracks, 1);
+    }
 }
 
 #[cfg(debug_assertions)]

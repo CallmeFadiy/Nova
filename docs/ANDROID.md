@@ -226,7 +226,7 @@ adb -s emulator-5554 shell dumpsys notification --noredact
   12 записей остались с `folder_id = NULL`, ссылки в плейлисте не осиротели.
 - Task 4: редактирование тегов с открытой клавиатурой, кастомная обложка,
   фон, дубликаты по SHA-1, исправление кодировки, merge альбомов,
-  hide/restore и удаление трека вместе с файлом.
+  удаление трека вместе с файлом.
 - 392 CSS px: `innerWidth = scrollWidth = 392`, горизонтального скролла нет;
   player bar остаётся 64 px. 44×44 проверены для player bar
   (prev/play/next/queue), hamburger, 10 пунктов drawer-навигации, кнопок

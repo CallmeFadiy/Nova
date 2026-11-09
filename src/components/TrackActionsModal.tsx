@@ -30,7 +30,6 @@ export function TrackActionsModal() {
   const notify = useUiStore((state) => state.notify);
   const tracks = useLibraryStore((state) => state.tracks);
   const toggleFavorite = useLibraryStore((state) => state.toggleFavorite);
-  const hideTrack = useLibraryStore((state) => state.hideTrack);
   const setTrackCover = useLibraryStore((state) => state.setTrackCover);
   const clearTrackCover = useLibraryStore((state) => state.clearTrackCover);
   const deleteTrack = useLibraryStore((state) => state.deleteTrack);
@@ -198,16 +197,6 @@ export function TrackActionsModal() {
             <button
               className="action-row danger"
               onClick={() => {
-                void hideTrack(track.id);
-                close();
-              }}
-            >
-              <Trash2 size={16} />
-              Скрыть из альбома
-            </button>
-            <button
-              className="action-row danger"
-              onClick={() => {
                 close();
                 void confirm({
                   title: "Удалить трек?",
@@ -225,10 +214,6 @@ export function TrackActionsModal() {
               Удалить трек и файл
             </button>
           </div>
-          <p className="modal-note">
-            «Скрыть из альбома» убирает трек только из Nova. Файл на диске
-            остаётся на месте.
-          </p>
           <p className="modal-path">{track.path}</p>
         </div>
       ) : null}

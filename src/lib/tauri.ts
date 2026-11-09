@@ -67,7 +67,6 @@ const demo: Snapshot = {
       size: 6282487,
       addedAt: now - 1200,
       favorite: true,
-      hidden: false,
       missing: false,
       groupKeyOverride: null,
       groupNameOverride: null,
@@ -91,7 +90,6 @@ const demo: Snapshot = {
       size: 10256762,
       addedAt: now - 2400,
       favorite: false,
-      hidden: false,
       missing: false,
       groupKeyOverride: null,
       groupNameOverride: null,
@@ -115,7 +113,6 @@ const demo: Snapshot = {
       size: 10011417,
       addedAt: now - 3600,
       favorite: true,
-      hidden: false,
       missing: false,
       groupKeyOverride: null,
       groupNameOverride: null,
@@ -139,7 +136,6 @@ const demo: Snapshot = {
       size: 8803058,
       addedAt: now - 4800,
       favorite: false,
-      hidden: false,
       missing: false,
       groupKeyOverride: null,
       groupNameOverride: null,
@@ -420,24 +416,6 @@ export const api = {
       return clone(demo);
     }
     return call<Snapshot>("toggle_favorite", { trackId });
-  },
-
-  async hideTrack(trackId: number): Promise<Snapshot> {
-    if (!isTauri) {
-      const track = demo.tracks.find((item) => item.id === trackId);
-      if (track) track.hidden = true;
-      return clone(demo);
-    }
-    return call<Snapshot>("hide_track", { trackId });
-  },
-
-  async restoreTrack(trackId: number): Promise<Snapshot> {
-    if (!isTauri) {
-      const track = demo.tracks.find((item) => item.id === trackId);
-      if (track) track.hidden = false;
-      return clone(demo);
-    }
-    return call<Snapshot>("restore_track", { trackId });
   },
 
   async setTrackCover(trackId: number, sourcePath: string): Promise<Snapshot> {

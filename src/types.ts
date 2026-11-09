@@ -17,7 +17,6 @@ export interface Track {
   size: number;
   addedAt: number;
   favorite: boolean;
-  hidden: boolean;
   missing: boolean;
   groupKeyOverride: string | null;
   groupNameOverride: string | null;

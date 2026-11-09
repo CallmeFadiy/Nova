@@ -1,7 +1,6 @@
 import { useEffect, useState, type CSSProperties } from "react";
 import {
   Download,
-  EyeOff,
   Bell,
   BellRing,
   Copy,
@@ -18,7 +17,6 @@ import {
   RotateCcw,
   SlidersHorizontal,
   Trash2,
-  Undo2,
 } from "lucide-react";
 import { ScanButton } from "../components/ScanButton";
 import { errorText } from "../lib/errors";
@@ -85,7 +83,6 @@ export function Settings() {
   const folders = useLibraryStore((state) => state.folders);
   const addFolder = useLibraryStore((state) => state.addFolder);
   const removeFolder = useLibraryStore((state) => state.removeFolder);
-  const restoreTrack = useLibraryStore((state) => state.restoreTrack);
   const notify = useUiStore((state) => state.notify);
   const setEqualizerOpen = useUiStore((state) => state.setEqualizerOpen);
   const confirm = useConfirmStore((state) => state.confirm);
@@ -151,7 +148,6 @@ export function Settings() {
   );
 
   const visible = visibleTracks(tracks);
-  const hidden = tracks.filter((track) => track.hidden);
   const missing = tracks.filter((track) => track.missing);
   const totalSize = visible.reduce((sum, track) => sum + track.size, 0);
 
@@ -1044,39 +1040,6 @@ export function Settings() {
             применяет то же исправление к метаданным.
           </span>
         </div>
-      </section>
-
-      <section className="settings-section">
-        <div className="settings-section-head">
-          <h2 className="serif">Скрытые треки</h2>
-          <span className="settings-badge">{hidden.length}</span>
-        </div>
-        <p className="settings-hint">
-          Эти треки убраны из альбомов внутри Nova. Файлы на диске не тронуты.
-        </p>
-        {hidden.length === 0 ? (
-          <div className="settings-empty">
-            <EyeOff size={15} /> Скрытых треков нет.
-          </div>
-        ) : (
-          <div className="settings-list">
-            {hidden.map((track) => (
-              <div className="settings-row" key={track.id}>
-                <div className="settings-row-main">
-                  <strong>{track.title}</strong>
-                  <span>{track.artist}</span>
-                </div>
-                <button
-                  className="ghost-button"
-                  onClick={() => void restoreTrack(track.id)}
-                >
-                  <Undo2 size={14} />
-                  Восстановить
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
       </section>
 
       <section className="settings-section about-section">

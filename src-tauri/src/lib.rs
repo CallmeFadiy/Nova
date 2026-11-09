@@ -107,8 +107,6 @@ pub fn run() {
             commands::remove_from_playlist,
             commands::reorder_playlist,
             commands::toggle_favorite,
-            commands::hide_track,
-            commands::restore_track,
             commands::set_track_cover,
             commands::clear_track_cover,
             commands::update_track_metadata,

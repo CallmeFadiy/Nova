@@ -97,7 +97,6 @@ tracks(id, path UNIQUE, folder_id, filename, title, artist, album, album_artist,
 playlists(id, name, description, cover_path, created_at, updated_at, sort_order)
 playlist_items(id, playlist_id, track_id, position, added_at)
 favorites(track_id PRIMARY KEY, added_at)
-hidden_tracks(track_id PRIMARY KEY, hidden_at, reason)
 settings(key PRIMARY KEY, value)
 queue_state(id=1, context_type, context_id, track_ids_json, current_index,
             position_ms, shuffle, repeat_mode, updated_at)
@@ -108,7 +107,7 @@ import_jobs(id, source, url, raw_json, created_at)
 ```
 
 - `tracks.path` – абсолютный путь, уникальный ключ.
-- `hidden_tracks` – трек скрыт из альбома/библиотеки, файл остаётся.
+- Скрытие треков не используется: трек можно только удалить вместе с файлом.
 - `favorites` – виртуальный альбом «Избранное».
 - `queue_state` – одна строка, восстанавливается при старте.
 - `settings` – JSON-значения: `music_folders`, `auto_scan`, `theme`, `app_background`, `now_playing_background`, `ytdlp_path`, `shazam_provider`, `shazam_key`, `search_sources`, `volume`, `eq_active_preset`, `sort_mode`.
@@ -122,7 +121,7 @@ import_jobs(id, source, url, raw_json, created_at)
 - Обложка: встроенная в тег → `covers/<sha1(path)>.jpg`; иначе ищем `cover.jpg`, `folder.jpg`, `front.jpg` в папке; иначе плейсхолдер с инициалами.
 - Инкрементальность: сравниваем `mtime + size`; если не изменилось – пропускаем.
 - Удалённые файлы: помечаем `missing=1` (добавить колонку) и скрываем из списков; файл не трогаем. При возврате файла – `missing=0`.
-- Скрытые треки не возвращаются автоматически. В настройках – «Скрытые треки» → «Восстановить».
+- Скрытие треков удалено. Единственное действие удаления — «Удалить трек и файл».
 - Новые треки: после скана показываем счётчик «Добавлено N» и фильтр «Недавно добавленные».
 
 ## 7. Плеер и очередь
