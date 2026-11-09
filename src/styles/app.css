@@ -1267,8 +1267,14 @@ p {
 .playing-bars i {
   display: block;
   width: 2px;
+  transform-origin: bottom;
   background: var(--accent);
-  animation: eq 850ms ease-in-out infinite;
+  animation: eq 850ms ease-in infinite;
+}
+
+.playing-bars.is-paused i {
+  animation: none;
+  transform: scaleY(0.35);
 }
 
 .playing-bars i:nth-child(1) {
@@ -1286,11 +1292,10 @@ p {
 }
 
 @keyframes eq {
-  0%,
-  100% {
-    transform: scaleY(0.55);
+  0% {
+    transform: scaleY(0.15);
   }
-  50% {
+  100% {
     transform: scaleY(1);
   }
 }
@@ -6184,7 +6189,7 @@ body {
   .main-scroll {
     grid-column: 1;
     grid-row: 1;
-    padding: calc(62px + env(safe-area-inset-top, 0px))
+    padding: calc(30px + env(safe-area-inset-top, 0px))
       max(16px, env(safe-area-inset-left, 0px)) 18px
       max(16px, env(safe-area-inset-right, 0px));
   }
@@ -6850,6 +6855,14 @@ body {
     display: none;
   }
 
+  .home-head .page-date {
+    margin: 0 0 2px;
+  }
+
+  .home-head h1 {
+    margin: 2px 0 0;
+  }
+
   .home-title-row {
     display: flex;
     align-items: center;
@@ -6947,7 +6960,7 @@ body {
   }
 
   .home-hero-body {
-    padding: 8px 10px;
+    padding: 16px 10px 8px;
   }
 
   .hero-catalog {
@@ -6956,57 +6969,49 @@ body {
 
   .home-hero h2 {
     margin: 2px 0 0;
-    font-size: 22px;
+    font-size: 19px;
     line-height: 1.05;
     white-space: normal;
   }
 
   .hero-artist {
-    font-size: 11px;
+    font-size: 8px;
   }
 
   .hero-meta {
-    margin-top: 4px;
-    gap: 4px;
-  }
-
-  .hero-meta-album,
-  .hero-meta-divider {
     display: none;
-  }
-
-  .hero-chip {
-    padding: 1px 4px;
-    font-size: 6.5px;
   }
 
   .hero-progress {
     margin-top: 3px;
-    padding-top: 5px;
+    padding: 5px 12px 0;
   }
 
   .hero-progress > span {
-    font-size: 7.5px;
+    font-size: 5.5px;
   }
 
   .hero-actions {
     margin-top: 5px;
+    padding: 0 2px 4px;
     gap: 4px;
   }
 
   .hero-actions .play-hero {
-    width: 40px;
-    height: 40px;
+    width: 32px;
+    height: 32px;
   }
 
   .hero-actions .ghost-button {
-    min-height: 40px;
-    padding: 0 8px;
-    font-size: 9px;
+    min-height: 32px;
+    padding: 0 7px;
+    font-size: 8.5px;
   }
 
   .hero-actions .hero-shuffle-button {
-    width: 40px;
+    width: 32px;
+    min-width: 32px;
+    max-width: 32px;
     padding: 0;
     font-size: 0;
     justify-content: center;
@@ -7021,7 +7026,7 @@ body {
   }
 
   .hero-actions a.ghost-button {
-    text-decoration: none;
+    display: none;
   }
 }
 

@@ -210,7 +210,10 @@ export function Home() {
             <span className="eyebrow">
               {heroIsCurrent ? (
                 <>
-                  <span className="playing-bars">
+                  <span
+                    className={`playing-bars${isPlaying ? "" : " is-paused"}`}
+                    aria-hidden="true"
+                  >
                     <i />
                     <i />
                     <i />
