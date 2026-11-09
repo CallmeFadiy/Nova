@@ -217,7 +217,6 @@ export function TrackTable({
             onMenu={() => openTrackActions(track.id)}
             onLongPress={() => {
               selectOnly(track.id, index);
-              openTrackActions(track.id);
             }}
             showAlbum={showAlbum}
             showFolder={showFolder}

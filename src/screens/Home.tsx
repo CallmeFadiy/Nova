@@ -2,7 +2,6 @@ import {
   ArrowRight,
   FolderPlus,
   ListMusic,
-  Menu,
   Pause,
   Play,
   Shuffle,
@@ -10,6 +9,7 @@ import {
 import type { CSSProperties } from "react";
 import { Link } from "react-router-dom";
 import { Cover } from "../components/Cover";
+import { MobileMenuButton } from "../components/MobileMenuButton";
 import { ScanButton } from "../components/ScanButton";
 import {
   formatDuration,
@@ -46,8 +46,6 @@ export function Home() {
   const seek = usePlayerStore((state) => state.seek);
   const current = useCurrentTrack();
   const notify = useUiStore((state) => state.notify);
-  const mobileNavOpen = useUiStore((state) => state.mobileNavOpen);
-  const setMobileNavOpen = useUiStore((state) => state.setMobileNavOpen);
 
   const visible = visibleTracks(tracks);
   const albums = groupAlbums(tracks);
@@ -184,13 +182,7 @@ export function Home() {
           </p>
           <div className="home-title-row">
             <h1 className="serif">{greeting()}</h1>
-            <button
-              className="mobile-menu home-menu"
-              onClick={() => setMobileNavOpen(!mobileNavOpen)}
-              aria-label="Меню"
-            >
-              <Menu size={18} />
-            </button>
+            <MobileMenuButton className="home-menu" />
           </div>
           <p className="page-sub">
             {trackCountLabel(visible.length)} · {albums.length}{" "}

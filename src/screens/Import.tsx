@@ -17,6 +17,7 @@ import { isDirectDownloadUrl } from "../lib/download";
 import { pickBestCandidate } from "../lib/match";
 import { api, openExternal } from "../lib/tauri";
 import { DuplicateDownloadModal } from "../components/DuplicateDownloadModal";
+import { MobileMenuButton } from "../components/MobileMenuButton";
 import { useDownloadProgress } from "../hooks/useDownloadProgress";
 import { findDuplicateTrack, useLibraryStore } from "../store/library";
 import { registerDownloadDone, cancelDownloadDone } from "../store/downloads";
@@ -604,7 +605,10 @@ export function Import() {
       <header className="page-head">
         <div>
           <p className="page-date">Ссылки из других приложений</p>
-          <h1 className="serif">Импорт плейлиста</h1>
+          <div className="page-title-row">
+            <h1 className="serif">Импорт плейлиста</h1>
+            <MobileMenuButton className="page-menu" />
+          </div>
           <p className="page-sub">
             Вставьте ссылку – Nova покажет список треков и спросит, что скачать
           </p>

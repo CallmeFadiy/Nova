@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import {
+  ArrowUpDown,
   ChevronLeft,
   Disc3,
   FolderPlus,
@@ -12,6 +13,7 @@ import {
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Cover } from "../components/Cover";
+import { MobileMenuButton } from "../components/MobileMenuButton";
 import { PlaylistMosaic } from "../components/PlaylistMosaic";
 import { ScanButton } from "../components/ScanButton";
 import { TrackTable } from "../components/TrackTable";
@@ -238,12 +240,16 @@ export function Library({ initialTab = "tracks" }: { initialTab?: Tab }) {
       <header className="page-head">
         <div>
           <p className="page-date">
-            {trackCountLabel(visible.length)} · {albums.length}{" "}
-            {pluralRu(albums.length, ["альбом", "альбома", "альбомов"])} ·{" "}
-            {folders.length}{" "}
-            {pluralRu(folders.length, ["папка", "папки", "папок"])}
+            {new Date().toLocaleDateString("ru-RU", {
+              weekday: "long",
+              day: "numeric",
+              month: "long",
+            })}
           </p>
-          <h1 className="serif">{tabTitle}</h1>
+          <div className="page-title-row">
+            <h1 className="serif">{tabTitle}</h1>
+            <MobileMenuButton className="page-menu" />
+          </div>
           <p className="page-sub">
             Локальные файлы, плейлисты и избранное в одном месте
           </p>
@@ -288,17 +294,21 @@ export function Library({ initialTab = "tracks" }: { initialTab?: Tab }) {
                 onChange={(event) => setSearch(event.target.value)}
               />
             </div>
-            <select
-              className="select-input"
-              value={sort}
-              onChange={(event) => setSort(event.target.value as SortMode)}
-            >
-              {SORT_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
+            <div className="sort-control">
+              <ArrowUpDown size={16} className="sort-icon" />
+              <select
+                className="select-input"
+                aria-label="Сортировка"
+                value={sort}
+                onChange={(event) => setSort(event.target.value as SortMode)}
+              >
+                {SORT_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
           {filtered.length === 0 ? (

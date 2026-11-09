@@ -11,7 +11,6 @@ interface SettingsState {
   downloadDir: string;
   ytdlpPath: string;
   shazamProvider: ShazamProvider;
-  shazamKey: string;
   recognitionSource: RecognitionInput;
   notificationSound: NotificationSound;
   notificationVolume: number;
@@ -24,7 +23,6 @@ interface SettingsState {
   setDownloadDir: (value: string) => void;
   setYtdlpPath: (value: string) => void;
   setShazamProvider: (value: ShazamProvider) => void;
-  setShazamKey: (value: string) => void;
   setRecognitionSource: (value: RecognitionInput) => void;
   setNotificationSound: (value: NotificationSound) => void;
   setNotificationVolume: (value: number) => void;
@@ -42,7 +40,6 @@ export const useSettingsStore = create<SettingsState>()(
       downloadDir: "",
       ytdlpPath: "",
       shazamProvider: "builtin",
-      shazamKey: "",
       recognitionSource: "microphone",
       notificationSound: "soft",
       notificationVolume: 0.6,
@@ -56,7 +53,6 @@ export const useSettingsStore = create<SettingsState>()(
       setDownloadDir: (value) => set({ downloadDir: value }),
       setYtdlpPath: (value) => set({ ytdlpPath: value }),
       setShazamProvider: (value) => set({ shazamProvider: value }),
-      setShazamKey: (value) => set({ shazamKey: value }),
       setRecognitionSource: (value) => set({ recognitionSource: value }),
       setNotificationSound: (value) => set({ notificationSound: value }),
       setNotificationVolume: (value) =>
@@ -65,6 +61,17 @@ export const useSettingsStore = create<SettingsState>()(
       setAutoplayOnStart: (value) => set({ autoplayOnStart: value }),
       setAutoScan: (value) => set({ autoScan: value }),
     }),
-    { name: "nova-settings" },
+    {
+      name: "nova-settings",
+      version: 2,
+      migrate: (persisted, version) => {
+        if (version < 2 && persisted && typeof persisted === "object") {
+          const copy = { ...(persisted as Record<string, unknown>) };
+          delete copy.shazamKey;
+          return copy as unknown as SettingsState;
+        }
+        return persisted as SettingsState;
+      },
+    },
   ),
 );

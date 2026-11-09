@@ -29,6 +29,7 @@ import {
 } from "../lib/tauri";
 import { isAndroid } from "../lib/platform";
 import { DuplicateDownloadModal } from "../components/DuplicateDownloadModal";
+import { MobileMenuButton } from "../components/MobileMenuButton";
 import { useDownloadProgress } from "../hooks/useDownloadProgress";
 import { findDuplicateTrack, useLibraryStore } from "../store/library";
 import { registerDownloadDone, cancelDownloadDone } from "../store/downloads";
@@ -353,12 +354,10 @@ export function Downloads() {
     <div className="page">
       <header className="page-head">
         <div>
-          <p className="page-date">Поиск, ссылки, yt-dlp</p>
-          <h1 className="serif">Загрузки</h1>
-          <p className="page-sub">
-            Скачивание только после подтверждения. Прямые источники и yt-dlp,
-            лучший доступный битрейт.
-          </p>
+          <div className="page-title-row">
+            <h1 className="serif">Загрузки</h1>
+            <MobileMenuButton className="page-menu" />
+          </div>
         </div>
         <button
           className="secondary-button"
@@ -384,7 +383,6 @@ export function Downloads() {
         <div className="download-link-head">
           <div>
             <h2 className="serif">Скачать по ссылке</h2>
-            <p>Прямой аудиофайл или страница, которую понимает yt-dlp</p>
           </div>
         </div>
         <div className="download-link-row">
@@ -416,10 +414,6 @@ export function Downloads() {
         <div className="download-search-head">
           <div>
             <h2 className="serif">Найти и скачать</h2>
-            <p>
-              Название песни или исполнитель · zaycev.net · muzofond.fm ·
-              ru.drivemusic.me
-            </p>
           </div>
         </div>
         <div className="download-search-row">
@@ -503,15 +497,7 @@ export function Downloads() {
               </article>
             ))}
           </div>
-        ) : (
-          <div className="download-search-empty">
-            <Search size={18} />
-            <span>
-              Введите название или исполнителя. Nova найдёт варианты на трёх
-              сайтах и поставит лучший доступный битрейт первым.
-            </span>
-          </div>
-        )}
+        ) : null}
       </section>
 
       <section className="downloads-list-section">
@@ -713,28 +699,6 @@ export function Downloads() {
           </div>
         )}
       </section>
-
-      <div className="downloads-info">
-        <div>
-          <strong>Качество</strong>
-          <p>
-            Если сайт предлагает несколько вариантов, Nova автоматически
-            выбирает лучший доступный битрейт. yt-dlp также настроен на
-            максимальное качество аудио.
-          </p>
-        </div>
-        <div>
-          <strong>Папка загрузок</strong>
-          <p>{downloadDir || "По умолчанию: данные приложения / downloads"}</p>
-        </div>
-        <div>
-          <strong>Без автоматики</strong>
-          <p>
-            Ничего не скачивается без нажатия. Файл попадает в библиотеку
-            только после завершения.
-          </p>
-        </div>
-      </div>
 
       {previewAudio ? (
         <button

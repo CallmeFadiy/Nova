@@ -15,6 +15,10 @@ use tauri::{AppHandle, Emitter};
 const TARGET_RATE: u32 = 16_000;
 const CAPTURE_SECONDS: u64 = 12;
 
+// The AudD token is bundled with the application and is not editable from the
+// UI. Treat it as extractable from the APK rather than as a server-side secret.
+const AUDD_API_TOKEN: &str = "501e0d08fc5f362e3bba3159c91ec152";
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RecognitionSource {
     Microphone,
@@ -509,18 +513,14 @@ pub async fn recognize_shazam_file(path: String) -> Result<RecognitionResult, St
 
 pub async fn recognize_audd(
     app: AppHandle,
-    api_token: String,
     source: Option<String>,
 ) -> Result<RecognitionResult, String> {
-    let token = api_token.trim().to_string();
-    if token.is_empty() {
-        return Err("Укажите API-ключ AudD в настройках".to_string());
-    }
+    let token = AUDD_API_TOKEN;
     let source = RecognitionSource::parse(source.as_deref());
     #[cfg(target_os = "android")]
     if source == RecognitionSource::System {
         let path = crate::commands::android_capture_system_audio(&app).await?;
-        let result = recognize_audd_file(path.clone(), token).await;
+        let result = recognize_audd_file(path.clone()).await;
         let _ = tokio::fs::remove_file(&path).await;
         return result;
     }
@@ -529,7 +529,7 @@ pub async fn recognize_audd(
         .await
         .map_err(|error| format!("Не удалось подготовить WAV: {error}"))??;
 
-    audd_send(wav, "nova-sample.wav", "audio/wav", &token).await
+    audd_send(wav, "nova-sample.wav", "audio/wav", token).await
 }
 
 /// Decode the first `seconds` of an audio file into a 16 kHz mono WAV. AudD's
@@ -608,14 +608,8 @@ fn extract_preview(path: &str, seconds: u64) -> Result<Vec<u8>, String> {
 
 /// AudD accepts common audio files, so the Android file picker can recognize a
 /// track without the (Windows-only) local Shazam fingerprint engine.
-pub async fn recognize_audd_file(
-    path: String,
-    api_token: String,
-) -> Result<RecognitionResult, String> {
-    let token = api_token.trim().to_string();
-    if token.is_empty() {
-        return Err("Укажите API-ключ AudD в настройках".to_string());
-    }
+pub async fn recognize_audd_file(path: String) -> Result<RecognitionResult, String> {
+    let token = AUDD_API_TOKEN;
 
     const MAX_AUDD_BYTES: u64 = 10 * 1024 * 1024;
     let size = tokio::fs::metadata(&path)
@@ -634,7 +628,7 @@ pub async fn recognize_audd_file(
         .await
         .map_err(|error| format!("Не удалось подготовить фрагмент: {error}"))?;
         return match preview {
-            Ok(wav) => audd_send(wav, "nova-preview.wav", "audio/wav", &token).await,
+            Ok(wav) => audd_send(wav, "nova-preview.wav", "audio/wav", token).await,
             Err(preview_error) => Err(format!(
                 "{preview_error}. Файл больше 10 МБ ({:.1} МБ), отправлять целиком нельзя.",
                 size as f64 / 1_048_576.0
@@ -659,7 +653,7 @@ pub async fn recognize_audd_file(
     let bytes = tokio::fs::read(&path)
         .await
         .map_err(|error| format!("Не удалось прочитать файл: {error}"))?;
-    audd_send(bytes, &name, mime, &token).await
+    audd_send(bytes, &name, mime, token).await
 }
 
 async fn audd_send(
@@ -896,3 +890,4 @@ mod tests {
         assert!((0.0..=1.0).contains(&normalized_level(0.1)));
     }
 }
+

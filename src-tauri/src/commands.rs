@@ -1734,18 +1734,14 @@ pub async fn download_direct(
 #[tauri::command]
 pub async fn recognize_audd(
     app: AppHandle,
-    api_token: String,
     source: Option<String>,
 ) -> Result<RecognitionResult, String> {
-    recognition::recognize_audd(app, api_token, source).await
+    recognition::recognize_audd(app, source).await
 }
 
 #[tauri::command]
-pub async fn recognize_audd_file(
-    path: String,
-    api_token: String,
-) -> Result<RecognitionResult, String> {
-    recognition::recognize_audd_file(path, api_token).await
+pub async fn recognize_audd_file(path: String) -> Result<RecognitionResult, String> {
+    recognition::recognize_audd_file(path).await
 }
 
 #[tauri::command]

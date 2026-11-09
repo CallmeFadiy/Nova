@@ -16,7 +16,9 @@ import {
   Play,
   RotateCcw,
   SlidersHorizontal,
+  Sun,
   Trash2,
+  Volume2,
 } from "lucide-react";
 import { ScanButton } from "../components/ScanButton";
 import { errorText } from "../lib/errors";
@@ -101,8 +103,6 @@ export function Settings() {
   const setYtdlpPath = useSettingsStore((state) => state.setYtdlpPath);
   const shazamProvider = useSettingsStore((state) => state.shazamProvider);
   const setShazamProvider = useSettingsStore((state) => state.setShazamProvider);
-  const shazamKey = useSettingsStore((state) => state.shazamKey);
-  const setShazamKey = useSettingsStore((state) => state.setShazamKey);
   const recognitionSource = useSettingsStore(
     (state) => state.recognitionSource,
   );
@@ -409,10 +409,6 @@ export function Settings() {
             Добавить папку
           </button>
         </div>
-        <p className="settings-hint">
-          Файлы читаются на месте и не копируются. Удаление папки из Nova не
-          удаляет музыку с диска.
-        </p>
         <div className="settings-list">
           {folders.map((folder) => {
             const count = visible.filter(
@@ -543,7 +539,10 @@ export function Settings() {
 
         <div className="settings-row slider-row">
           <div className="settings-row-main">
-            <strong>Затемнение фона</strong>
+            <strong>
+              <Sun size={16} className="settings-slider-icon" />
+              Затемнение фона
+            </strong>
             <span>Чтобы текст и обложка оставались читаемыми</span>
           </div>
           <input
@@ -555,6 +554,10 @@ export function Settings() {
             onChange={(event) => setBackgroundDim(Number(event.target.value))}
           />
           <span className="settings-value">{backgroundDim}%</span>
+          <div className="settings-range-labels">
+            <span>0%</span>
+            <span>80%</span>
+          </div>
         </div>
         <div className="theme-section">
           <div className="settings-row-main">
@@ -596,14 +599,7 @@ export function Settings() {
       <section className="settings-section">
         <div className="settings-section-head">
           <h2 className="serif">Уведомления</h2>
-          <span className="settings-badge">
-            <BellRing size={12} /> в приложении
-          </span>
         </div>
-        <p className="settings-hint">
-          Уведомления появляются внутри Nova, в стиле приложения, а не как
-          системные окна Windows. Выберите звук и послушайте каждый вариант.
-        </p>
         <div className="notification-sounds">
           {NOTIFICATION_SOUND_OPTIONS.map((option) => (
             <div
@@ -638,7 +634,10 @@ export function Settings() {
         </div>
         <div className="settings-row slider-row">
           <div className="settings-row-main">
-            <strong>Громкость звука</strong>
+            <strong>
+              <Volume2 size={16} className="settings-slider-icon" />
+              Громкость звука
+            </strong>
             <span>Не влияет на громкость музыки</span>
           </div>
           <input
@@ -655,6 +654,10 @@ export function Settings() {
           <span className="settings-value">
             {Math.round(notificationVolume * 100)}%
           </span>
+          <div className="settings-range-labels">
+            <span>0%</span>
+            <span>100%</span>
+          </div>
         </div>
         <div className="settings-inline">
           <BellRing size={15} />
@@ -788,11 +791,6 @@ export function Settings() {
               {batteryState?.ignoring ? "Без ограничений" : "Оптимизируется"}
             </span>
           </div>
-          <p className="settings-hint">
-            MIUI может останавливать загрузки, уведомления и воспроизведение в
-            фоне. Разрешите Nova работу без ограничений и автозапуск, чтобы
-            очередь и плеер не засыпали.
-          </p>
           <div className="settings-action-grid">
             <button
               className="secondary-button"
@@ -912,20 +910,8 @@ export function Settings() {
             <Info size={15} />
             <span>
               Встроенный Shazam доступен в Windows-версии. На Android
-              распознавание идёт через AudD – добавьте API-ключ AudD.
+              распознавание идёт через AudD.
             </span>
-          </div>
-        ) : null}
-        {shazamProvider !== "builtin" ? (
-          <div className="settings-field">
-            <label>API-ключ</label>
-            <input
-              className="text-input"
-              type="password"
-              value={shazamKey}
-              placeholder="Ключ хранится только на этом устройстве"
-              onChange={(event) => setShazamKey(event.target.value)}
-            />
           </div>
         ) : null}
         <div className="settings-field">
@@ -970,19 +956,6 @@ export function Settings() {
             <Copy size={15} />
             {duplicateScanning ? "Сверяю содержимое…" : "Проверить дубликаты"}
           </button>
-        </div>
-        <p className="settings-hint">
-          Ручная проверка: Nova сначала ищет совпадения по исполнителю и
-          названию, затем сверяет SHA-1 содержимого файлов. В одну группу
-          попадают только реально одинаковые записи. Вы сами отмечаете, какие
-          копии удалить, а какие оставить.
-        </p>
-        <div className="settings-inline">
-          <Copy size={15} />
-          <span>
-            Проверка запускается только по кнопке. Обычное сканирование ничего
-            не удаляет.
-          </span>
         </div>
       </section>
 

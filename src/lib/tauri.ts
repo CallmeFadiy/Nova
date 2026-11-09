@@ -758,7 +758,6 @@ export const api = {
   },
 
   async recognizeAudd(
-    apiToken: string,
     source: RecognitionInput = "microphone",
   ): Promise<RecognitionResult> {
     if (!isTauri) {
@@ -773,13 +772,10 @@ export const api = {
         provider: "Демо",
       };
     }
-    return call<RecognitionResult>("recognize_audd", { apiToken, source });
+    return call<RecognitionResult>("recognize_audd", { source });
   },
 
-  async recognizeAuddFile(
-    path: string,
-    apiToken: string,
-  ): Promise<RecognitionResult> {
+  async recognizeAuddFile(path: string): Promise<RecognitionResult> {
     if (!isTauri) {
       await delay(1600);
       return {
@@ -792,7 +788,7 @@ export const api = {
         provider: "Демо",
       };
     }
-    return call<RecognitionResult>("recognize_audd_file", { path, apiToken });
+    return call<RecognitionResult>("recognize_audd_file", { path });
   },
 
   async recognizeShazam(

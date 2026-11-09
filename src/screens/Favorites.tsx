@@ -1,4 +1,5 @@
 import { Heart, Play, Shuffle } from "lucide-react";
+import { MobileMenuButton } from "../components/MobileMenuButton";
 import { TrackTable } from "../components/TrackTable";
 import { formatMinutes, trackCountLabel } from "../lib/format";
 import { favoriteTracks, useLibraryStore } from "../store/library";
@@ -26,7 +27,10 @@ export function Favorites() {
       <header className="page-head">
         <div>
           <p className="page-date">Личная коллекция</p>
-          <h1 className="serif">Избранное</h1>
+          <div className="page-title-row">
+            <h1 className="serif">Избранное</h1>
+            <MobileMenuButton className="page-menu" />
+          </div>
           <p className="page-sub">
             {trackCountLabel(favorites.length)} ·{" "}
             {formatMinutes(

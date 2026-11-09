@@ -1,5 +1,4 @@
 import { useEffect, useLayoutEffect, useRef } from "react";
-import { Menu } from "lucide-react";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { onBackButtonPress } from "@tauri-apps/api/app";
 import { AddToPlaylistModal } from "./components/AddToPlaylistModal";
@@ -10,6 +9,7 @@ import { EditTrackModal } from "./components/EditTrackModal";
 import { EqualizerPanel } from "./components/EqualizerPanel";
 import { LyricsModal } from "./components/LyricsModal";
 import { MergeAlbumsModal } from "./components/MergeAlbumsModal";
+import { MobileMenuButton } from "./components/MobileMenuButton";
 import { MobileNav } from "./components/MobileNav";
 import { NowPlaying } from "./components/NowPlaying";
 import { PlayerBar } from "./components/PlayerBar";
@@ -99,7 +99,6 @@ export default function App() {
   const setScanProgress = useLibraryStore((state) => state.setScanProgress);
   const queueOpen = useUiStore((state) => state.queueOpen);
   const mobileNavOpen = useUiStore((state) => state.mobileNavOpen);
-  const setMobileNavOpen = useUiStore((state) => state.setMobileNavOpen);
   const appBackground = useSettingsStore((state) => state.appBackground);
   const backgroundDim = useSettingsStore((state) => state.backgroundDim);
   const theme = useSettingsStore((state) => state.theme);
@@ -311,14 +310,8 @@ export default function App() {
         }`}
       >
         <Sidebar />
-        {location.pathname !== "/" || mobileNavOpen ? (
-          <button
-            className="mobile-menu mobile-menu-global"
-            onClick={() => setMobileNavOpen(!mobileNavOpen)}
-            aria-label="Меню"
-          >
-            <Menu size={18} />
-          </button>
+        {mobileNavOpen ? (
+          <MobileMenuButton className="mobile-menu-global" />
         ) : null}
         <main className="main-scroll" ref={mainScrollRef}>
           <Routes>

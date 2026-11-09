@@ -12,6 +12,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { MobileMenuButton } from "../components/MobileMenuButton";
 import {
   api,
   listenRecognitionLevel,
@@ -30,7 +31,6 @@ export function Shazam() {
   const setShazamProvider = useSettingsStore(
     (state) => state.setShazamProvider,
   );
-  const shazamKey = useSettingsStore((state) => state.shazamKey);
   const recognitionSource = useSettingsStore(
     (state) => state.recognitionSource,
   );
@@ -94,10 +94,6 @@ export function Shazam() {
       );
       return;
     }
-    if (effectiveProvider === "audd" && !shazamKey.trim()) {
-      notify("Добавьте API-ключ AudD в настройках", "info");
-      return;
-    }
     if (isAndroid) {
       const granted = await api.androidRequestMicrophone();
       if (!granted) {
@@ -111,7 +107,7 @@ export function Shazam() {
       const recognized =
         effectiveProvider === "builtin"
           ? await api.recognizeShazam(recognitionSource)
-          : await api.recognizeAudd(shazamKey, recognitionSource);
+          : await api.recognizeAudd(recognitionSource);
       setResult(recognized);
       notify(`Распознано: ${recognized.artist} – ${recognized.title}`, "success");
     } catch (error) {
@@ -137,17 +133,13 @@ export function Shazam() {
       notify("Выбор файла доступен в приложении Nova", "info");
       return;
     }
-    if (effectiveProvider === "audd" && !shazamKey.trim()) {
-      notify("Добавьте API-ключ AudD в настройках", "info");
-      return;
-    }
     setListening(true);
     setResult(null);
     try {
       const recognized =
         effectiveProvider === "builtin"
           ? await api.recognizeShazamFile(path)
-          : await api.recognizeAuddFile(path, shazamKey);
+          : await api.recognizeAuddFile(path);
       setResult(recognized);
       notify(`Распознано: ${recognized.artist} – ${recognized.title}`, "success");
     } catch (error) {
@@ -167,7 +159,10 @@ export function Shazam() {
       <header className="page-head">
         <div>
           <p className="page-date">Что это играет?</p>
-          <h1 className="serif">Распознать трек</h1>
+          <div className="page-title-row">
+            <h1 className="serif">Распознать трек</h1>
+            <MobileMenuButton className="page-menu" />
+          </div>
           <p className="page-sub">
             Нажмите – Nova запишет 12 секунд и предложит найти песню
           </p>
@@ -256,9 +251,7 @@ export function Shazam() {
             ? `Встроенное распознавание Shazam: 12 секунд записи через ${sourceLabel.toLowerCase()}, без ключа.`
             : effectiveProvider === "acrcloud"
               ? "ACRCloud требует три параметра. Используйте AudD или ручной поиск."
-              : shazamKey
-                ? `Запись через ${sourceLabel.toLowerCase()} не сохраняется.`
-                : "Добавьте ключ AudD в настройках – и распознавание заработает на Android."}
+              : `Запись через ${sourceLabel.toLowerCase()} не сохраняется.`}
         </p>
         <div className="shazam-providers">
           <span>Провайдер: {providerLabel}</span>
