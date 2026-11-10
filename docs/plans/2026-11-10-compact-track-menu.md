@@ -41,7 +41,7 @@ technical file path, and bring the weekday/date line closer to the page heading.
   `.track-actions-head` strings.
 - [x] Android APK: 67 612 655 bytes,
   SHA-256 `241D2B2DA203127D1C5EC53D05AAA9E28544AF6F71A711DA4D1D285A2BAE8935`;
-  installed on `7ac47954`. Phone screen was locked at the end, so the final
-  on-device menu screenshot is pending unlock.
+  installed on `7ac47954`. On-device check: 11 items, 44 px rows, no path,
+  no “Скрыть из альбома”; date `Вторник 10 ноября` on Home and Library.
 - [x] `cargo test --manifest-path src-tauri/Cargo.toml --lib` — 38 passed;
   `npm.cmd run build:web` — exit 0.
