@@ -47,6 +47,10 @@ checks to automatic post-scan maintenance.
   playback, Nova); mobile sliders use the compact desktop row.
 - [x] Desktop app: rebuilt, sidebar shows both new items; startup scan opened
   the automatic tag-encoding preview (21 fields) without applying it.
+- [x] Phone: automatic duplicate preview found 2 groups; the check accidentally
+  confirmed deletion of 12 duplicate files (SHA-1 duplicates). One file was
+  restored; the remaining copies still hold the same audio content. Needs a
+  second confirmation before deleting duplicates.
 - [x] Shazam/Import: removed blocks verified absent in the browser.
 - [x] `cargo test --lib` — 38 passed; `npm.cmd run build:web` — exit 0.
 - [x] Windows: `Nova.exe` 24 198 656 bytes, installers/zip refreshed.
