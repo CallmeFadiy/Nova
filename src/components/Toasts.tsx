@@ -23,6 +23,17 @@ export function Toasts() {
               <Icon size={16} />
             </span>
             <span className="toast-message">{toast.message}</span>
+            {toast.action ? (
+              <button
+                className="toast-action"
+                onClick={() => {
+                  toast.action?.onClick();
+                  dismiss(toast.id);
+                }}
+              >
+                {toast.action.label}
+              </button>
+            ) : null}
             <button
               className="toast-close"
               onClick={() => dismiss(toast.id)}
@@ -30,7 +41,10 @@ export function Toasts() {
             >
               <X size={13} />
             </button>
-            <span className="toast-timer" />
+            <span
+              className="toast-timer"
+              style={{ animationDuration: toast.action ? "9s" : "4.2s" }}
+            />
           </div>
         );
       })}

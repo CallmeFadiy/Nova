@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../lib/tauri";
+import { pluralRu } from "../lib/format";
+import { useUiStore } from "../store/ui";
 import type { TagEncodingIssue } from "../types";
 import {
   findDuplicateGroups,
@@ -34,6 +36,20 @@ export function PostScanChecks() {
   const handled = useRef<unknown>(null);
 
   useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    const win = window as unknown as {
+      __novaShowDuplicates?: (groups: DuplicateTrackGroup[]) => void;
+    };
+    win.__novaShowDuplicates = (groups) => {
+      setDuplicateGroups(groups);
+      setDuplicateOpen(true);
+    };
+    return () => {
+      delete win.__novaShowDuplicates;
+    };
+  }, []);
+
+  useEffect(() => {
     if (!lastScan || handled.current === lastScan) return;
     handled.current = lastScan;
     let cancelled = false;
@@ -60,7 +76,18 @@ export function PostScanChecks() {
           );
           if (!cancelled && groups.length > 0) {
             setDuplicateGroups(groups);
-            setDuplicateOpen(true);
+            useUiStore.getState().notify(
+              `Найдены дубликаты: ${groups.length} ${pluralRu(groups.length, [
+                "группа",
+                "группы",
+                "групп",
+              ])}`,
+              "info",
+              {
+                label: "Открыть",
+                onClick: () => setDuplicateOpen(true),
+              },
+            );
           }
         } catch {
           // The scan itself succeeded; a duplicate check must not fail it.

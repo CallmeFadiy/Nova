@@ -5,10 +5,16 @@ import { useSettingsStore } from "./settings";
 
 export type ToastTone = "success" | "error" | "info";
 
+export interface ToastAction {
+  label: string;
+  onClick: () => void;
+}
+
 export interface Toast {
   id: string;
   message: string;
   tone: ToastTone;
+  action?: ToastAction;
 }
 
 interface UiState {
@@ -23,7 +29,7 @@ interface UiState {
   lyricsTrackId: number | null;
   queueOpen: boolean;
   mobileNavOpen: boolean;
-  notify: (message: string, tone?: ToastTone) => void;
+  notify: (message: string, tone?: ToastTone, action?: ToastAction) => void;
   dismissToast: (id: string) => void;
   openTrackActions: (trackId: number | null) => void;
   openAddToPlaylist: (trackIds: number | number[] | null) => void;
@@ -54,11 +60,11 @@ export const useUiStore = create<UiState>((set) => ({
   queueOpen: !isAndroid,
   mobileNavOpen: false,
 
-  notify: (message, tone = "info") => {
+  notify: (message, tone = "info", action) => {
     toastCounter += 1;
     const id = `toast-${Date.now()}-${toastCounter}`;
     set((state) => ({
-      toasts: [...state.toasts, { id, message, tone }],
+      toasts: [...state.toasts, { id, message, tone, action }],
     }));
     const settings = useSettingsStore.getState();
     playNotificationSound(settings.notificationSound, settings.notificationVolume);
@@ -66,7 +72,7 @@ export const useUiStore = create<UiState>((set) => ({
       set((state) => ({
         toasts: state.toasts.filter((toast) => toast.id !== id),
       }));
-    }, 4200);
+    }, action ? 9000 : 4200);
   },
 
   dismissToast: (id) =>

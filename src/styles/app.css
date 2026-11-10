@@ -2946,6 +2946,21 @@ p {
   border-left-color: var(--accent);
 }
 
+.toast-action {
+  flex: none;
+  padding: 4px 9px;
+  border: 1px solid var(--accent-line);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 9.5px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.toast-action:hover {
+  border-color: var(--accent);
+}
+
 .toast-close {
   margin-left: auto;
   border: 0;
@@ -5398,6 +5413,204 @@ body {
 }
 .duplicate-keep-button {
   justify-self: end;
+  font-size: 9px;
+}
+
+/* Compact duplicate picker for phones: choose what to keep, then confirm. */
+.duplicate-dialog.is-compact {
+  padding: 12px 14px calc(12px + env(safe-area-inset-bottom, 0px));
+}
+
+.duplicate-dialog.is-compact .modal-head {
+  margin-bottom: 6px;
+}
+
+.duplicate-dialog.is-compact .modal-head h2 {
+  font-size: 20px;
+}
+
+.duplicate-dialog.is-compact .modal-head p {
+  margin-top: 1px;
+  font-size: 9px;
+}
+
+.duplicate-compact {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 0;
+}
+
+.dupe-note {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border: 1px solid var(--line-soft);
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 8.5px;
+  line-height: 1.35;
+}
+
+.dupe-note svg {
+  flex: none;
+  color: var(--accent);
+}
+
+.dupe-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 56vh;
+  overflow-y: auto;
+}
+
+.dupe-group {
+  border: 1px solid var(--line-soft);
+  background: var(--panel);
+}
+
+.dupe-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.dupe-title {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.dupe-title strong {
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 10px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dupe-title span {
+  color: var(--muted);
+  font-size: 8px;
+}
+
+.dupe-head-right {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 7px;
+}
+
+.dupe-count {
+  color: var(--faint);
+  font-size: 7.5px;
+  white-space: nowrap;
+}
+
+.dupe-skip {
+  padding: 2px 0;
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  font-size: 8px;
+  white-space: nowrap;
+}
+
+.dupe-skip:disabled {
+  color: var(--faint);
+}
+
+.dupe-file {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) auto;
+  gap: 6px;
+  align-items: center;
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--line-soft);
+  font-size: 8px;
+  cursor: pointer;
+}
+
+.dupe-file:last-child {
+  border-bottom: 0;
+}
+
+.dupe-file.is-keep {
+  background: #172019;
+}
+
+.dupe-file.is-del {
+  background: #201314;
+}
+
+.dupe-radio {
+  width: 12px;
+  height: 12px;
+  margin: 0;
+  accent-color: #9fc3a6;
+}
+
+.dupe-file-main {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.dupe-file-main strong {
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 8.5px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dupe-file-main span {
+  color: var(--faint);
+  font-size: 7.5px;
+}
+
+.dupe-state {
+  color: #9fc3a6;
+  font-size: 7.5px;
+  white-space: nowrap;
+}
+
+.dupe-file.is-del .dupe-state {
+  color: #c98b84;
+}
+
+.dupe-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-top: 5px;
+  border-top: 1px solid var(--line-soft);
+}
+
+.dupe-summary {
+  color: var(--muted);
+  font-size: 8px;
+}
+
+.dupe-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.dupe-actions .ghost-button,
+.dupe-actions .danger-button {
+  min-height: 34px;
+  padding: 0 10px;
   font-size: 9px;
 }
 
