@@ -9,6 +9,7 @@ interface ModalProps {
   subtitle?: string;
   children: ReactNode;
   size?: "sm" | "md" | "lg";
+  className?: string;
 }
 
 export function Modal({
@@ -18,6 +19,7 @@ export function Modal({
   subtitle,
   children,
   size = "md",
+  className,
 }: ModalProps) {
   const backdropRef = useRef<HTMLDivElement>(null);
   const modalRef = useRef<HTMLDivElement>(null);
@@ -78,7 +80,7 @@ export function Modal({
   return createPortal(
     <div className="modal-backdrop" ref={backdropRef} onMouseDown={onClose}>
       <div
-        className={`modal modal-${size}`}
+        className={`modal modal-${size}${className ? ` ${className}` : ""}`}
         ref={modalRef}
         role="dialog"
         aria-modal="true"

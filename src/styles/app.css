@@ -319,6 +319,10 @@ button:focus-visible,
   color: var(--before, var(--faint));
 }
 
+.date-line {
+  margin-bottom: 1px;
+}
+
 .page-head h1 {
   margin: 0;
   font-size: 44px;
@@ -2424,22 +2428,46 @@ p {
   margin: 12px 0;
 }
 
-.modal-path {
-  color: #4e4a44;
-  font-size: 8px;
-  word-break: break-all;
-  margin: 8px 0 0;
+.modal.track-actions-dialog {
+  width: min(380px, 100%);
+  padding: 14px;
 }
 
-.track-actions-head h2 {
-  margin: 0;
-  font-size: 25px;
+.track-actions-dialog .modal-head {
+  margin-bottom: 8px;
 }
 
-.track-actions-head p {
-  margin: 4px 0 14px;
-  color: var(--muted);
-  font-size: 11px;
+.track-actions-dialog .modal-head h2 {
+  font-size: 20px;
+  line-height: 1.1;
+}
+
+.track-actions-dialog .modal-head p {
+  margin: 2px 0 0;
+  font-size: 9.5px;
+}
+
+.track-actions-dialog .action-list {
+  gap: 0;
+}
+
+.track-actions-dialog .action-row {
+  height: 31px;
+  padding: 0 7px;
+  font-size: 10.2px;
+  gap: 8px;
+  border-radius: 2px;
+}
+
+.track-actions-dialog .action-row svg {
+  width: 14px;
+  height: 14px;
+}
+
+.track-actions-dialog .action-row.group-start {
+  margin-top: 4px;
+  border-top: 1px solid #26262c;
+  border-radius: 0;
 }
 
 .action-list {
@@ -6587,6 +6615,40 @@ body {
       max(18px, env(safe-area-inset-left, 0px));
   }
 
+  .modal.track-actions-dialog {
+    width: 100%;
+    padding: 12px max(14px, env(safe-area-inset-right, 0px))
+      calc(12px + env(safe-area-inset-bottom, 0px))
+      max(14px, env(safe-area-inset-left, 0px));
+  }
+
+  .track-actions-dialog .modal-head {
+    margin-bottom: 6px;
+  }
+
+  .track-actions-dialog .modal-head h2 {
+    font-size: 19px;
+    line-height: 1.1;
+  }
+
+  .track-actions-dialog .modal-head p {
+    margin-top: 2px;
+    font-size: 9.5px;
+  }
+
+  .track-actions-dialog .action-row {
+    height: 44px;
+    min-height: 44px;
+    padding: 0 6px;
+    font-size: 10.5px;
+    gap: 9px;
+  }
+
+  .track-actions-dialog .action-row svg {
+    width: 15px;
+    height: 15px;
+  }
+
   .toasts {
     right: max(12px, env(safe-area-inset-right, 0px));
     bottom: calc(
@@ -6857,6 +6919,10 @@ body {
 
   .home-head .page-date {
     margin: 0 0 2px;
+  }
+
+  .home-head .date-line {
+    margin-bottom: 0;
   }
 
   .home-head h1 {

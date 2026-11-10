@@ -32,6 +32,15 @@ export function formatDate(timestamp: number): string {
   });
 }
 
+export function formatWeekdayDate(date = new Date()): string {
+  const weekday = date.toLocaleDateString("ru-RU", { weekday: "long" });
+  const dayMonth = date.toLocaleDateString("ru-RU", {
+    day: "numeric",
+    month: "long",
+  });
+  return `${weekday.charAt(0).toUpperCase()}${weekday.slice(1)} ${dayMonth}`;
+}
+
 export function pluralRu(
   count: number,
   forms: [string, string, string],

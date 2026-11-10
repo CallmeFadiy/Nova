@@ -45,15 +45,16 @@ export function TrackActionsModal() {
   const close = () => openTrackActions(null);
 
   return (
-    <Modal open={Boolean(track)} onClose={close} size="sm">
+    <Modal
+      open={Boolean(track)}
+      onClose={close}
+      size="sm"
+      title={track?.title}
+      subtitle={track?.artist}
+      className="track-actions-dialog"
+    >
       {track ? (
         <div className="track-actions-modal">
-          <div className="track-actions-head">
-            <div>
-              <h2 className="serif">{track.title}</h2>
-              <p>{track.artist}</p>
-            </div>
-          </div>
           <div className="action-list">
             <button
               className="action-row"
@@ -90,7 +91,7 @@ export function TrackActionsModal() {
             {isAndroid ? (
               <>
                 <button
-                  className="action-row"
+                  className="action-row group-start"
                   onClick={() => {
                     close();
                     void api
@@ -116,7 +117,7 @@ export function TrackActionsModal() {
               </>
             ) : null}
             <button
-              className="action-row"
+              className="action-row group-start"
               onClick={() => {
                 openEditTrack(track.id);
                 openTrackActions(null);
@@ -141,7 +142,7 @@ export function TrackActionsModal() {
               </button>
             ) : null}
             <button
-              className="action-row"
+              className={`action-row${isAndroid ? "" : " group-start"}`}
               onClick={() => {
                 void toggleFavorite(track.id);
                 close();
@@ -195,7 +196,7 @@ export function TrackActionsModal() {
               Показать в папке
             </button>
             <button
-              className="action-row danger"
+              className="action-row danger group-start"
               onClick={() => {
                 close();
                 void confirm({
@@ -214,7 +215,6 @@ export function TrackActionsModal() {
               Удалить трек и файл
             </button>
           </div>
-          <p className="modal-path">{track.path}</p>
         </div>
       ) : null}
     </Modal>

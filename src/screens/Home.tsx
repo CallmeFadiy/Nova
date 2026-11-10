@@ -13,6 +13,7 @@ import { MobileMenuButton } from "../components/MobileMenuButton";
 import { ScanButton } from "../components/ScanButton";
 import {
   formatDuration,
+  formatWeekdayDate,
   pluralRu,
   trackCountLabel,
 } from "../lib/format";
@@ -128,13 +129,7 @@ export function Home() {
       <div className="page">
         <header className="page-head">
           <div>
-            <p className="page-date">
-              {new Date().toLocaleDateString("ru-RU", {
-                weekday: "long",
-                day: "numeric",
-                month: "long",
-              })}
-            </p>
+            <p className="page-date date-line">{formatWeekdayDate()}</p>
             <h1 className="serif">{greeting()}</h1>
             <p className="page-sub">Локальная библиотека пока пуста</p>
           </div>
@@ -173,13 +168,7 @@ export function Home() {
     <div className="page home-page">
       <header className="page-head home-head">
         <div>
-          <p className="page-date">
-            {new Date().toLocaleDateString("ru-RU", {
-              weekday: "long",
-              day: "numeric",
-              month: "long",
-            })}
-          </p>
+          <p className="page-date date-line">{formatWeekdayDate()}</p>
           <div className="home-title-row">
             <h1 className="serif">{greeting()}</h1>
             <MobileMenuButton className="home-menu" />

@@ -20,6 +20,7 @@ import { TrackTable } from "../components/TrackTable";
 import {
   formatDate,
   formatMinutes,
+  formatWeekdayDate,
   pluralRu,
   trackCountLabel,
 } from "../lib/format";
@@ -239,13 +240,7 @@ export function Library({ initialTab = "tracks" }: { initialTab?: Tab }) {
     <div className="page">
       <header className="page-head">
         <div>
-          <p className="page-date">
-            {new Date().toLocaleDateString("ru-RU", {
-              weekday: "long",
-              day: "numeric",
-              month: "long",
-            })}
-          </p>
+          <p className="page-date date-line">{formatWeekdayDate()}</p>
           <div className="page-title-row">
             <h1 className="serif">{tabTitle}</h1>
             <MobileMenuButton className="page-menu" />
