@@ -50,6 +50,8 @@ checks to automatic post-scan maintenance.
 - [x] Shazam/Import: removed blocks verified absent in the browser.
 - [x] `cargo test --lib` — 38 passed; `npm.cmd run build:web` — exit 0.
 - [x] Windows: `Nova.exe` 24 198 656 bytes, installers/zip refreshed.
-- [x] Android APK: 67 610 283 bytes,
-  SHA-256 `8139325AD5EBF0C67543CD1E35DC5FCC4A1719C97EDC6AA6F9CFDB86944B6250`.
-  Device disconnected before install; reinstall when it reconnects.
+- [x] Android APK: 67 610 079 bytes,
+  SHA-256 `6D14DFED5BA534068624F2BF6B328A5CF7DC808B5AA2CEC2C368366C68E73BDF`.
+  Installed on `7ac47954`: Now Playing with cover actions and fixed dock,
+  burger items, lyrics search, five Settings sections and compact sliders
+  verified on device.
