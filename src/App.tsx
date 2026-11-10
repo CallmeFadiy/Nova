@@ -13,6 +13,7 @@ import { MobileMenuButton } from "./components/MobileMenuButton";
 import { MobileNav } from "./components/MobileNav";
 import { NowPlaying } from "./components/NowPlaying";
 import { PlayerBar } from "./components/PlayerBar";
+import { PostScanChecks } from "./components/PostScanChecks";
 import { QueuePanel } from "./components/QueuePanel";
 import { Sidebar } from "./components/Sidebar";
 import { Toasts } from "./components/Toasts";
@@ -90,6 +91,24 @@ export default function App() {
       document.removeEventListener("visibilitychange", onVisibility);
     };
   }, []);
+
+  // Android: ask once for the battery exemption so playback keeps running in
+  // the background. The Settings section is gone; this is the default.
+  useEffect(() => {
+    if (!isAndroid) return;
+    const key = "nova.battery.permissionAsked";
+    if (window.localStorage.getItem(key)) return;
+    window.localStorage.setItem(key, "1");
+    void api
+      .androidBatteryState()
+      .then((state) => {
+        if (!state.ignoring) return api.androidRequestIgnoreBattery();
+      })
+      .catch(() => {
+        // The system may reject the request; playback still works in the app.
+      });
+  }, []);
+
   const loading = useLibraryStore((state) => state.loading);
   const tracks = useLibraryStore((state) => state.tracks);
   const folders = useLibraryStore((state) => state.folders);
@@ -391,6 +410,7 @@ export default function App() {
       <LyricsModal />
       <EditTrackModal />
       <MergeAlbumsModal />
+      <PostScanChecks />
       <ConfirmDialog />
       <Toasts />
       {!isTauri ? <div className="demo-badge">Демо-режим браузера</div> : null}

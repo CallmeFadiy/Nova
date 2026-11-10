@@ -8,8 +8,6 @@ import {
   Music2,
   Search,
   Settings2,
-  ShieldCheck,
-  Sparkles,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { MobileMenuButton } from "../components/MobileMenuButton";
@@ -362,24 +360,6 @@ export function Shazam() {
         </div>
       </div>
 
-      <div className="shazam-info">
-        <div>
-          <Sparkles size={17} />
-          <strong>Найдём и предложим</strong>
-          <p>
-            После распознавания можно открыть трек в библиотеке или перейти к
-            поиску и загрузке.
-          </p>
-        </div>
-        <div>
-          <ShieldCheck size={17} />
-          <strong>Два провайдера</strong>
-          <p>
-            Встроенное Shazam-совместимое распознавание или AudD/ACRCloud по
-            вашему ключу.
-          </p>
-        </div>
-      </div>
     </div>
   );
 }

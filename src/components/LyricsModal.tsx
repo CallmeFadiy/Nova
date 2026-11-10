@@ -8,6 +8,7 @@ import {
   Plus,
   RotateCcw,
   Save,
+  Search,
   X,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -46,6 +47,7 @@ export function LyricsModal() {
   const [lines, setLines] = useState<TimedLyricLine[]>([]);
   const [offsetMs, setOffsetMs] = useState(0);
   const [autoScroll, setAutoScroll] = useState(true);
+  const [query, setQuery] = useState("");
   const activeRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -94,6 +96,18 @@ export function LyricsModal() {
 
   const timed = hasTimestamps(lines);
   const trackIsCurrent = trackId !== null && currentId === trackId;
+  const searchResults =
+    query.trim().length > 0
+      ? tracks
+          .filter((item) => {
+            const value = query.trim().toLowerCase();
+            return (
+              item.title.toLowerCase().includes(value) ||
+              item.artist.toLowerCase().includes(value)
+            );
+          })
+          .slice(0, 6)
+      : [];
 
   const activeIndex = useMemo(() => {
     if (!trackIsCurrent) return -1;
@@ -201,6 +215,44 @@ export function LyricsModal() {
       size="lg"
     >
       <div className="lyrics-modal">
+        <div className="lyrics-search">
+          <Search size={15} />
+          <input
+            className="text-input"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Найти трек для текста…"
+            aria-label="Найти трек для текста"
+          />
+          {query ? (
+            <button
+              className="icon-button tiny"
+              onClick={() => setQuery("")}
+              aria-label="Очистить поиск"
+            >
+              <X size={13} />
+            </button>
+          ) : null}
+        </div>
+        {searchResults.length > 0 ? (
+          <div className="lyrics-search-results">
+            {searchResults.map((item) => (
+              <button
+                key={item.id}
+                className="lyrics-search-result"
+                onClick={() => {
+                  openLyrics(item.id);
+                  setQuery("");
+                }}
+              >
+                <span>
+                  <strong>{item.title}</strong>
+                  <small>{item.artist}</small>
+                </span>
+              </button>
+            ))}
+          </div>
+        ) : null}
         {loading ? (
           <div className="lyrics-loading">
             <Loader2 size={18} className="spin" />

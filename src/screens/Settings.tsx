@@ -1,21 +1,12 @@
-import { useEffect, useState, type CSSProperties } from "react";
+import type { CSSProperties } from "react";
 import {
-  Download,
   Bell,
   BellRing,
-  Copy,
-  FileText,
-  FileWarning,
-  FolderOpen,
-  Languages,
   FolderPlus,
-  Headphones,
   Image,
   Info,
-  Mic,
   Play,
   RotateCcw,
-  SlidersHorizontal,
   Sun,
   Trash2,
   Volume2,
@@ -29,18 +20,11 @@ import {
   playNotificationSound,
 } from "../lib/notificationSound";
 import { formatBytes, formatDate, trackCountLabel } from "../lib/format";
-import { DuplicateTracksModal } from "../components/DuplicateTracksModal";
-import { EncodingFixModal } from "../components/EncodingFixModal";
 import { useConfirmStore } from "../store/confirm";
-import {
-  findDuplicateGroups,
-  useLibraryStore,
-  visibleTracks,
-  type DuplicateTrackGroup,
-} from "../store/library";
+import { useLibraryStore, visibleTracks } from "../store/library";
 import { useSettingsStore } from "../store/settings";
 import { useUiStore } from "../store/ui";
-import type { LyricsFile, TagEncodingIssue, Theme } from "../types";
+import type { Theme } from "../types";
 
 const THEMES: Array<{
   id: Theme;
@@ -86,7 +70,6 @@ export function Settings() {
   const addFolder = useLibraryStore((state) => state.addFolder);
   const removeFolder = useLibraryStore((state) => state.removeFolder);
   const notify = useUiStore((state) => state.notify);
-  const setEqualizerOpen = useUiStore((state) => state.setEqualizerOpen);
   const confirm = useConfirmStore((state) => state.confirm);
 
   const appBackground = useSettingsStore((state) => state.appBackground);
@@ -97,20 +80,10 @@ export function Settings() {
   const setBackgroundDim = useSettingsStore((state) => state.setBackgroundDim);
   const theme = useSettingsStore((state) => state.theme);
   const setTheme = useSettingsStore((state) => state.setTheme);
-  const downloadDir = useSettingsStore((state) => state.downloadDir);
-  const setDownloadDir = useSettingsStore((state) => state.setDownloadDir);
-  const ytdlpPath = useSettingsStore((state) => state.ytdlpPath);
-  const setYtdlpPath = useSettingsStore((state) => state.setYtdlpPath);
-  const shazamProvider = useSettingsStore((state) => state.shazamProvider);
-  const setShazamProvider = useSettingsStore((state) => state.setShazamProvider);
-  const recognitionSource = useSettingsStore(
-    (state) => state.recognitionSource,
-  );
-  const setRecognitionSource = useSettingsStore(
-    (state) => state.setRecognitionSource,
-  );
   const autoplayOnStart = useSettingsStore((state) => state.autoplayOnStart);
-  const setAutoplayOnStart = useSettingsStore((state) => state.setAutoplayOnStart);
+  const setAutoplayOnStart = useSettingsStore(
+    (state) => state.setAutoplayOnStart,
+  );
   const autoScan = useSettingsStore((state) => state.autoScan);
   const setAutoScan = useSettingsStore((state) => state.setAutoScan);
   const notificationSound = useSettingsStore(
@@ -126,222 +99,8 @@ export function Settings() {
     (state) => state.setNotificationVolume,
   );
 
-  const [lyricsFiles, setLyricsFiles] = useState<LyricsFile[]>([]);
-  const [lyricsLoading, setLyricsLoading] = useState(true);
-  const [duplicateGroups, setDuplicateGroups] = useState<DuplicateTrackGroup[]>(
-    [],
-  );
-  const [duplicateOpen, setDuplicateOpen] = useState(false);
-  const [duplicateBusy, setDuplicateBusy] = useState(false);
-  const [duplicateScanning, setDuplicateScanning] = useState(false);
-  const [missingBusy, setMissingBusy] = useState(false);
-  const [encodingIssues, setEncodingIssues] = useState<TagEncodingIssue[]>([]);
-  const [encodingOpen, setEncodingOpen] = useState(false);
-  const [encodingBusy, setEncodingBusy] = useState(false);
-  const [encodingScanning, setEncodingScanning] = useState(false);
-  const deleteTracks = useLibraryStore((state) => state.deleteTracks);
-  const deleteMissingTracks = useLibraryStore(
-    (state) => state.deleteMissingTracks,
-  );
-  const applyTagEncoding = useLibraryStore(
-    (state) => state.applyTagEncoding,
-  );
-
   const visible = visibleTracks(tracks);
-  const missing = tracks.filter((track) => track.missing);
   const totalSize = visible.reduce((sum, track) => sum + track.size, 0);
-
-  const refreshLyrics = async () => {
-    setLyricsLoading(true);
-    try {
-      setLyricsFiles(await api.listLyrics());
-    } catch {
-      setLyricsFiles([]);
-    } finally {
-      setLyricsLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    void refreshLyrics();
-  }, []);
-
-  useEffect(() => {
-    if (isAndroid && shazamProvider !== "audd") {
-      setShazamProvider("audd");
-    }
-  }, [isAndroid, shazamProvider, setShazamProvider]);
-
-  const [batteryState, setBatteryState] = useState<{
-    ignoring: boolean;
-    manufacturer: string;
-  } | null>(null);
-
-  const refreshBattery = async () => {
-    if (!isAndroid) return;
-    try {
-      setBatteryState(await api.androidBatteryState());
-    } catch {
-      // The status is informative; a failed read is not an error.
-    }
-  };
-
-  useEffect(() => {
-    if (!isAndroid) return;
-    void refreshBattery();
-    const onVisibility = () => {
-      if (document.visibilityState === "visible") void refreshBattery();
-    };
-    document.addEventListener("visibilitychange", onVisibility);
-    return () => document.removeEventListener("visibilitychange", onVisibility);
-  }, []);
-
-  const chooseDownloadDir = async () => {
-    try {
-      const path = await pickFolder("Выбрать папку загрузок");
-      if (!path) {
-        notify(
-          isAndroid
-            ? "Выбор отменён"
-            : "Выбор папки доступен в приложении Nova",
-          "info",
-        );
-        return;
-      }
-      setDownloadDir(path);
-      notify("Папка загрузок обновлена", "success");
-    } catch (error) {
-      notify(errorText(error), "error");
-    }
-  };
-
-  const removeLyricsFile = async (fileName: string) => {
-    try {
-      await api.deleteLyrics(fileName);
-      await refreshLyrics();
-      notify("Текст удалён из кэша", "success");
-    } catch (error) {
-      notify(
-        error instanceof Error ? error.message : "Не удалось удалить текст",
-        "error",
-      );
-    }
-  };
-
-  const checkDuplicates = async () => {
-    if (duplicateScanning) return;
-    const candidates = findDuplicateGroups(tracks);
-    if (candidates.length === 0) {
-      notify("Дубликаты не найдены", "success");
-      return;
-    }
-
-    setDuplicateScanning(true);
-    try {
-      const hashes = await api.hashTracks(
-        candidates.flatMap((group) => group.tracks.map((track) => track.id)),
-      );
-      const groups = findDuplicateGroups(tracks, hashes);
-      if (groups.length === 0) {
-        notify(
-          "Совпадения по тегам оказались разными записями – дубликатов нет",
-          "success",
-        );
-        return;
-      }
-      setDuplicateGroups(groups);
-      setDuplicateOpen(true);
-    } catch (error) {
-      notify(
-        error instanceof Error
-          ? error.message
-          : "Не удалось проверить содержимое файлов",
-        "error",
-      );
-    } finally {
-      setDuplicateScanning(false);
-    }
-  };
-
-  const removeDuplicates = async (ids: number[]) => {
-    if (ids.length === 0) return;
-    setDuplicateBusy(true);
-    const result = await deleteTracks(ids, true);
-    setDuplicateBusy(false);
-    if (result) {
-      setDuplicateOpen(false);
-      setDuplicateGroups([]);
-    }
-  };
-
-  const clearMissingTracks = async () => {
-    if (missing.length === 0) return;
-    const confirmed = await confirm({
-      title: "Удалить отсутствующие записи?",
-      message: `Удалить ${missing.length} записей, файлы которых не найдены? Это очистит только базу Nova и не затронет диск.`,
-      confirmLabel: "Удалить записи",
-      tone: "danger",
-    });
-    if (!confirmed) return;
-    setMissingBusy(true);
-    await deleteMissingTracks();
-    setMissingBusy(false);
-  };
-
-  const checkTagEncoding = async () => {
-    if (encodingScanning) return;
-    setEncodingScanning(true);
-    try {
-      const issues = await api.previewTagEncoding();
-      if (issues.length === 0) {
-        notify("Проблем с кодировкой не найдено", "success");
-        return;
-      }
-      setEncodingIssues(issues);
-      setEncodingOpen(true);
-    } catch (error) {
-      notify(
-        error instanceof Error ? error.message : "Не удалось проверить кодировку",
-        "error",
-      );
-    } finally {
-      setEncodingScanning(false);
-    }
-  };
-
-  const applyEncoding = async () => {
-    setEncodingBusy(true);
-    const fixed = await applyTagEncoding();
-    setEncodingBusy(false);
-    if (fixed !== null) {
-      setEncodingOpen(false);
-      setEncodingIssues([]);
-    }
-  };
-
-  const clearLyricsCache = async () => {
-    if (
-      !(await confirm({
-        title: "Очистить тексты?",
-        message:
-          "Удалить все сохранённые тексты песен? Файлы музыки не затрагиваются.",
-        confirmLabel: "Очистить",
-        tone: "danger",
-      }))
-    ) {
-      return;
-    }
-    try {
-      const removed = await api.clearLyrics();
-      await refreshLyrics();
-      notify(`Удалено текстов: ${removed}`, "success");
-    } catch (error) {
-      notify(
-        error instanceof Error ? error.message : "Не удалось очистить кэш",
-        "error",
-      );
-    }
-  };
 
   const handleAddFolder = async () => {
     try {
@@ -389,12 +148,13 @@ export function Settings() {
   };
 
   return (
+
     <div className="page settings-page">
       <header className="page-head">
         <div>
           <p className="page-date">Nova · локальная музыка</p>
           <h1 className="serif">Настройки</h1>
-          <p className="page-sub">Папки, оформление, звук и источники</p>
+          <p className="page-sub">Папки, оформление, звук и плеер</p>
         </div>
         <div className="head-actions">
           <ScanButton />
@@ -702,321 +462,12 @@ export function Settings() {
         </div>
         <div className="settings-row">
           <div className="settings-row-main">
-            <strong>Эквалайзер</strong>
-            <span>10 полос, встроенные и свои пресеты</span>
-          </div>
-          <button
-            className="secondary-button"
-            onClick={() => setEqualizerOpen(true)}
-          >
-            <SlidersHorizontal size={15} />
-            Открыть
-          </button>
-        </div>
-        <div className="settings-row">
-          <div className="settings-row-main">
             <strong>Хранилище</strong>
             <span>
               {trackCountLabel(visible.length)} · {formatBytes(totalSize)}
             </span>
           </div>
           <span className="settings-value">локально</span>
-        </div>
-      </section>
-
-      <section className="settings-section">
-        <div className="settings-section-head">
-          <h2 className="serif">Загрузки и yt-dlp</h2>
-          <span className="settings-badge">этап загрузок</span>
-        </div>
-        <p className="settings-hint">
-          Скачивание работает только после подтверждения и только для
-          контента, на который у вас есть права. Поиск идёт по zaycev.net,
-          muzofond.fm и ru.drivemusic.me; yt-dlp используется как резервный
-          загрузчик.
-        </p>
-        <div className="settings-field">
-          <label>Папка загрузок</label>
-          <div className="settings-field-row">
-            <input
-              className="text-input"
-              value={downloadDir}
-              placeholder="По умолчанию: данные приложения / downloads"
-              onChange={(event) => setDownloadDir(event.target.value)}
-            />
-            <button
-              className="secondary-button"
-              onClick={() => void chooseDownloadDir()}
-            >
-              <FolderOpen size={15} />
-              Выбрать
-            </button>
-          </div>
-        </div>
-        {isAndroid ? (
-          <div className="settings-inline">
-            <Download size={15} />
-            <span>
-              Встроенный yt-dlp входит в приложение, путь указывать не нужно. Он
-              всегда выбирает лучший доступный аудиопоток.
-            </span>
-          </div>
-        ) : (
-          <>
-            <div className="settings-field">
-              <label>Путь к yt-dlp</label>
-              <input
-                className="text-input"
-                value={ytdlpPath}
-                placeholder="yt-dlp.exe или путь к нему"
-                onChange={(event) => setYtdlpPath(event.target.value)}
-              />
-            </div>
-            <div className="settings-inline">
-              <Download size={15} />
-              <span>
-                yt-dlp всегда выбирает лучший доступный аудиопоток. Настройки
-                сохраняются локально.
-              </span>
-            </div>
-          </>
-        )}
-      </section>
-
-      {isAndroid ? (
-        <section className="settings-section">
-          <div className="settings-section-head">
-            <h2 className="serif">Фоновая работа</h2>
-            <span className="settings-badge">
-              {batteryState?.ignoring ? "Без ограничений" : "Оптимизируется"}
-            </span>
-          </div>
-          <div className="settings-action-grid">
-            <button
-              className="secondary-button"
-              onClick={() => {
-                void api
-                  .androidRequestIgnoreBattery()
-                  .then(() => window.setTimeout(() => void refreshBattery(), 1200))
-                  .catch((error) => notify(errorText(error), "error"));
-              }}
-            >
-              Разрешить фоновую работу
-            </button>
-            <button
-              className="ghost-button"
-              onClick={() =>
-                void api
-                  .androidOpenBatterySettings()
-                  .catch((error) => notify(errorText(error), "error"))
-              }
-            >
-              Настройки батареи
-            </button>
-            <button
-              className="ghost-button"
-              onClick={() =>
-                void api
-                  .androidOpenAutostartSettings()
-                  .catch((error) => notify(errorText(error), "error"))
-              }
-            >
-              Автозапуск MIUI
-            </button>
-          </div>
-        </section>
-      ) : null}
-
-      <section className="settings-section">
-        <div className="settings-section-head">
-          <h2 className="serif">Тексты песен</h2>
-          <div className="settings-section-actions">
-            <span className="settings-badge">{lyricsFiles.length}</span>
-            {lyricsFiles.length > 0 ? (
-              <button
-                className="ghost-button"
-                onClick={() => void clearLyricsCache()}
-              >
-                <Trash2 size={14} />
-                Очистить всё
-              </button>
-            ) : null}
-          </div>
-        </div>
-        <p className="settings-hint">
-          Текст ищется на genius.com по полному названию трека и исполнителя, а
-          затем сохраняется в файл с именем трека в папке данных Nova. При
-          следующем открытии используется кэш.
-        </p>
-        {lyricsLoading ? (
-          <div className="settings-empty">Читаем кэш текстов…</div>
-        ) : lyricsFiles.length === 0 ? (
-          <div className="settings-empty">
-            <FileText size={15} /> Сохранённых текстов пока нет.
-          </div>
-        ) : (
-          <div className="settings-list">
-            {lyricsFiles.map((file) => (
-              <div className="settings-row" key={file.fileName}>
-                <div className="settings-row-main">
-                  <strong>{file.title}</strong>
-                  <span title={file.path}>{file.fileName}</span>
-                </div>
-                <div className="settings-row-meta">
-                  <span>{formatBytes(file.size)}</span>
-                  <span>{file.modified ? formatDate(file.modified) : ""}</span>
-                </div>
-                <div className="settings-row-actions">
-                  <button
-                    className="icon-button"
-                    onClick={() => void removeLyricsFile(file.fileName)}
-                    aria-label="Удалить текст"
-                    title="Удалить текст"
-                  >
-                    <Trash2 size={15} />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
-
-      <section className="settings-section">
-        <div className="settings-section-head">
-          <h2 className="serif">Распознавание трека</h2>
-          <span className="settings-badge">Shazam-совместимо</span>
-        </div>
-        <div className="settings-field">
-          <label>Провайдер</label>
-          <select
-            className="select-input"
-            value={shazamProvider}
-            disabled={isAndroid}
-            onChange={(event) =>
-              setShazamProvider(
-                event.target.value as typeof shazamProvider,
-              )
-            }
-          >
-            {!isAndroid ? (
-              <option value="builtin">Встроенное распознавание</option>
-            ) : null}
-            <option value="audd" disabled={isAndroid}>
-              {isAndroid ? "AudD (временно отключён)" : "AudD"}
-            </option>
-            <option value="acrcloud" disabled={isAndroid}>
-              ACRCloud
-            </option>
-          </select>
-        </div>
-        {isAndroid ? (
-          <div className="settings-inline">
-            <Info size={15} />
-            <span>
-              Встроенный Shazam доступен в Windows-версии. AudD на Android
-              временно отключён; код и ключ сохранены в сборке.
-            </span>
-          </div>
-        ) : null}
-        <div className="settings-field">
-          <label>Как Nova должна слышать</label>
-          <div className="recognition-source-switch settings-source-switch">
-            <button
-              className={recognitionSource === "microphone" ? "active" : ""}
-              onClick={() => setRecognitionSource("microphone")}
-            >
-              <Mic size={14} />
-              Микрофон
-            </button>
-            <button
-              className={recognitionSource === "system" ? "active" : ""}
-              onClick={() => setRecognitionSource("system")}
-            >
-              <Headphones size={14} />
-              Системные динамики
-            </button>
-          </div>
-        </div>
-        <div className="settings-inline">
-          <Mic size={15} />
-          <span>
-            {recognitionSource === "system"
-              ? isAndroid
-                ? "Nova захватывает системный звук через MediaProjection и AudioPlaybackCapture. Запись длится 12 секунд; временный WAV удаляется после отправки в AudD."
-                : "Nova захватывает звук текущего устройства вывода Windows через WASAPI loopback. Запись длится 12 секунд и не сохраняется."
-              : "Микрофон запрашивается только при нажатии «Распознать». Запись длится 12 секунд и не сохраняется."}
-          </span>
-        </div>
-      </section>
-
-      <section className="settings-section">
-        <div className="settings-section-head">
-          <h2 className="serif">Дубликаты треков</h2>
-          <button
-            className="secondary-button"
-            onClick={() => void checkDuplicates()}
-            disabled={duplicateScanning}
-          >
-            <Copy size={15} />
-            {duplicateScanning ? "Сверяю содержимое…" : "Проверить дубликаты"}
-          </button>
-        </div>
-      </section>
-
-      <section className="settings-section">
-        <div className="settings-section-head">
-          <h2 className="serif">Отсутствующие файлы</h2>
-          <span className="settings-badge">{missing.length}</span>
-        </div>
-        <p className="settings-hint">
-          Записи, файлы которых больше не найдены на диске. Они уже скрыты из
-          библиотеки, но остаются в базе. Очистка удаляет только эти записи и не
-          трогает музыку на диске.
-        </p>
-        <div className="settings-row">
-          <div className="settings-row-main">
-            <strong>Очистить базу</strong>
-            <span>
-              {missing.length > 0
-                ? `Будет удалено записей: ${missing.length}`
-                : "Отсутствующих записей нет"}
-            </span>
-          </div>
-          <button
-            className="secondary-button"
-            onClick={() => void clearMissingTracks()}
-            disabled={missingBusy || missing.length === 0}
-          >
-            <FileWarning size={15} />
-            {missingBusy ? "Удаляю…" : "Удалить отсутствующие"}
-          </button>
-        </div>
-      </section>
-
-      <section className="settings-section">
-        <div className="settings-section-head">
-          <h2 className="serif">Кодировка тегов</h2>
-          <button
-            className="secondary-button"
-            onClick={() => void checkTagEncoding()}
-            disabled={encodingScanning}
-          >
-            <Languages size={15} />
-            {encodingScanning ? "Проверяю…" : "Проверить кодировку"}
-          </button>
-        </div>
-        <p className="settings-hint">
-          Исправляет названия, которые были прочитаны как cp1251 или Latin-1
-          вместо UTF-8. Сначала показывается предпросмотр, применение – только
-          после подтверждения.
-        </p>
-        <div className="settings-inline">
-          <Languages size={15} />
-          <span>
-            Файлы на диске не перезаписываются. При следующих сканированиях Nova
-            применяет то же исправление к метаданным.
-          </span>
         </div>
       </section>
 
@@ -1032,21 +483,6 @@ export function Settings() {
         <Info size={18} className="about-info" />
       </section>
 
-      <DuplicateTracksModal
-        open={duplicateOpen}
-        groups={duplicateGroups}
-        busy={duplicateBusy}
-        onClose={() => setDuplicateOpen(false)}
-        onConfirm={(ids) => void removeDuplicates(ids)}
-      />
-
-      <EncodingFixModal
-        open={encodingOpen}
-        issues={encodingIssues}
-        busy={encodingBusy}
-        onClose={() => setEncodingOpen(false)}
-        onConfirm={() => void applyEncoding()}
-      />
     </div>
   );
 }

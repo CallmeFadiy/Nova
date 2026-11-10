@@ -8,11 +8,14 @@ import {
   Link2,
   ListMusic,
   Mic,
+  ScrollText,
   Settings,
+  SlidersHorizontal,
 } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import { formatBytes, trackCountLabel } from "../lib/format";
 import { favoriteTracks, useLibraryStore, visibleTracks } from "../store/library";
+import { usePlayerStore } from "../store/player";
 import { useUiStore } from "../store/ui";
 
 const NAV_MAIN = [
@@ -36,7 +39,10 @@ const NAV_TOOLS = [
 export function Sidebar() {
   const tracks = useLibraryStore((state) => state.tracks);
   const playlists = useLibraryStore((state) => state.playlists);
+  const currentId = usePlayerStore((state) => state.currentId);
   const setMobileNavOpen = useUiStore((state) => state.setMobileNavOpen);
+  const setEqualizerOpen = useUiStore((state) => state.setEqualizerOpen);
+  const openLyrics = useUiStore((state) => state.openLyrics);
 
   const visible = visibleTracks(tracks);
   const favorites = favoriteTracks(tracks);
@@ -110,6 +116,27 @@ export function Sidebar() {
               <span>{item.label}</span>
             </NavLink>
           ))}
+          <button
+            className="nav-item nav-action"
+            onClick={() => {
+              setEqualizerOpen(true);
+              setMobileNavOpen(false);
+            }}
+          >
+            <SlidersHorizontal size={16} strokeWidth={1.6} />
+            <span>Эквалайзер</span>
+          </button>
+          <button
+            className="nav-item nav-action"
+            onClick={() => {
+              const trackId = currentId ?? visible[0]?.id ?? null;
+              if (trackId !== null) openLyrics(trackId);
+              setMobileNavOpen(false);
+            }}
+          >
+            <ScrollText size={16} strokeWidth={1.6} />
+            <span>Тексты песен</span>
+          </button>
         </div>
       </nav>
 

@@ -1,12 +1,10 @@
 import { useEffect, useState } from "react";
 import {
-  Check,
   ChevronLeft,
   Download,
   ExternalLink,
   Link2,
   Loader2,
-  Music2,
   Pause,
   ShieldCheck,
   Volume2,
@@ -642,62 +640,6 @@ export function Import() {
         </div>
       </div>
 
-      <div className="steps-grid">
-        <article className="step-card">
-          <span className="step-number">1</span>
-          <h3 className="serif">Ссылка</h3>
-          <p>
-            Deezer, YouTube и публичные плейлисты Яндекс Музыки разбираются без
-            ключей. Для одиночного видео YouTube достаточно ссылки youtu.be.
-          </p>
-        </article>
-        <article className="step-card">
-          <span className="step-number">2</span>
-          <h3 className="serif">Список</h3>
-          <p>
-            Nova покажет название, исполнителя и длительность. Галочками можно
-            выбрать отдельные песни или весь список.
-          </p>
-        </article>
-        <article className="step-card">
-          <span className="step-number">3</span>
-          <h3 className="serif">Загрузка</h3>
-          <p>
-            Полный трек – через yt-dlp, превью – напрямую. Файлы попадают в
-            папку загрузок и в библиотеку.
-          </p>
-        </article>
-      </div>
-
-      <div className="import-note">
-        <ShieldCheck size={18} />
-        <div>
-          <strong>Без обхода DRM</strong>
-          <p>
-            Яндекс Музыка используется только для списка треков. Аудио
-            скачивается через yt-dlp или из источников, которые вы добавили
-            сами, и только для контента, на который у вас есть права.
-          </p>
-        </div>
-        <Check size={18} />
-      </div>
-
-      <div className="import-preview">
-        <Music2 size={16} />
-        <span>
-          Хотите проверить без ссылки? Нажмите «Разобрать» с пустым полем – в
-          демо-режиме появится пример списка.
-        </span>
-        <button
-          className="ghost-button"
-          onClick={() => {
-            setUrl("demo://playlist");
-            void resolve("demo://playlist");
-          }}
-        >
-          Демо-список
-        </button>
-      </div>
     </div>
   );
 }

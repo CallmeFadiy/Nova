@@ -97,6 +97,25 @@ export function NowPlaying() {
         <div className="now-playing-body">
           <div className="now-playing-art">
             <Cover track={current} className="now-cover-big" />
+            <div className="now-cover-actions">
+              <button
+                className={`icon-button${current.favorite ? " is-favorite" : ""}`}
+                onClick={() => void toggleFavorite(current.id)}
+                aria-label="Избранное"
+              >
+                <Heart
+                  size={18}
+                  fill={current.favorite ? "currentColor" : "none"}
+                />
+              </button>
+              <button
+                className="icon-button"
+                onClick={() => openLyrics(current.id)}
+                aria-label="Текст песни"
+              >
+                <ScrollText size={18} />
+              </button>
+            </div>
           </div>
 
           <div className="now-playing-info">
@@ -111,53 +130,55 @@ export function NowPlaying() {
               {current.year ? ` · ${current.year}` : ""}
             </p>
 
-            <div className="now-progress">
-              <span>{formatDuration(positionMs)}</span>
-              <input
-                className="range seek-range"
-                type="range"
-                min={0}
-                max={Math.max(1, duration)}
-                value={Math.min(positionMs, Math.max(1, duration))}
-                onChange={(event) => seek(Number(event.target.value))}
-                aria-label="Позиция"
-                style={{ "--range-progress": `${progress}%` } as CSSProperties}
-              />
-              <span>{formatDuration(duration)}</span>
-            </div>
+            <div className="now-transport">
+              <div className="now-progress">
+                <span>{formatDuration(positionMs)}</span>
+                <input
+                  className="range seek-range"
+                  type="range"
+                  min={0}
+                  max={Math.max(1, duration)}
+                  value={Math.min(positionMs, Math.max(1, duration))}
+                  onChange={(event) => seek(Number(event.target.value))}
+                  aria-label="Позиция"
+                  style={{ "--range-progress": `${progress}%` } as CSSProperties}
+                />
+                <span>{formatDuration(duration)}</span>
+              </div>
 
-            <div className="now-controls">
-              <button
-                className={`icon-button${shuffle ? " is-active" : ""}`}
-                onClick={toggleShuffle}
-                aria-label="Перемешать"
-              >
-                <Shuffle size={18} />
-              </button>
-              <button className="icon-button" onClick={prev} aria-label="Назад">
-                <SkipBack size={22} fill="currentColor" />
-              </button>
-              <button className="now-play" onClick={togglePlay}>
-                {isPlaying ? (
-                  <Pause size={24} fill="currentColor" />
-                ) : (
-                  <Play size={24} fill="currentColor" />
-                )}
-              </button>
-              <button
-                className="icon-button"
-                onClick={() => next(false)}
-                aria-label="Вперёд"
-              >
-                <SkipForward size={22} fill="currentColor" />
-              </button>
-              <button
-                className={`icon-button${repeat !== "off" ? " is-active" : ""}`}
-                onClick={cycleRepeat}
-                aria-label="Повтор"
-              >
-                {repeat === "one" ? <Repeat1 size={18} /> : <Repeat size={18} />}
-              </button>
+              <div className="now-controls">
+                <button
+                  className={`icon-button${shuffle ? " is-active" : ""}`}
+                  onClick={toggleShuffle}
+                  aria-label="Перемешать"
+                >
+                  <Shuffle size={18} />
+                </button>
+                <button className="icon-button" onClick={prev} aria-label="Назад">
+                  <SkipBack size={22} fill="currentColor" />
+                </button>
+                <button className="now-play" onClick={togglePlay}>
+                  {isPlaying ? (
+                    <Pause size={24} fill="currentColor" />
+                  ) : (
+                    <Play size={24} fill="currentColor" />
+                  )}
+                </button>
+                <button
+                  className="icon-button"
+                  onClick={() => next(false)}
+                  aria-label="Вперёд"
+                >
+                  <SkipForward size={22} fill="currentColor" />
+                </button>
+                <button
+                  className={`icon-button${repeat !== "off" ? " is-active" : ""}`}
+                  onClick={cycleRepeat}
+                  aria-label="Повтор"
+                >
+                  {repeat === "one" ? <Repeat1 size={18} /> : <Repeat size={18} />}
+                </button>
+              </div>
             </div>
 
             <div className="now-secondary">
