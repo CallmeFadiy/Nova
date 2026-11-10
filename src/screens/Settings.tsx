@@ -167,7 +167,7 @@ export function Settings() {
   }, []);
 
   useEffect(() => {
-    if (isAndroid && shazamProvider === "builtin") {
+    if (isAndroid && shazamProvider !== "audd") {
       setShazamProvider("audd");
     }
   }, [isAndroid, shazamProvider, setShazamProvider]);
@@ -892,6 +892,7 @@ export function Settings() {
           <select
             className="select-input"
             value={shazamProvider}
+            disabled={isAndroid}
             onChange={(event) =>
               setShazamProvider(
                 event.target.value as typeof shazamProvider,
@@ -901,16 +902,20 @@ export function Settings() {
             {!isAndroid ? (
               <option value="builtin">Встроенное распознавание</option>
             ) : null}
-            <option value="audd">AudD</option>
-            <option value="acrcloud">ACRCloud</option>
+            <option value="audd" disabled={isAndroid}>
+              {isAndroid ? "AudD (временно отключён)" : "AudD"}
+            </option>
+            <option value="acrcloud" disabled={isAndroid}>
+              ACRCloud
+            </option>
           </select>
         </div>
         {isAndroid ? (
           <div className="settings-inline">
             <Info size={15} />
             <span>
-              Встроенный Shazam доступен в Windows-версии. На Android
-              распознавание идёт через AudD.
+              Встроенный Shazam доступен в Windows-версии. AudD на Android
+              временно отключён; код и ключ сохранены в сборке.
             </span>
           </div>
         ) : null}

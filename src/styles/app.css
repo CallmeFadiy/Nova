@@ -6937,22 +6937,28 @@ body {
   }
 
   .home-hero {
-    grid-template-columns: 132px minmax(0, 1fr);
+    grid-template-columns: auto minmax(0, 1fr);
     min-height: 0;
-  }
-
-  .home-hero-art,
-  .hero-cover {
-    width: 132px;
-    height: 132px;
-    aspect-ratio: auto;
   }
 
   .home-hero-art {
     display: flex;
     align-items: center;
     justify-content: center;
-    min-height: 132px;
+    /* The square follows the inner frame height, so it always touches the
+       top, left and bottom edges even when a long title makes the card taller. */
+    width: auto;
+    height: auto;
+    min-height: 121px;
+    aspect-ratio: 1 / 1;
+    align-self: stretch;
+    justify-self: start;
+    margin: 9px 0 9px 9px;
+  }
+
+  .home-hero-art .hero-cover {
+    width: 100%;
+    height: 100%;
   }
 
   .home-hero-art::after {
@@ -6972,6 +6978,10 @@ body {
     font-size: 19px;
     line-height: 1.05;
     white-space: normal;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
   }
 
   .hero-artist {

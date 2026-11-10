@@ -47,12 +47,13 @@ export function Shazam() {
   const [peak, setPeak] = useState(0);
 
   // The bundled Shazam fingerprint engine is Windows-only (songrec-lib panics
-  // on Android), so mobile recognition uses AudD.
-  const effectiveProvider =
-    isAndroid && provider === "builtin" ? "audd" : provider;
+  // on Android), and AudD is temporarily disabled there. The AudD path stays
+  // in the code for a future provider decision.
+  const auddDisabled = isAndroid;
+  const effectiveProvider = isAndroid ? "audd" : provider;
 
   useEffect(() => {
-    if (isAndroid && provider === "builtin") {
+    if (isAndroid && provider !== "audd") {
       setShazamProvider("audd");
     }
   }, [isAndroid, provider, setShazamProvider]);
@@ -83,7 +84,9 @@ export function Shazam() {
     effectiveProvider === "builtin"
       ? "Встроенное распознавание"
       : effectiveProvider === "audd"
-        ? "AudD"
+        ? auddDisabled
+          ? "AudD (временно отключён)"
+          : "AudD"
         : "ACRCloud";
 
   const recognize = async () => {
@@ -92,6 +95,10 @@ export function Shazam() {
         "ACRCloud требует host, access key и secret. Пока подключён AudD – выберите его в настройках.",
         "info",
       );
+      return;
+    }
+    if (auddDisabled) {
+      notify("AudD временно отключён на Android", "info");
       return;
     }
     if (isAndroid) {
@@ -128,6 +135,10 @@ export function Shazam() {
   };
 
   const recognizeFile = async () => {
+    if (auddDisabled) {
+      notify("AudD временно отключён на Android", "info");
+      return;
+    }
     const path = await pickAudioFile();
     if (!path) {
       notify("Выбор файла доступен в приложении Nova", "info");
@@ -240,18 +251,22 @@ export function Shazam() {
         </div>
 
         <h2 className="serif">
-          {listening
-            ? hearsAudio
-              ? "Слышу звук"
-              : "Слушаю…"
-            : "Нажмите, чтобы слушать"}
+          {auddDisabled
+            ? "Распознавание временно недоступно"
+            : listening
+              ? hearsAudio
+                ? "Слышу звук"
+                : "Слушаю…"
+              : "Нажмите, чтобы слушать"}
         </h2>
         <p>
-          {effectiveProvider === "builtin"
-            ? `Встроенное распознавание Shazam: 12 секунд записи через ${sourceLabel.toLowerCase()}, без ключа.`
-            : effectiveProvider === "acrcloud"
-              ? "ACRCloud требует три параметра. Используйте AudD или ручной поиск."
-              : `Запись через ${sourceLabel.toLowerCase()} не сохраняется.`}
+          {auddDisabled
+            ? "AudD на Android временно отключён. Код и ключ сохранены в сборке; включим после выбора движка."
+            : effectiveProvider === "builtin"
+              ? `Встроенное распознавание Shazam: 12 секунд записи через ${sourceLabel.toLowerCase()}, без ключа.`
+              : effectiveProvider === "acrcloud"
+                ? "ACRCloud требует три параметра. Используйте AudD или ручной поиск."
+                : `Запись через ${sourceLabel.toLowerCase()} не сохраняется.`}
         </p>
         <div className="shazam-providers">
           <span>Провайдер: {providerLabel}</span>
@@ -261,19 +276,23 @@ export function Shazam() {
         <button
           className="primary-button shazam-listen-button"
           onClick={() => void recognize()}
-          disabled={listening}
+          disabled={listening || auddDisabled}
         >
           {listening ? (
             <Loader2 size={15} className="spin" />
           ) : (
             <Headphones size={15} />
           )}
-          {listening ? "Слушаю…" : "Слушать 12 секунд"}
+          {auddDisabled
+            ? "AudD отключён"
+            : listening
+              ? "Слушаю…"
+              : "Слушать 12 секунд"}
         </button>
         <button
           className="ghost-button shazam-file-button"
           onClick={() => void recognizeFile()}
-          disabled={listening}
+          disabled={listening || auddDisabled}
         >
           <FileAudio size={14} />
           Распознать из файла

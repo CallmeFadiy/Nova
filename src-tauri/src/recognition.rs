@@ -19,6 +19,11 @@ const CAPTURE_SECONDS: u64 = 12;
 // UI. Treat it as extractable from the APK rather than as a server-side secret.
 const AUDD_API_TOKEN: &str = "501e0d08fc5f362e3bba3159c91ec152";
 
+// AudD is temporarily disabled on Android. The implementation and key remain
+// in the binary so it can be re-enabled without restoring the removed UI.
+#[cfg(target_os = "android")]
+const AUDD_ENABLED_ANDROID: bool = false;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RecognitionSource {
     Microphone,
@@ -515,6 +520,10 @@ pub async fn recognize_audd(
     app: AppHandle,
     source: Option<String>,
 ) -> Result<RecognitionResult, String> {
+    #[cfg(target_os = "android")]
+    if !AUDD_ENABLED_ANDROID {
+        return Err("AudD временно отключён на Android".to_string());
+    }
     let token = AUDD_API_TOKEN;
     let source = RecognitionSource::parse(source.as_deref());
     #[cfg(target_os = "android")]
@@ -609,6 +618,10 @@ fn extract_preview(path: &str, seconds: u64) -> Result<Vec<u8>, String> {
 /// AudD accepts common audio files, so the Android file picker can recognize a
 /// track without the (Windows-only) local Shazam fingerprint engine.
 pub async fn recognize_audd_file(path: String) -> Result<RecognitionResult, String> {
+    #[cfg(target_os = "android")]
+    if !AUDD_ENABLED_ANDROID {
+        return Err("AudD временно отключён на Android".to_string());
+    }
     let token = AUDD_API_TOKEN;
 
     const MAX_AUDD_BYTES: u64 = 10 * 1024 * 1024;
