@@ -41,8 +41,10 @@ persisted, so every relaunch repeated the crash.
       queued Yandex task still persisted.
 - [x] No new `FATAL EXCEPTION`/`ExceptionInInitializerError` in `logcat` after
       launch.
+- [x] Downloads page is reachable: current downloads 0, history 1; the bad
+      Yandex task failed gracefully instead of killing the process.
 - [x] APK: 67 746 915 bytes,
       SHA-256 `35501FFDE455B8D07F5709572F047CE36A90364DAA4FD847A72D26E2FD71E969`.
 - [x] GitHub Release asset replaced; digest matches the uploaded file.
-- [ ] Yandex playlist itself may still be unsupported by yt-dlp in the
-      “Скачать по ссылке” field; playlists should use “Импорт ссылки”.
+- [x] Yandex playlist itself is not resolved by the “Скачать по ссылке” field;
+      playlists should use “Импорт ссылки”. The failure is now safe.
