@@ -131,7 +131,7 @@ class NovaDownloadPlugin(private val activity: Activity) : Plugin(activity) {
                     result.put("formats", json.optJSONArray("formats")?.length() ?: 0)
                     result.put("durationSec", json.optDouble("duration", 0.0))
                     result.put("infoMs", System.currentTimeMillis() - infoStarted)
-                } catch (error: Exception) {
+                } catch (error: Throwable) {
                     val message = describe(error)
                     result.put("ok", false)
                     result.put("formats", 0)
@@ -140,7 +140,7 @@ class NovaDownloadPlugin(private val activity: Activity) : Plugin(activity) {
                 }
 
                 resolveOnUi(invoke, result)
-            } catch (error: Exception) {
+            } catch (error: Throwable) {
                 rejectOnUi(invoke, "yt-dlp probe failed: ${describe(error)}")
             }
         }
@@ -159,7 +159,7 @@ class NovaDownloadPlugin(private val activity: Activity) : Plugin(activity) {
                 ensureInitialized()
                 val json = runInfo(url, probe = false)
                 resolveOnUi(invoke, playlistFromJson(json, url))
-            } catch (error: Exception) {
+            } catch (error: Throwable) {
                 rejectOnUi(invoke, describeInfoError(error))
             }
         }
@@ -366,7 +366,7 @@ class NovaDownloadPlugin(private val activity: Activity) : Plugin(activity) {
             result.put("title", title)
             result.put("directory", directory.absolutePath)
             resolveOnUi(invoke, result)
-        } catch (error: Exception) {
+        } catch (error: Throwable) {
             staging.deleteRecursively()
             val wasCancelled = error is YoutubeDL.CanceledException || cancelled.contains(id)
             val message = if (wasCancelled) {
@@ -415,7 +415,7 @@ class NovaDownloadPlugin(private val activity: Activity) : Plugin(activity) {
                 throw IllegalStateException("yt-dlp не вернул данные")
             }
             return JSONObject(out)
-        } catch (error: Exception) {
+        } catch (error: Throwable) {
             if (timedOut.get() || error is YoutubeDL.CanceledException) {
                 throw IllegalStateException(
                     "yt-dlp не ответил за $INFO_TIMEOUT_SECONDS с (сеть ограничена)",
@@ -630,7 +630,7 @@ class NovaDownloadPlugin(private val activity: Activity) : Plugin(activity) {
         return ""
     }
 
-    private fun describeInfoError(error: Exception): String {
+    private fun describeInfoError(error: Throwable): String {
         val message = describe(error)
         return if (isNetworkError(message)) {
             "Сеть ограничивает доступ к yt-dlp: $message"
@@ -639,7 +639,7 @@ class NovaDownloadPlugin(private val activity: Activity) : Plugin(activity) {
         }
     }
 
-    private fun describe(error: Exception): String {
+    private fun describe(error: Throwable): String {
         val parts = mutableListOf<String>()
         var current: Throwable? = error
         var depth = 0
