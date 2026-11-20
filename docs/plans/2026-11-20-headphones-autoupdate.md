@@ -61,3 +61,12 @@ from the project’s GitHub Releases.
   - `02:28:28.632 player piid:695 state:paused` — Nova paused on unplug.
   - `02:28:43.181 player piid:695 state:started` — Nova resumed on reconnect.
 - `/sdcard/Music` was not modified; the library scan was read-only.
+
+## Release
+
+- Replaced the `v0.1.0` asset `Nova-0.1.0-android-arm64.apk` on GitHub Releases
+  with the verified APK (67 811 263 bytes, SHA-256
+  `2d9ef4376b3514b23980def9ccdb453998884f667b0d6677d3ecd86ed7c1721b`).
+- The version stays `0.1.0`, so existing `0.1.0` installations correctly report
+  “already up to date”. A future version bump will deliver these features
+  through the in-app updater; new installs of the release already contain them.
