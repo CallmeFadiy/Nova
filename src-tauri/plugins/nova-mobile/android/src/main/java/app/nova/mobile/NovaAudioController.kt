@@ -90,6 +90,7 @@ class NovaAudioController(private val context: Context) {
     }
 
     fun pause() {
+        NovaPlaybackService.onUserPause()
         withController { it.pause() }
     }
 

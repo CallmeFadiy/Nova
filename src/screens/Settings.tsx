@@ -1,4 +1,5 @@
-import type { CSSProperties } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
+import { getVersion } from "@tauri-apps/api/app";
 import {
   Bell,
   BellRing,
@@ -6,6 +7,7 @@ import {
   Image,
   Info,
   Play,
+  RefreshCw,
   RotateCcw,
   Sun,
   Trash2,
@@ -13,7 +15,7 @@ import {
 } from "lucide-react";
 import { ScanButton } from "../components/ScanButton";
 import { errorText } from "../lib/errors";
-import { api, backgroundUrl, pickFolder, pickImage } from "../lib/tauri";
+import { api, backgroundUrl, isTauri, pickFolder, pickImage } from "../lib/tauri";
 import { isAndroid } from "../lib/platform";
 import {
   NOTIFICATION_SOUND_OPTIONS,
@@ -24,6 +26,7 @@ import { useConfirmStore } from "../store/confirm";
 import { useLibraryStore, visibleTracks } from "../store/library";
 import { useSettingsStore } from "../store/settings";
 import { useUiStore } from "../store/ui";
+import { useUpdateStore } from "../store/update";
 import type { Theme } from "../types";
 
 const THEMES: Array<{
@@ -86,6 +89,17 @@ export function Settings() {
   );
   const autoScan = useSettingsStore((state) => state.autoScan);
   const setAutoScan = useSettingsStore((state) => state.setAutoScan);
+  const resumeOnHeadphones = useSettingsStore(
+    (state) => state.resumeOnHeadphones,
+  );
+  const setResumeOnHeadphones = useSettingsStore(
+    (state) => state.setResumeOnHeadphones,
+  );
+  const autoUpdate = useSettingsStore((state) => state.autoUpdate);
+  const setAutoUpdate = useSettingsStore((state) => state.setAutoUpdate);
+  const checkUpdates = useUpdateStore((state) => state.check);
+  const updateStatus = useUpdateStore((state) => state.status);
+  const [version, setVersion] = useState("0.1.0");
   const notificationSound = useSettingsStore(
     (state) => state.notificationSound,
   );
@@ -101,6 +115,13 @@ export function Settings() {
 
   const visible = visibleTracks(tracks);
   const totalSize = visible.reduce((sum, track) => sum + track.size, 0);
+
+  useEffect(() => {
+    if (!isTauri) return;
+    void getVersion()
+      .then(setVersion)
+      .catch(() => undefined);
+  }, []);
 
   const handleAddFolder = async () => {
     try {
@@ -460,6 +481,28 @@ export function Settings() {
             {autoplayOnStart ? "Включено" : "Выключено"}
           </button>
         </div>
+        {isAndroid ? (
+          <div className="settings-row">
+            <div className="settings-row-main">
+              <strong>Продолжать при подключении наушников</strong>
+              <span>
+                Возобновлять трек, если он был остановлен отсоединением наушников
+              </span>
+            </div>
+            <button
+              className={`toggle-button${resumeOnHeadphones ? " is-on" : ""}`}
+              onClick={() => {
+                const enabled = !resumeOnHeadphones;
+                setResumeOnHeadphones(enabled);
+                void api
+                  .androidSetResumeOnHeadphones(enabled)
+                  .catch((error) => notify(errorText(error), "error"));
+              }}
+            >
+              {resumeOnHeadphones ? "Включено" : "Выключено"}
+            </button>
+          </div>
+        ) : null}
         <div className="settings-row">
           <div className="settings-row-main">
             <strong>Хранилище</strong>
@@ -471,13 +514,52 @@ export function Settings() {
         </div>
       </section>
 
+      {isAndroid ? (
+        <section className="settings-section">
+          <div className="settings-section-head">
+            <h2 className="serif">Обновления</h2>
+            <span className="settings-badge">Android</span>
+          </div>
+          <div className="settings-row">
+            <div className="settings-row-main">
+              <strong>Автообновление</strong>
+              <span>Проверять GitHub Releases при запуске Nova</span>
+            </div>
+            <button
+              className={`toggle-button${autoUpdate ? " is-on" : ""}`}
+              onClick={() => setAutoUpdate(!autoUpdate)}
+            >
+              {autoUpdate ? "Включено" : "Выключено"}
+            </button>
+          </div>
+          <div className="settings-row">
+            <div className="settings-row-main">
+              <strong>Версия {version}</strong>
+              <span>
+                {updateStatus === "checking"
+                  ? "Проверяю обновления…"
+                  : "APK скачивается и проверяется внутри Nova"}
+              </span>
+            </div>
+            <button
+              className="secondary-button"
+              onClick={() => void checkUpdates(false)}
+              disabled={updateStatus === "checking"}
+            >
+              <RefreshCw size={14} />
+              Проверить
+            </button>
+          </div>
+        </section>
+      ) : null}
+
       <section className="settings-section about-section">
         <img src="/icon.png" alt="" className="about-icon" />
         <div>
           <h2 className="serif">Nova</h2>
           <p>Локальный медиаплеер для Windows и Android.</p>
           <span>
-            Версия 0.1.0 · Tauri 2 · музыка остаётся на устройстве
+            Версия {version} · Tauri 2 · музыка остаётся на устройстве
           </span>
         </div>
         <Info size={18} className="about-info" />

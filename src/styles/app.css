@@ -5416,6 +5416,114 @@ body {
   font-size: 9px;
 }
 
+/* Android update prompt. */
+.update-modal {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.update-loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.update-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.update-progress-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.update-progress-head strong {
+  color: var(--accent);
+}
+
+.update-progress-track {
+  height: 5px;
+  overflow: hidden;
+  background: var(--line);
+}
+
+.update-progress-track span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transition: width 140ms linear;
+}
+
+.update-notes {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-height: 0;
+}
+
+.update-notes strong {
+  color: var(--ink);
+  font-size: 11px;
+}
+
+.update-notes pre {
+  max-height: 180px;
+  margin: 0;
+  overflow: auto;
+  color: var(--muted);
+  font-family: inherit;
+  font-size: 10px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.update-hash {
+  margin: 0;
+  color: var(--faint);
+  font-size: 8px;
+  word-break: break-all;
+}
+
+.update-hash code {
+  font-size: 8px;
+}
+
+.update-permission,
+.update-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 9px;
+  border: 1px solid var(--line-soft);
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.update-permission svg {
+  flex: none;
+  color: var(--accent);
+}
+
+.update-permission p,
+.update-error p {
+  margin: 0;
+}
+
+.update-error {
+  border-color: #4b2421;
+  color: #d8867e;
+}
+
 /* Compact duplicate picker for phones: choose what to keep, then confirm. */
 .duplicate-dialog.is-compact {
   padding: 12px 14px calc(12px + env(safe-area-inset-bottom, 0px));

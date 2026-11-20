@@ -17,6 +17,8 @@ interface SettingsState {
   theme: Theme;
   autoplayOnStart: boolean;
   autoScan: boolean;
+  resumeOnHeadphones: boolean;
+  autoUpdate: boolean;
   setAppBackground: (path: string | null) => void;
   setNowBackground: (path: string | null) => void;
   setBackgroundDim: (value: number) => void;
@@ -29,6 +31,8 @@ interface SettingsState {
   setTheme: (value: Theme) => void;
   setAutoplayOnStart: (value: boolean) => void;
   setAutoScan: (value: boolean) => void;
+  setResumeOnHeadphones: (value: boolean) => void;
+  setAutoUpdate: (value: boolean) => void;
 }
 
 export const useSettingsStore = create<SettingsState>()(
@@ -46,6 +50,8 @@ export const useSettingsStore = create<SettingsState>()(
       theme: "nocturne",
       autoplayOnStart: false,
       autoScan: true,
+      resumeOnHeadphones: false,
+      autoUpdate: true,
       setAppBackground: (path) => set({ appBackground: path }),
       setNowBackground: (path) => set({ nowBackground: path }),
       setBackgroundDim: (value) =>
@@ -60,6 +66,8 @@ export const useSettingsStore = create<SettingsState>()(
       setTheme: (value) => set({ theme: value }),
       setAutoplayOnStart: (value) => set({ autoplayOnStart: value }),
       setAutoScan: (value) => set({ autoScan: value }),
+      setResumeOnHeadphones: (value) => set({ resumeOnHeadphones: value }),
+      setAutoUpdate: (value) => set({ autoUpdate: value }),
     }),
     {
       name: "nova-settings",

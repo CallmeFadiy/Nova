@@ -130,7 +130,7 @@ pub fn get_snapshot(state: State<'_, AppState>) -> Result<Snapshot, String> {
 }
 
 #[cfg(target_os = "android")]
-fn run_mobile_command<T, P>(app: &AppHandle, command: &str, payload: P) -> Result<T, String>
+pub(crate) fn run_mobile_command<T, P>(app: &AppHandle, command: &str, payload: P) -> Result<T, String>
 where
     T: serde::de::DeserializeOwned,
     P: Serialize,
@@ -448,6 +448,32 @@ struct AudioQueuePayload {
     position_ms: i64,
     autoplay: bool,
     repeat: String,
+}
+
+#[cfg(target_os = "android")]
+#[derive(serde::Serialize)]
+struct ResumeOnHeadphonesPayload {
+    enabled: bool,
+}
+
+#[tauri::command]
+pub fn android_set_resume_on_headphones(
+    app: AppHandle,
+    enabled: bool,
+) -> Result<(), String> {
+    #[cfg(target_os = "android")]
+    {
+        let _: serde_json::Value = run_mobile_command(
+            &app,
+            "setResumeOnHeadphones",
+            ResumeOnHeadphonesPayload { enabled },
+        )?;
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        let _ = (app, enabled);
+    }
+    Ok(())
 }
 
 #[tauri::command]

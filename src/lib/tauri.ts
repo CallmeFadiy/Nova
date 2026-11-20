@@ -30,6 +30,9 @@ import type {
   TagEncodingResult,
   Track,
   TrackHash,
+  UpdateInfo,
+  UpdateInstallResult,
+  UpdateProgress,
 } from "../types";
 
 export const isTauri =
@@ -251,6 +254,26 @@ export const api = {
 
   androidPickFolder(): Promise<string | null> {
     return call<string | null>("android_pick_folder");
+  },
+
+  androidSetResumeOnHeadphones(enabled: boolean): Promise<void> {
+    return call<void>("android_set_resume_on_headphones", { enabled });
+  },
+
+  updateCheck(): Promise<UpdateInfo | null> {
+    return call<UpdateInfo | null>("update_check");
+  },
+
+  updateDownload(
+    url: string,
+    name: string,
+    sha256: string | null,
+  ): Promise<string> {
+    return call<string>("update_download", { url, name, sha256 });
+  },
+
+  updateInstall(path: string): Promise<UpdateInstallResult> {
+    return call<UpdateInstallResult>("update_install", { path });
   },
 
   androidAudioSetQueue(
@@ -1007,6 +1030,15 @@ export async function listenOpenFileError(
   return () => {
     void listener.unregister();
   };
+}
+
+export async function listenUpdateProgress(
+  callback: (progress: UpdateProgress) => void,
+): Promise<UnlistenFn> {
+  if (!isTauri) return () => undefined;
+  return listen<UpdateProgress>("update-progress", (event) =>
+    callback(event.payload),
+  );
 }
 
 export async function listenRecognitionLevel(

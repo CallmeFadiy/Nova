@@ -267,3 +267,24 @@ export interface NativeAudioState {
   ended: boolean;
   repeat?: string;
 }
+
+export interface UpdateInfo {
+  currentVersion: string;
+  version: string;
+  tag: string;
+  notes: string;
+  assetName: string;
+  assetUrl: string;
+  size: number;
+  sha256: string | null;
+}
+
+export interface UpdateProgress {
+  downloaded: number;
+  total: number;
+}
+
+export interface UpdateInstallResult {
+  needsPermission?: boolean;
+  started?: boolean;
+}

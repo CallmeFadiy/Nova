@@ -9,6 +9,7 @@ mod models;
 mod recognition;
 mod scanner;
 mod text_encoding;
+mod updater;
 
 use std::sync::Mutex;
 use tauri::Manager;
@@ -71,6 +72,10 @@ pub fn run() {
             commands::android_request_ignore_battery,
             commands::android_open_battery_settings,
             commands::android_open_autostart_settings,
+            commands::android_set_resume_on_headphones,
+            updater::update_check,
+            updater::update_download,
+            updater::update_install,
             commands::android_audio_set_queue,
             commands::android_audio_play,
             commands::android_audio_pause,

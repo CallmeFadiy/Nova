@@ -18,6 +18,7 @@ import { QueuePanel } from "./components/QueuePanel";
 import { Sidebar } from "./components/Sidebar";
 import { Toasts } from "./components/Toasts";
 import { TrackActionsModal } from "./components/TrackActionsModal";
+import { UpdateModal } from "./components/UpdateModal";
 import {
   api,
   backgroundUrl,
@@ -40,6 +41,7 @@ import { usePlayerStore } from "./store/player";
 import { useSelectionStore } from "./store/selection";
 import { useSettingsStore } from "./store/settings";
 import { useUiStore } from "./store/ui";
+import { useUpdateStore } from "./store/update";
 
 export default function App() {
   const location = useLocation();
@@ -123,9 +125,14 @@ export default function App() {
   const theme = useSettingsStore((state) => state.theme);
   const autoScan = useSettingsStore((state) => state.autoScan);
   const autoplayOnStart = useSettingsStore((state) => state.autoplayOnStart);
+  const resumeOnHeadphones = useSettingsStore(
+    (state) => state.resumeOnHeadphones,
+  );
+  const autoUpdate = useSettingsStore((state) => state.autoUpdate);
 
   const hydrated = useRef(false);
   const autoScanStarted = useRef(false);
+  const updateCheckStarted = useRef(false);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -154,6 +161,26 @@ export default function App() {
     autoScanStarted.current = true;
     void scan();
   }, [loading, autoScan, folders.length, scan]);
+
+  // Android: the playback service keeps its own process-lifetime copy of the
+  // headphone preference, so push the persisted value after startup and after
+  // every change in Settings.
+  useEffect(() => {
+    if (!isAndroid) return;
+    void api
+      .androidSetResumeOnHeadphones(resumeOnHeadphones)
+      .catch(() => {
+        // The service falls back to "off" if the bridge is unavailable.
+      });
+  }, [resumeOnHeadphones]);
+
+  // Android auto-update: check once at startup when enabled. Silent here means
+  // "no toast when up to date"; an available release still opens the modal.
+  useEffect(() => {
+    if (!isAndroid || !autoUpdate || updateCheckStarted.current) return;
+    updateCheckStarted.current = true;
+    void useUpdateStore.getState().check(true);
+  }, [autoUpdate]);
 
   useEffect(() => {
     if (loading || tracks.length === 0 || hydrated.current) return;
@@ -213,6 +240,11 @@ export default function App() {
     let unlisten: (() => void) | undefined;
     void onBackButtonPress(({ canGoBack }) => {
       const ui = useUiStore.getState();
+      const update = useUpdateStore.getState();
+      if (update.open) {
+        update.close();
+        return;
+      }
       if (ui.nowPlayingOpen) {
         ui.setNowPlayingOpen(false);
         return;
@@ -411,6 +443,7 @@ export default function App() {
       <EditTrackModal />
       <MergeAlbumsModal />
       <PostScanChecks />
+      <UpdateModal />
       <ConfirmDialog />
       <Toasts />
       {!isTauri ? <div className="demo-badge">Демо-режим браузера</div> : null}
